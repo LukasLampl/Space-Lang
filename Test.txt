@@ -1,0 +1,54 @@
+### VARIABLES ###
+var a = 10;
+var a[5][10] = {{10}};
+var a,b;
+const a = 15;
+var a = (a < 10) ? a : b;
+
+### CLASS CALL ###
+Obj b = new Obj(par1, par2);
+Obj b = new Obj[4];
+
+### FUNCTION ###
+function test(param1, param2) {}
+global function test(param1, param2) {}
+
+### IF ###
+if (a < 10 and b == 20 or c >= 30) {} else if (c < 10 and b > 30) {} else {}
+
+### WHILE ###
+while (a < 10 and b == 20) {}
+
+### DO ###
+do {} while (a < 10 and b == 20)
+
+### TRY ###
+try {} catch (Exception) {}
+
+### FOR ###
+for (i = 0; i < 5; i++) {}
+
+### CHECK ###
+check (a) {
+    is 10:
+    is 20:
+}
+
+### INSERT ###
+insert "myTest.lib"
+
+### CLASS ###
+class obj(param1, param2) => {}
+
+class Obj with Object  => {}
+
+constructor::obj(param1) {}
+
+### ENUM ###
+enum Test {
+    a : 10,
+    b : 20
+}
+
+### FUNCTION CALL ###
+a(param1, param2);

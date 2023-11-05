@@ -1,0 +1,125 @@
+#
+THIS IS THE OFFICIAL GRAMMAR DEFINITION FILE FOR THE SPACE LANGUAGE, 
+MODIFYING ANYTHING IN THIS FILE COULD RESULT IN HEAVELY ERRORS AND
+COMPILING PROBLEMS OR EVEN BREAK THE WHOLE COMPILER! IF YOU DON'T 
+KNOW HOW TO HANDLE WITH THIS FILE OR HOW TO CHANGE THINGS SAFELY, 
+DON'T CHANGE ANYTHING! CHANGING SOMETHING AT YOUR OWN RISK!
+
+THE DEFINITION IS EXTENDABLE, IF THE NOTATION RULES ARE CORRECTLY
+USED AND THE CODE PROPERLY EXTENDED.
+#
+
+[DIGIT]                 ::= "0" / "1" / "2" / "3" / "4" / "5" / "6" / "7" / "8" / "9" $_
+[LETTER]                ::= "A" / "B" / "C" / "D" / "E" / "F" / "G" / "H" / "I" / "J" / "K" / "L" / "M" / "N" / "O" / "P" / "Q" / "R" / "S" / "T" / "U" / "V" / "W" / "X" / "Y" / "Z" / "a" / "b" / "c" / "d" / "e" / "f" / "g" / "h" / "i" / "j" / "k" / "l" / "m" / "n" / "o" / "p" / "q" / "r" / "s" / "t" / "u" / "v" / "w" / "x" / "y" / "z" $_
+[BRACKET]               ::= "(" / ")" $_
+[BRACE]                 ::= "{" / "}" $_ 
+[SQUARE_BRACKET]        ::= "[" / "]" $_
+[RATIONAL_OPERATORS]    ::= "==" / "<=" / ">=" / "!=" / "<" / ">" / "!" $_
+[ARITHMETIC_OPERATOR]   ::= "+" / "-" / "*" / "%" / "/" / "^" $_
+[ASSIGNMENT_OPERATORS]  ::= "+=" / "-=" / "/=" / "*=" $_
+[INCREMENT_OPERATOR]    ::= "++" $_
+[DECREMENT_OPERATOR]    ::= "--" $_
+[UNDERSCORE]            ::= "_" $_
+[BOOL]                  ::= "true" / "false" $_
+[MODIFIER]              ::= "global" / "secure" / "private" $_
+[QUOTE]                 ::= \" $_
+[LOGIC_OPERATOR]        ::= "and" / "or" / "!" $_
+
+#
+    _ = End of "rule"
+    $ = End of "x'th definition"
+    () = Group
+    * = can be repeated or can be there many times even 0 times
+    / = "or"
+#
+
+### IDENTIFIER ###
+<IDENTIFIER> ::= *[LETTER] / *[DIGIT] / *[UNDERSCORE] $_
+
+### EXPRESSION ###
+<EXPRESSION> ::= <TERM> $
+             ::  [LOGIC_OPERATOR] $
+             ::  <EXPRESSION> -> [ARITHMETIC_OPERATOR] -> <TERM> $
+             ::  <TERM> -> [ARITHMETIC_OPERATOR] -> <TERM> $
+             ::  <TERM> -> [ASSIGNMENT_OPERATORS] -> <TERM> $
+             ::  <TERM> -> [INCREMENT_OPERATOR] / [DECREMENT_OPERATOR] $_
+
+### ATOM ###
+<ATOM> ::= *<STRING> / *<IDENTIFIER> / *[BRACKET] $_
+
+### TERM ###
+<TERM> ::= *<IDENTIFIER> $
+       ::  <FUNCTION_CALL> $
+       ::  *<ATOM> -> [ARITHMETIC_OPERATOR] -> *<ATOM> $
+       ::  *<ATOM> -> [ASSIGNMENT_OPERATORS] -> *<ATOM> $_
+
+### STRING ###
+<STRING> ::= [QUOTE] -> *(<IDENTIFIER> / [ARITHMETIC_OPERATOR] / "=" / [BRACKET] / [BRACE] / [SQUARE_BRACKET]) -> [QUOTE] $_
+
+### FUNCTION CALL ###
+<FUNCTION_CALL> ::= *<IDENTIFIER> -> [BRACKET] -> *(<ATOM> -> ",") -> [BRACKET] $_ 
+
+### ASSIGNMENT ###
+<ASSIGNMENT> ::= "=" -> *<EXPRESSION> $
+             ::  "=" -> <STRING> $
+             ::  "=" -> <IDENTIFIER> $
+             ::  "=" -> [BOOL] $_
+
+### STATEMENT ###
+<STATEMENT> ::= *(<IDENTIFIER> / <TERM>) -> "=" -> *(<IDENTIFIER> / <TERM> / <STRING>) $
+            ::  *<ATOM> -> [ARITHMETIC_OPERATOR] -> *<ATOM> $_
+
+### ARRAY ELEMENT ###
+<ARRAY_ELEMENT> ::= [SQUARE_BRACKET] -> <EXPRESSION> -> [SQUARE_BRACKET] $_
+
+### SUMMON ###
+<VARIABLE> ::= "var" -> <IDENTIFIER> -> <ASSIGNMENT> -> ";" $
+           ::  "var" -> *(<IDENTIFIER> -> ",") -> *<ASSIGNMENT> -> ";" $
+           ::  "var" -> <IDENTIFIER> -> ";" $
+           ::  "var" -> *(<IDENTIFIER> -> ",") -> ";" $
+           ::  "var" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $
+           ::  "var" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> "=" -> *[BRACE] -> *<EXPRESSION> -> *[BRACE] -> ";" $
+           ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $
+           ::  "const" -> <IDENTIFIER> -> ";" $_
+
+### CLASS CALL ###
+<CLASS_CALL> ::= <IDENTIFIER> -> <IDENTIFIER> "=" -> "new" -> <FUNCTION_CALL> -> [BRACE] -> <RUNABLE> -> [BRACE] $
+             ::  <IDENTIFIER> -> <IDENTIFIER> -> "=" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $_
+
+### FUNCTION ###
+<FUNCTION> ::= "function" -> <FUNCTION_CALL> -> [BRACE] -> <RUNABLE -> [BRACE] $
+           ::  [MODIFIER] -> "function" -> <FUNCTION_CALL> -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+
+### IF ###
+<IF> ::= "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] -> *("else" -> "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) -> *("else" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) $_
+
+### WHILE ###
+<WHILE> ::= "while" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+
+### DO ###
+<DO> ::= "do" -> [BRACE] -> <RUNABLE> -> [BRACE] -> "while" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] $_
+
+### TRY ###
+<TRY> ::= "try" -> [BRACE] -> <RUNABLE> -> [BRACE] -> [BRACKET] -> *<IDENTIFIER> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+
+### FOR ###
+<FOR> ::= "for" -> [BRACKET] -> <TERM> -> ";" -> <EXPRESSION> -> ";" -> <EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+
+### CHECK ###
+<CHECK> ::= "check" -> [BRACKET] -> <IDENTIFIER> -> [BRACKET] -> [BRACE] -> *("is" -> <EXPRESSION> -> ":" -> RUNABLE) -> [BRACE] $_
+
+### INSERT ###
+<INSERT> ::= "insert" -> [QUOTE] -> *<IDENTIFIER> -> [QUOTE] $_
+
+### CLASS ###
+<CLASS> ::= "class" -> <FUNCTION_CALL> -> "=>" -> [BRACE] -> <RUNABLE> -> [BRACE] $
+        ::  "class" -> <FUNCTION_CALL> -> "with" -> *(<IDENTIFIER> -> ",") -> "=>" -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+
+### ENUM ###
+<ENUM> ::= "enum" -> <IDENTIFIER> -> [BRACE] -> *(<IDENTIFIER> -> *":" -> *<EXPRESSION>) -> [BRACE] $_
+
+### RUNABLE ###
+<RUNABLE> ::= *<FOR> / *<WHILE> / *<STATEMENT> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> $_
+
+### EXPORT ###
+<EXPORT> ::= "export" -> <IDENTIFIER> -> ";" $_
