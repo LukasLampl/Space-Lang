@@ -223,6 +223,8 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     if (LEXER_DISPLAY_USED_TIME == 1) {
         (void)print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
+    
+    (void)check(&(tokens[0]));
 
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
@@ -337,6 +339,10 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
             }
 
             jumpForward++;
+        }
+
+        if (input[currentInputIndex + jumpForward] != '"') {
+            (void)LEXER_UNFINISHED_STRING_EXCEPTION();
         }
 
         // Set the current tokentype to _STRING_ and add the quotes

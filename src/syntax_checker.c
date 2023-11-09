@@ -11,6 +11,9 @@
 //////////////////////////////   SYNTAX ANALYSIS   /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
+int is_string(const TOKEN *token);
+int is_identifier(const TOKEN *token);
+
 int is_letter(const char character);
 int is_number(const char character);
 int is_bracket(const char character);
@@ -21,17 +24,70 @@ int is_arithmetic_operator(const char character);
 int is_assignment_operator(const char *sequence);
 int is_increment_operator(const char *sequence);
 int is_decrement_operator(const char *sequence);
+int is_underscore(const char character);
 int is_bool(const char *sequence);
 int is_modifier(const char *sequence);
 int is_quote(const char character);
 int is_logic_operator(const char *sequence);
 
 
-void check() {
-    char *seq = "!";
+void check(TOKEN *token) {
+    //char *seq = "!";
 
-    printf("is_log: %i\n", is_logic_operator(seq));
+    printf("is_str: %i\n", is_string(token));
 }
+
+/*
+Purpose: Check whether a given value is written according to the STRING rule
+Return Type: int => 1 = is a string; 0 = is not a string
+Params: const TOKEN *token => Token to be checked
+*/
+int is_string(const TOKEN *token) {
+    if (token == NULL) {
+        (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
+    }
+
+    size_t tokenValueLength = (size_t)strlen(token->value);
+
+    if ((*token).value[0] == '"' && (*token).value[tokenValueLength - 1] == '"') {
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
+Purpose: Check whether a given value is written according to the IDENTIFIER rule
+Return Type: int => 1 = is an identifier; 0 = is not an identifier
+Params: const TOKEN *token => Token to be checked
+*/
+int is_identifier(const TOKEN *token) {
+    if (token == NULL) {
+        (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
+    }
+
+    size_t tokenValueLength = (size_t)strlen(token->value);
+
+    for (size_t i = 0; i < tokenValueLength; i++) {
+        char currentCharacter = (*token).value[i];
+
+        if ((int)is_letter(currentCharacter) == 1) {
+            continue;
+        } else if ((int)is_digit(currentCharacter) == 1 && i > 0) {
+            continue;
+        } else if ((int)is_underscore(currentCharacter) == 1) {
+            continue;
+        }
+
+        return 0;
+    }
+
+    return 1;
+}
+
+//////////////////////////////////////////////////
+////////////////  BASE FUNCTIONS  ////////////////
+//////////////////////////////////////////////////
 
 /*
 Purpose: Check whether a given character is a letter or not

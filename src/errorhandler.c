@@ -274,6 +274,14 @@ void STACK_UNDERFLOW_EXCEPTION() {
     }
 }
 
+void LEXER_UNFINISHED_STRING_EXCEPTION() {
+    printf("Unfinished string at end of file.");
+
+    if (FREE_MEMORY() == 1) {
+        exit(EXIT_SUCCESS);
+    }
+}
+
 /*
 Purpose: Throw an error, if a token doesn't match with the expected token
 Return Type: void
@@ -282,6 +290,14 @@ Params: char *value -> Problem token; char *awaited -> Expected token
 void SYNTAX_MISMATCH_EXCEPTION(char *value, char *awaited) {
     printf("Terminated compile process due to rule mismatch!\n");
     printf("Problem: \"%s\", awaited \"%s\"\n", value, awaited);
+
+    if (FREE_MEMORY() == 1) {
+        exit(EXIT_SUCCESS);
+    }
+}
+
+void SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION() {
+    printf("Terminated compile process due to token NULL, NULL can't be processed!\n");
 
     if (FREE_MEMORY() == 1) {
         exit(EXIT_SUCCESS);
