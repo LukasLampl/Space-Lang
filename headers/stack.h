@@ -3,8 +3,6 @@
 
 #define STACK_SIZE 64
 
-#include "../headers/Grammar.h"
-
 struct StackElement {
     struct Rule *rule;
     int optionNumber;

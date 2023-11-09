@@ -2,7 +2,6 @@
 #define SPACE_ERRORS_H_
 
 #include "../headers/modules.h"
-#include "../headers/Grammar.h"
 
 //////////////////////////////////////////////////////////////
 ///////////////////     ERROR HANDLING     ///////////////////
@@ -12,8 +11,6 @@ int FREE_MEMORY();
 
 void _init_error_token_cache_(TOKEN **tokens);
 void _init_error_buffer_cache_(char **buffer);
-void _init_error_grammar_buffer_cache_(char **grammarBuffer);
-void _init_error_rules_cache_(Rule **rules);
 
 void IO_FILE_EXCEPTION(char *Source, char *file);
 void IO_BUFFER_EXCEPTION(char *Step);
@@ -24,9 +21,6 @@ void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(const char **input, int pos, int maxBackP
 void LEXER_NULL_TOKEN_EXCEPTION();
 
 void PARSER_TOKEN_TRANSMISSION_EXCEPTION();
-void PARSER_RULE_RESERVATION_EXCEPTION();
-void PARSER_RULE_FILE_CORRUPTION_EXCEPTION();
-void PARSER_RULE_TRANSMISSION_EXCEPTION();
 
 void STACK_OVERFLOW_EXCEPTION();
 void STACK_UNDERFLOW_EXCEPTION();
@@ -35,7 +29,5 @@ void SYNTAX_MISMATCH_EXCEPTION(char *value, char *awaited);
 
 int FREE_BUFFER(char *buffer);
 int FREE_TOKENS(TOKEN *tokens);
-int FREE_GRAMMAR_BUFFER(char *buffer);
-int FREE_GRAMMAR_RULES(Rule *rules);
 
 #endif  // SPACE_ERRORS_H_

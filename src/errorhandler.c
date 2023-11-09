@@ -4,13 +4,10 @@
 #include <string.h>
 #include "../headers/modules.h"
 #include "../headers/errors.h"
-#include "../headers/Grammar.h"
 
 // Cache
 TOKEN *TokenCache = NULL;
 char *BufferCache = NULL;
-char *GrammarBufferCache = NULL;
-Rule *RulesCache = NULL;
 
 /*
 Purpose: Initialize the token array, so it can be freed at an error
@@ -28,24 +25,6 @@ Params: char **buffer -> Pointer to the buffer
 */
 void _init_error_buffer_cache_(char **buffer) {
     BufferCache = (*buffer);
-}
-
-/*
-Purpose: Initialize the grammar input buffer, so it can be freed at an error
-Return Type: void
-Params: char **grammarBuffer -> Pointer to the grammarBuffer
-*/
-void _init_error_grammar_buffer_cache_(char **grammarBuffer) {
-    GrammarBufferCache = (*grammarBuffer);
-}
-
-/*
-Purpose: Initialize the grammar rules, so it can be freed at an error
-Return Type: void
-Params: Rule **rules -> Pointer to the rules array
-*/
-void _init_error_rules_cache_(Rule **rules) {
-    RulesCache = (*rules);
 }
 
 /*
@@ -319,10 +298,8 @@ int FREE_MEMORY() {
 
     free += (int)FREE_BUFFER(BufferCache);
     free += (int)FREE_TOKENS(TokenCache);
-    free += (int)FREE_GRAMMAR_BUFFER(GrammarBufferCache);
-    free += (int)FREE_GRAMMAR_RULES(RulesCache);
 
-    if (free == 4) {
+    if (free == 2) {
         printf("\nProgram exited successful\n");
         return 1;
     }

@@ -14,7 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 
 // Functions
-void set_token_value_to_zero(TOKEN **tokens, int **tokenLengthsArray);
+void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray);
 void resize_tokens_value(TOKEN *token, size_t oldSize);
 int token_clearance_check(TOKEN *token);
 
@@ -38,7 +38,6 @@ void print_cpu_time(float cpu_time_used);
 TOKENTYPES fill_operator_type(char *value);
 TOKENTYPES fill_condition_type(char *value);
 
-int linecounter = 0;
 size_t maxlength = 0;
 size_t maxTokensLength = 0;
 int tokensreserved = 0;
@@ -62,25 +61,19 @@ struct kwLookup KeywordTable[] = {
     {"for", _KW_FOR_,},            {"this", _KW_THIS_},       {"this", _KW_THIS_}
 };
 
-// Operators
-char OPERATORS[] = {
-    '.', ',', '+', ';', '-', '/', '*', '^', '!', '=', '<', '>', '(',
-    ')', '[', ']', '{', '}', ':', '?', '$'
-};
-
 /*
 Purpose: Tokenize the passed input
-Return type: void
+Return Type: void
 Params: char **buffer => Input to tokenize; int **tokenLengths => Length of the individual tokens; const long *length => input length;
         const int *tokenLength => Required tokens to tokenize the whole input
 */
-void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, const size_t requiredTokenLength) {
+void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fileLength, const size_t requiredTokenLength) {
     TOKEN *tokens = NULL;
     char *input = *buffer;
     
     // TOKEN defined in modules.h
     tokens = (struct TOKEN*)malloc((requiredTokenLength + 2) * sizeof(struct TOKEN));
-    maxlength = *length;
+    maxlength = *fileLength;
     maxTokensLength = requiredTokenLength + 1;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
@@ -88,7 +81,7 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
         (void)IO_BUFFER_RESERVATION_EXCEPTION();
     }
     
-    (void)set_token_value_to_zero(&tokens, tokenLengthsArray);
+    (void)set_token_value_to_awaited_size(&tokens, arrayOfIndividualTokenSizes);
     tokensreserved = 1;
 
     // Set a pointer on the token array to free it, when the program crashes or ends
@@ -105,7 +98,7 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
         start = (clock_t)clock();
     }
     
-    for (size_t i = 0; i < *length; i++) {
+    for (size_t i = 0; i < *fileLength; i++) {
         // When the input character at index i is a hashtag, then skip the input till the next hashtag
         if (input[i] == '#') { 
             i += (int)skip_comment(input, i);
@@ -136,7 +129,7 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
             continue;
         }
 
-        if (i + 1 == *length) {
+        if (i + 1 == *fileLength) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
         }
 
@@ -144,7 +137,7 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
         if (isWhiteSpace) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
 
-            i += (int)skip_whitespaces(input, *length, i);
+            i += (int)skip_whitespaces(input, *fileLength, i);
 
             // If the current token is already filled or not, if then add "\0" to close the string  
             if ((int)token_clearance_check(&(tokens[storagePointer]))) { 
@@ -163,9 +156,10 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
         // Execute if input at i is an operator
         } else if (isOperator) {
             // Check if the TOKEN could be a FLOAT or not
-            if (input[i] == '.' && ((int)isdigit(input[i - 1]) || (int)isdigit(input[i + 1]))) {
-                (void)put_type_float_in_token(&tokens[storagePointer], storageIndex);
+            if (input[i] == '.' 
+                && ((int)is_digit(input[i - 1]) && (int)is_digit(input[i + 1]))) {
 
+                (void)put_type_float_in_token(&tokens[storagePointer], storageIndex);
                 storageIndex++;
                 continue;
             }
@@ -202,7 +196,8 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
                 tokens[storagePointer].value[storageIndex++] = input[i];
                 (void)check_for_number(&tokens[storagePointer]);
 
-                if (tokens[storagePointer].type != _FLOAT_ && tokens[storagePointer].type != _NUMBER_) {
+                if (tokens[storagePointer].type != _FLOAT_
+                    && tokens[storagePointer].type != _NUMBER_) {
                     tokens[storagePointer].type = _IDENTIFIER_;
                 }
             }
@@ -232,7 +227,7 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
     ////////////////////////////////////////
-    (void)FREE_TOKEN_LENGTHS(*tokenLengthsArray);
+    (void)FREE_TOKEN_LENGTHS(*arrayOfIndividualTokenSizes);
     (void)Generate_Parsetree(&tokens, (size_t)storagePointer + 1);
 
     // Free the tokens
@@ -242,10 +237,10 @@ void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, cons
 
 /*
 Purpose: Allocate memory for the individual tokens by the tokenLengths to minimize memory usage
-Return type: void
+Return Type: void
 Params: TOKEN **tokens => Pointer to the clear token array; int **tokenLengths => Length of the individual tokens
 */
-void set_token_value_to_zero(TOKEN **tokens, int **tokenLengthsArray) {
+void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray) {
     if (*tokens != NULL) {
         for (int i = 0; i < maxTokensLength; i++) {
             // Calloc as much space as predicted; Tokens at i has the value length of tokenLengths at i
@@ -262,7 +257,7 @@ void set_token_value_to_zero(TOKEN **tokens, int **tokenLengthsArray) {
 
 /*
 Purpose: Resize the value of a token
-Return type: void
+Return Type: void
 Params: TOKEN *token => Token to resize its value; size_t oldSize => current size / length of the value memeber
 */
 void resize_tokens_value(TOKEN *token, size_t oldSize) {
@@ -283,7 +278,7 @@ void resize_tokens_value(TOKEN *token, size_t oldSize) {
 
 /*
 Purpose: Check if the current token is used or not
-Return type: int => 1 = true; 0 = false;
+Return Type: int => 1 = true; 0 = false;
 Params: TOKEN *token => Token to check its value
 */
 int token_clearance_check(TOKEN *token) {
@@ -298,7 +293,7 @@ int token_clearance_check(TOKEN *token) {
 
 /*
 Purpose: Skip the input until a second '#' appears
-Return type: int => How many characters got skipped
+Return Type: int => How many characters got skipped
 Params: const char *input => The whole input; const size_t currentIndex => Position from where to start to search for another '#'
 */
 int skip_comment(const char *input, const size_t currentIndex) {
@@ -306,7 +301,8 @@ int skip_comment(const char *input, const size_t currentIndex) {
     int jumpForward = 1;
 
     // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
-    while (input[currentIndex + jumpForward] != '#' && (jumpForward + currentIndex) < maxlength) {
+    while ((input[currentIndex + jumpForward] != '#')
+            && (jumpForward + currentIndex) < maxlength) {
         jumpForward++;
     }
 
@@ -315,7 +311,7 @@ int skip_comment(const char *input, const size_t currentIndex) {
 
 /*
 Purpose: Put a string into the current token
-Return type: int => How many chars to skip
+Return Type: int => How many chars to skip
 Params: TOKEN *token => Current Token to write in; const char *input => Source code;
         const size_t currentInputIndex => Index at where to start writing the string;
         const char *crucial_character => Character: ' or "
@@ -379,7 +375,7 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
 
 /*
 Purpose: Skip all whitespaces to the next possible token
-Return type: int => Characters to skip over
+Return Type: int => Characters to skip over
 Params: const char *input => Input to be processed; int maxLength => Length of the buffer;
         size_t currentInputIndex => Current character position;
 */
@@ -388,10 +384,6 @@ int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex)
 
     while (((currentInputIndex + jumpForward) + 1) < maxLength
         && isspace(input[(currentInputIndex + jumpForward) + 1]) != 0) {
-        // Linecounter is only important for error handling
-        if (input[currentInputIndex + jumpForward] == '\n') {
-            linecounter++;
-        }
 
         jumpForward++;
         continue;
@@ -403,11 +395,11 @@ int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex)
 
 /*
 Purpose: Put the type _FLOAT_ into the token type
-Return type: void
+Return Type: void
 Params: TOKEN *token => Token to set its type to _FLOAT_; const size_t symbolIndex => current token value symbol position
 */
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
-        if (token != NULL && token->value != NULL) {
+    if (token != NULL && token->value != NULL) {
         token->type = _FLOAT_;
 
         if (token->size > symbolIndex) {
@@ -418,7 +410,7 @@ void put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
 
 /*
 Purpose: Write a class accessor symbol to the current token
-Return type: void
+Return Type: void
 Params: TOKEN *token => Token to which the symbol should be written to
 */
 void write_class_accessor_in_token(TOKEN *token) {
@@ -446,7 +438,7 @@ void write_class_accessor_in_token(TOKEN *token) {
 
 /*
 Purpose: Write the double operator into the current token
-Return type: int
+Return Type: int
 Params: TOKEN *token => Current token; const char *input => whole input; const size_t currentSymbolIndex => position of the input
 */
 int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex) {
@@ -463,7 +455,7 @@ int write_double_operator_in_token(TOKEN *token, const char *input, const size_t
 
 /*
 Purpose: Write the operator into the current token
-Return type: int
+Return Type: int
 Params: TOKEN *token => Current token; const char *input => whole input; const size_t currentSymbolIndex => position of the input
 */
 int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex) {
@@ -479,7 +471,7 @@ int write_default_operator_in_token(TOKEN *token, const char *input, const size_
 
 /*
 Purpose: Writes the EOF token into the current token
-Return type: void
+Return Type: void
 Params: TOKEN *token => Current token which should be the EOF token
 */
 void set_EOF_token(TOKEN *token) {
@@ -496,11 +488,15 @@ void set_EOF_token(TOKEN *token) {
 
 /*
 Purpose: Set the keyword type to the current token
-Return type: void
+Return Type: void
 Params: TOKEN *token => Token to set its token type
 */
 void set_keyword_type_to_token(TOKEN *token) {
     if (token != NULL && token->value != NULL) {
+        if (token->type == _NUMBER_ || token->type == _FLOAT_) {
+            return;
+        }
+
         TOKENTYPES type = (TOKENTYPES)set_keyword_type(token->value);
         token->type = type;
     }
@@ -508,11 +504,11 @@ void set_keyword_type_to_token(TOKEN *token) {
 
 /*
 Purpose: Check whether the input is a digit or not
-Return type: int => 1 = true; 0 = false;
+Return Type: int => 1 = true; 0 = false;
 Params: TOKEN *token => Token to check its value
 */
 int check_for_number(TOKEN *token) {
-    if ((int)isdigit(token->value[0]) && token->type != _FLOAT_) {
+    if ((int)is_digit(token->value[0]) && token->type != _FLOAT_) {
         token->type = _NUMBER_;
         return 1;
     }
@@ -521,23 +517,8 @@ int check_for_number(TOKEN *token) {
 }
 
 /*
-Purpose: Figure out if the input is an operator or not
-Return type: int => 1 = true; 0 = false;
-Params: char input => Compare the current character to the operators in the OPERATORS array
-*/
-int check_for_operator(char input) {
-    for (int i = 0; i < (sizeof(OPERATORS) / sizeof(OPERATORS[0])); i++) {
-        if (input == OPERATORS[i]) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-/*
 Purpose: Fill in the single character operators if they are an operator
-Return type: TOKENTYPES => Type of the operator (f.e. _OP_NOT_ for '!')
+Return Type: TOKENTYPES => Type of the operator (f.e. _OP_NOT_ for '!')
 Params: char *value => Character array to check for
 */
 TOKENTYPES fill_operator_type(char *value) {
@@ -579,7 +560,7 @@ TOKENTYPES fill_operator_type(char *value) {
 
 /*
 Purpose: Check if the input is a double operator and if, fill in the type of it
-Return type: TOKENTYPES => Type of the double operator (f.e. _OP_EQUALS_CONDITION_ for '==')
+Return Type: TOKENTYPES => Type of the double operator (f.e. _OP_EQUALS_CONDITION_ for '==')
 Params: char *value => Character array to check for double operators
 */
 TOKENTYPES fill_condition_type(char *value) {
@@ -609,7 +590,7 @@ TOKENTYPES fill_condition_type(char *value) {
 
 /*
 Purpose: Free the allocated token array
-Return type: int => 1 = sucessfully freed
+Return Type: int => 1 = sucessfully freed
 Params: TOKEN *tokens => Array to be freed
 */
 int FREE_TOKENS(TOKEN *tokens) {
@@ -630,7 +611,7 @@ int FREE_TOKENS(TOKEN *tokens) {
 
 /*
 Purpose: Check if the input at the position currentSymbolIndex is a double operator or not
-Return type: int => 1 = true; 0 = false;
+Return Type: int => 1 = true; 0 = false;
 Params: const char *input => Source; const size_t currentSymbolIndex => position of the current character
 */
 int check_for_double_operator(const char *input, const size_t currentSymbolIndex) {
@@ -652,7 +633,7 @@ int check_for_double_operator(const char *input, const size_t currentSymbolIndex
 
 /*
 Purpose: Prints out the values of the token array
-Return type: void
+Return Type: void
 Params: TOKEN *tokens => Token array to be printed; int currentTokenIndex => size of the token array
 */
 void print_result(TOKEN *tokens, size_t currenTokenIndex) {
@@ -669,7 +650,7 @@ void print_result(TOKEN *tokens, size_t currenTokenIndex) {
 
 /*
 Purpose: Returns the keyword type based on the passed value
-Return type: TOKENTYPES => Keyword in TOKENTYPES enum
+Return Type: TOKENTYPES => Keyword in TOKENTYPES enum
 Params: char *value => Value to be scanned for keyword
 */
 TOKENTYPES set_keyword_type(const char *value) {
@@ -684,7 +665,7 @@ TOKENTYPES set_keyword_type(const char *value) {
 
 /*
 Purpose: Print the used CPU time
-Return type: void
+Return Type: void
 Params: float cpu_time_used => Time to be printed
 */
 void print_cpu_time(float cpu_time_used) {

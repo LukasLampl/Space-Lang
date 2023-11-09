@@ -1,1 +1,1 @@
-var num = 120;
+var num = 10.3;

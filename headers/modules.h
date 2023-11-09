@@ -2,7 +2,6 @@
 #define SPACE_MODULES_H_
 
 #include "../headers/Token.h"
-#include "../headers/Grammar.h"
 #include "../headers/stack.h"
 
 // 1 = true; 0 = false
@@ -21,18 +20,16 @@
 //////////////////////////////////////
 
 int check_for_operator(char input);
-
-int is_space(char character); //input.c
+int is_space(char character);
+int is_digit(char character);
 
 // Lexing the input
-int FREE_TOKEN_LENGTHS(int *lengths);
-void Tokenize(char **buffer, int **tokenLengthsArray, const size_t *length, const size_t requiredTokenLength);
-
-// Tokenize Grammar
-void Process_Grammar();
+int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
+void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fileLength, const size_t requiredTokenLength);
 
 // Parse
-void Transmit_Grammar_To_Parsetree_Generator(Rule **rules);
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);
+
+void check();
 
 #endif  // SPACE_MODULES_H_

@@ -9,54 +9,54 @@
 /////////////////////////////////     Input     ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-void check_file_pointer(const FILE *fptr, char *directory);
-void check_file_length(const size_t *length, char *directory);
-void reserve_buffer(const size_t *length, char **buffer);
-int get_minimum_token_number(char **buffer, int **tokenLengths, const size_t *length);
-void reserve_token_lengths(const size_t *length, int **tokenLengthsArray);
-int check_double_operator(char currentInput, char NextInputChar);
+void check_file_pointer(const FILE *fptr, char *pathToSourceFile);
+void check_file_length(const size_t *length, char *pathToSourceFile);
+void reserve_buffer(const size_t *fileLength, char **buffer);
+int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *bufferLength);
+int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, char **buffer, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
+int set_operator_size(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
+int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
+void reserve_token_lengths(const size_t *fileLength, int **arrayOfIndividualTokenSizes);
+int check_double_operator(char currentInputChar, char NextInputChar);
 
 /*
 Purpose: Read in the source files to compile, then read in the grammar file and tokenize the whole input
-Return type: int
+Return Type: int
 Params: NULL
 */
 int main() {
-    const char *directory = "../SPACE/prgm.txt";
+    const char *pathToInputFile = "../SPACE/prgm.txt";
 
     // File to read
-    FILE *fptr = (FILE *)fopen((char *)directory, "r");
+    FILE *filePointer = (FILE *)fopen((char *)pathToInputFile, "r");
 
-    (void)check_file_pointer(fptr, (char *)directory);
+    (void)check_file_pointer(filePointer, (char *)pathToInputFile);
 
-    (void)fseek(fptr, 0L, SEEK_END);
-    const size_t length = (size_t)ftell(fptr);
+    (void)fseek(filePointer, 0L, SEEK_END);
+    const size_t fileLength = (size_t)ftell(filePointer);
 
-    (void)check_file_length(&length, (char *)directory);
+    (void)check_file_length(&fileLength, (char *)pathToInputFile);
 
     // Character buffer for all input symbols
     char *buffer = NULL;
-    int *tokenLenghtsArray = NULL;
-    (void)reserve_buffer(&length, &buffer);
-    (void)reserve_token_lengths(&length, &tokenLenghtsArray);
+    int *arrayOfIndividualTokenSizes = NULL;
+    (void)reserve_buffer(&fileLength, &buffer);
+    (void)reserve_token_lengths(&fileLength, &arrayOfIndividualTokenSizes);
     (void)_init_error_buffer_cache_(&buffer);
 
     // Go back to the start of the file
-    (void)rewind(fptr);
+    (void)rewind(filePointer);
 
     // Read the contents of the file into the buffer
-    (void)fread(buffer, sizeof(char), length, fptr);
+    (void)fread(buffer, sizeof(char), fileLength, filePointer);
 
-    // Get Grammar ready
-    (void)Process_Grammar();
-
-    int requiredTokenLength = (int)get_minimum_token_number(&buffer, &tokenLenghtsArray, &length);
-    (void)Tokenize(&buffer, &tokenLenghtsArray, &length, requiredTokenLength);
-
+    int requiredTokenLength = (int)get_minimum_token_number(&buffer, &arrayOfIndividualTokenSizes, &fileLength);
+    (void)Tokenize(&buffer, &arrayOfIndividualTokenSizes, &fileLength, requiredTokenLength);
+    (void)check();
     (void)FREE_MEMORY();
-    (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", directory);
+    (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", pathToInputFile);
 
-    if (fclose(fptr) == EOF) {
+    if (fclose(filePointer) == EOF) {
         (void)IO_FILE_CLOSING_EXCEPTION();
     }
 
@@ -65,38 +65,41 @@ int main() {
 
 /*
 Purpose: Checks whether the file pointer is NULL or ot and adds a terminator character
-Return type: void
-Params: FILE *fptr => File Pointer; char *directory => Absolute or relative path to the file
+Return Type: void
+Params: FILE *fptr => File Pointer; 
+        char *pathToSourceFile => Absolute or relative path to the file
 */
-void check_file_pointer(const FILE *fptr, char *directory) {
+void check_file_pointer(const FILE *fptr, char *pathToSourceFile) {
     if (fptr == NULL) {
-        char source[64] = {'\0'};
-        (void)strncpy(directory, source, sizeof(source) - 1);
-        (void)IO_FILE_EXCEPTION((char *)source, "input");
+        char sourceFile[64] = {'\0'};
+        (void)strncpy(pathToSourceFile, sourceFile, 63);
+        (void)IO_FILE_EXCEPTION((char *)sourceFile, "input");
     }
 }
 
 /*
 Purpos: Checks if the file contains something or not
-Return type: void
-Params: const long *length => length of the file; char *directory => Absolute or relative path to the file
+Return Type: void
+Params: const long *length => Length of the file; 
+        char *pathToSourceFile => Absolute or relative path to the file
 */
-void check_file_length(const size_t *length, char *directory) {
+void check_file_length(const size_t *length, char *pathToSourceFile) {
     if (*length == 0) {
-        char source[64] = {'\0'};
-        (void)strncpy(directory, source, sizeof(source) - 1);
-        (void)IO_FILE_EXCEPTION((char *)source, "input");
+        char sourceFile[64] = {'\0'};
+        (void)strncpy(pathToSourceFile, sourceFile, 63);
+        (void)IO_FILE_EXCEPTION((char *)sourceFile, "input");
     }
 }
 
 /*
 Purpose: Reserves a part of the memory based on the file size for the buffer
-Return type: void
-Params: const long *length => length of the file; char **buffer => the buffer to which the memory is allocated to
+Return Type: void
+Params: const long *fileLength => Length of the file; 
+        char **buffer => The buffer to which the memory should be allocated
 */
-void reserve_buffer(const size_t *length, char **buffer) {
-    if (*length > 0) {
-        *buffer = (char*)calloc(*length, sizeof(char));
+void reserve_buffer(const size_t *fileLength, char **buffer) {
+    if (*fileLength > 0) {
+        *buffer = (char*)calloc(*fileLength, sizeof(char));
 
         if (*buffer == NULL) {
             (void)IO_BUFFER_RESERVATION_EXCEPTION();
@@ -106,14 +109,15 @@ void reserve_buffer(const size_t *length, char **buffer) {
 
 /*
 Purpose: Reserves a part of the memory for the individual token lengths
-Return type: void
-Params: const long *length => length of the file; int **tokenLengths => Array to store the predicted token size
+Return Type: void
+Params: const long *fileLength => Length of the file;
+        int **arrayOfIndividualTokenSizes => Array to store the predicted token size
 */
-void reserve_token_lengths(const size_t *length, int **tokenLengthsArray) {
-    if (*length > 0) {
-        *tokenLengthsArray = (int*)calloc(*length, sizeof(int));
+void reserve_token_lengths(const size_t *fileLength, int **arrayOfIndividualTokenSizes) {
+    if (*fileLength > 0) {
+        *arrayOfIndividualTokenSizes = (int*)calloc(*fileLength, sizeof(int));
 
-        if (*tokenLengthsArray == NULL) {
+        if (*arrayOfIndividualTokenSizes == NULL) {
             (void)IO_BUFFER_RESERVATION_EXCEPTION();
         }
     }
@@ -121,22 +125,22 @@ void reserve_token_lengths(const size_t *length, int **tokenLengthsArray) {
 
 /*
 Purpose: Determine how much Tokens are required for the file to be processed
-Return type: int => how much tokens
-Params: char **buffer => pointer to the file; int **tokenLengths => Array for the individual token lengths; const size_t *length => length of the buffer
+Return Type: int => how much tokens
+Params: char **buffer => Pointer to the buffer, which holds the source files content;
+        int **arrayOfIndividualTokenSizes => Array for the individual token lengths;
+        const size_t *bufferLength => Length of the buffer
 */
-int get_minimum_token_number(char **buffer, int **tokenLengths, const size_t *length) {
+int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *bufferLength) {
     int tokenNumber = 0;
     int comment = 0;
 
-    if (*buffer != NULL && *tokenLengths != NULL) {
-        int tokenLength = 1;
-
-        for (size_t i = 0; i < *length; i++) {
+    if (*buffer != NULL && *arrayOfIndividualTokenSizes != NULL) {
+        for (size_t i = 0; i < *bufferLength; i++) {
             // If input is a comment
             if ((*buffer)[i] == '#') {
                 int jumpForward = 0;
                 
-                while (i + jumpForward < *length && (*buffer)[i + jumpForward] != '#') {
+                while (i + jumpForward < *bufferLength && (*buffer)[i + jumpForward] != '#') {
                     jumpForward++;
                 }
 
@@ -150,50 +154,19 @@ int get_minimum_token_number(char **buffer, int **tokenLengths, const size_t *le
 
             // If input is start of a string
             if ((*buffer)[i] == '\"') {
-                tokenLength = 1;
-
-                // Skip the whole string till the end
-                while (i + tokenLength < *length && (*buffer)[i + tokenLength] != '\"') {
-                    tokenLength++;
-                }
-
-                i += tokenLength;
-
-                // "+2", 1 for the end quote and 1 for termination character
-                (*tokenLengths)[tokenNumber] = tokenLength + 2;
-
+                i += (int)skip_string(buffer, *bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber++;
-                tokenLength = 1;
                 continue;
             }
 
             if (isOperator) {
-                if (i + 1 < *length && (int)check_double_operator((*buffer)[i], (*buffer)[i + 1])) {
-                    (*tokenLengths)[tokenNumber] = 3;
-                    tokenNumber ++;
-                    i++;
-                    continue;
-                }
-
-                (*tokenLengths)[tokenNumber] = 2;
+                i += (int)set_operator_size(buffer, *bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber ++;
                 continue;
             }
 
             if (!isWhitespace && !isOperator) {
-                tokenLength = 1;
-
-                while (i + tokenLength < *length && !(int)is_space((*buffer)[i + tokenLength])
-                    && (!(int)check_for_operator((*buffer)[i + tokenLength])
-                    || (((*buffer)[i + tokenLength] == '.') && (isdigit((*buffer)[i + tokenLength - 1]) 
-                    || isdigit((*buffer)[i + tokenLength + 1]))))) {
-                    tokenLength ++;
-                }
-
-                (*tokenLengths)[tokenNumber] = tokenLength + 1;
-                
-                i += tokenLength - 1;
-                tokenLength = 1;
+                i += (int)add_identifiers(i, *bufferLength, buffer, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber ++;
                 continue;
             }
@@ -205,38 +178,99 @@ int get_minimum_token_number(char **buffer, int **tokenLengths, const size_t *le
 }
 
 /*
-Purpose: Check if the input is a double operator like "==" or "+="
-Return type: int => 1 = true; 0 = false;
-Params: char currentInput => the current character of the input; char NextChar => following character of the input
+Purpose: Skips everything, till it scans a comment, operator, whitespace, string ect.
+Return Type: int => How many chars to skip
+Params: size_t currentBufferCharacterPasition => Position of the current character in the buffer;
+        size_t bufferLength => Length of the buffer;
+        char **buffer => Buffer, in which the content of the source file can be found;
+        int **arrayOfIndividualTokens => Array in which the size of every token is stored;
+        size_t tokenNumber => Current token number that is processed
 */
-int check_double_operator(char currentInput, char NextInputChar) {
+int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, char **buffer, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber) {
+    int identifierLength = 1;
 
-    if ((currentInput == '+' || currentInput == '-' || currentInput == '/'
-        || currentInput == '*') && NextInputChar == '=') {
-        return 1;
+    while (currentBufferCharacterPosition + identifierLength < bufferLength
+        && !(int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength])
+        && (!(int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength])
+        || (((*buffer)[currentBufferCharacterPosition + identifierLength] == '.')
+        && (isdigit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) 
+        || isdigit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]))))) {
+        
+        identifierLength ++;
     }
 
-    if ((currentInput == '+' && NextInputChar == '+')
-        || (currentInput == '-' && NextInputChar == '-')
-        || (currentInput == '=' && NextInputChar == '=')) {
-        return 1;
+    (*arrayOfIndividualTokenSizes)[currentTokenNumber] = identifierLength + 1;
+    
+    return identifierLength - 1;
+}
+
+/*
+Purpose: Sets the size of the current integer in arrayOfIndividualTokens to the given operator size
+Return Type: int => 1 = double Operator; 0 = normal Operator
+Params: char **buffer => Buffer, in which the content of the source file can be found;
+        size_t bufferLength => Length of the buffer;
+        size_t currentBufferCharacterPasition => Position of the current character in the buffer;
+        int **arrayOfIndividualTokens => Array in which the size of every token is stored;
+        size_t tokenNumber => Current token number that is processed
+*/
+int set_operator_size(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber) {
+    if (currentBufferCharacterPosition + 1 < bufferLength) {
+        char currentCharacter = (*buffer)[currentBufferCharacterPosition];
+        char followingCharacter = (*buffer)[currentBufferCharacterPosition + 1];
+
+        if ((int)check_double_operator(currentCharacter, followingCharacter)) {
+            (*arrayOfIndividualTokenSizes)[currentTokenNumber] = 3;
+            return 1;
+        }
     }
 
-    if (currentInput == '-' && NextInputChar == '>') {
-        return 1;
-    }
-
+    (*arrayOfIndividualTokenSizes)[currentTokenNumber] = 2;
     return 0;
 }
 
 /*
-Purpose: Check if a character is a space character
-Return Type: int => 1 = is whitespace char; 0 = is not a whitespace char
-Params: char * character => Character to be checked
+Purpose: Skips a given string till the end and returns how many characters to skip
+Return Type: int => Count of how many characters to skip
+Params: const char **buffer => Buffer, that holds the source file content;
+        const size_t bufferLength => Length of the buffer;
+        const size_t currentBufferCharacterPosition => Poosition of the buffer reader or the position of the current character
+        int **arrayOfIndividualTokenSizes => Array with all the  sizes of every individual token;
+        const size_t currentTokenNumber => Position of the current token
 */
-int is_space(char character) {
-    if (character == ' ' || character == '\n' || character == '\r'
-        || character == '\t' || character == '\v') {
+int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber) {
+    size_t lengthOfString = 1;
+
+    // Skip the whole string till the end
+    while (currentTokenNumber + lengthOfString < bufferLength 
+            && (*buffer)[currentBufferCharacterPosition + lengthOfString] != '\"') {
+        lengthOfString++;
+    }
+
+    // "+2", 1 for the end quote and 1 for termination character
+    (*arrayOfIndividualTokenSizes)[currentTokenNumber] = lengthOfString + 2;
+    return lengthOfString;
+}
+
+/*
+Purpose: Check if the input is a double operator like "==" or "+="
+Return Type: int => 1 = true; 0 = false;
+Params: char currentInput => The current character of the input;
+        char NextChar => Following character of the input
+*/
+int check_double_operator(char currentInputChar, char NextInputChar) {
+
+    if ((currentInputChar == '+' || currentInputChar == '-' || currentInputChar == '/'
+        || currentInputChar == '*') && NextInputChar == '=') {
+        return 1;
+    }
+
+    if ((currentInputChar == '+' && NextInputChar == '+')
+        || (currentInputChar == '-' && NextInputChar == '-')
+        || (currentInputChar == '=' && NextInputChar == '=')) {
+        return 1;
+    }
+
+    if (currentInputChar == '-' && NextInputChar == '>') {
         return 1;
     }
 
@@ -245,7 +279,7 @@ int is_space(char character) {
 
 /*
 Purpose: Free the buffer
-Return type: int => 1 = freed the buffer
+Return Type: int => 1 = freed the buffer
 Params: char *buffer => Buffer to be freed
 */
 int FREE_BUFFER(char *buffer) {
@@ -255,10 +289,10 @@ int FREE_BUFFER(char *buffer) {
 
 /*
 Purpose: Free the token lengths array
-Return type: int => 1 = freed the array
-Params: int *lengths => the token lengths array to be freed
+Return Type: int => 1 = freed the array
+Params: int *arrayOfIndividualTokenSizes => The array of individual token lengths to be freed
 */
-int FREE_TOKEN_LENGTHS(int *lengths) {
-    (void)free(lengths);
+int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes) {
+    (void)free(arrayOfIndividualTokenSizes);
     return 1;
 }
