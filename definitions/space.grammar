@@ -8,7 +8,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 [BRACE]                 ::= "{" / "}" $_ 
 [SQUARE_BRACKET]        ::= "[" / "]" $_
 [RATIONAL_OPERATORS]    ::= "==" / "<=" / ">=" / "!=" / "<" / ">" $_
-[ARITHMETIC_OPERATOR]   ::= "+" / "-" / "*" / "%" / "/" / "^" $_
+[ARITHMETIC_OPERATOR]   ::= "+" / "-" / "*" / "%" / "/" $_
 [ASSIGNMENT_OPERATORS]  ::= "+=" / "-=" / "/=" / "*=" $_
 [INCREMENT_OPERATOR]    ::= "++" $_
 [DECREMENT_OPERATOR]    ::= "--" $_

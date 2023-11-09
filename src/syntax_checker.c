@@ -14,9 +14,23 @@
 int is_letter(const char character);
 int is_number(const char character);
 int is_bracket(const char character);
+int is_brace(const char character);
+int is_square_bracket(const char character);
+int is_rational_operator(const char *sequence);
+int is_arithmetic_operator(const char character);
+int is_assignment_operator(const char *sequence);
+int is_increment_operator(const char *sequence);
+int is_decrement_operator(const char *sequence);
+int is_bool(const char *sequence);
+int is_modifier(const char *sequence);
+int is_quote(const char character);
+int is_logic_operator(const char *sequence);
+
 
 void check() {
-    printf("is_bracket: %i\n", is_bracket(')'));
+    char *seq = "!";
+
+    printf("is_log: %i\n", is_logic_operator(seq));
 }
 
 /*
@@ -58,9 +72,142 @@ int is_number(const char character) {
 
 /*
 Purpose: Check whether a given character is a bracket or not
-Return Type: int => 1 = is bracket; 0 = not a bracket
+Return Type: int => 1 = is a bracket; 0 = not a bracket
 Params: const char character => Character to be checked
 */
 int is_bracket(const char character) {
     return (character == '(' || character == ')') ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given character is a brace or not
+Return Type: int => 1 = is a brace; 0 = not a brace
+Params: const char character => Character to be checked
+*/
+int is_brace(const char character) {
+    return (character == '{' || character == '}') ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given character is a square bracket or not
+Return Type: int => 1 = is a square bracket; 0 = not a square bracket
+Params: const char character => Character to be checked
+*/
+int is_square_bracket(const char character) {
+    return (character == '[' || character == ']') ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given sequence is a rational operator or not
+Return Type: int => 1 = is a rational operator; 0 = not a rational operator
+Params: const char *sequence => Sequence to be checked
+*/
+int is_rational_operator(const char *sequence) {
+    char rationalOperators[][3] = {"==", "<=", ">=", "!=", "<", ">"};
+
+    for (int i = 0; i < (sizeof(rationalOperators) / sizeof(rationalOperators[0])); i++) {
+        if (strcmp(sequence, rationalOperators[i]) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+Purpose: Check whether a given character is an arithmetic operator or not
+Return Type: int => 1 = is an arithmetic operator; 0 = not an arithmetic operator
+Params: const char character => Character to be checked
+*/
+int is_arithmetic_operator(const char character) {
+    switch (character) {
+    case '+':   case '-':   case '/':   case '*':   case '%':
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
+Purpose: Check whether a given sequence is an assignment operator or not
+Return Type: int => 1 = is an assignment operator; 0 = not an assignment operator
+Params: const char *sequence => Sequence to be checked
+*/
+int is_assignment_operator(const char *sequence) {
+    char assignmentOperator[][3] = {"+=", "-=", "*=", "/="};
+
+    for (int i = 0; i < (sizeof(assignmentOperator) / sizeof(assignmentOperator[0])); i++) {
+        if (strcmp(sequence, assignmentOperator[i]) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+Purpose: Check whether a given sequence is an increment operator or not
+Return Type: int => 1 = is an increment operator; 0 = not an increment operator
+Params: const char *sequence => Sequence to be checked
+*/
+int is_increment_operator(const char *sequence) {
+    return strcmp(sequence, "++") == 0 ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given sequence is a decrement operator or not
+Return Type: int => 1 = is a decrement operator; 0 = not a decrement operator
+Params: const char *sequence => Sequence to be checked
+*/
+int is_decrement_operator(const char *sequence) {
+    return strcmp(sequence, "--") == 0 ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given character is an underscore or not
+Return Type: int => 1 = is an underscore; 0 = not an underscore
+Params: const char character => Character to be checked
+*/
+int is_underscore(const char character) {
+    return character == '_' ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given sequence is a bool or not
+Return Type: int => 1 = is a bool; 0 = not a bool
+Params: const char *sequence => Sequence to be checked
+*/
+int is_bool(const char *sequence) {
+    return (strcmp(sequence, "true") == 0 || strcmp(sequence, "false") == 0) ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given sequence is a modifier or not
+Return Type: int => 1 = is a modifier; 0 = not a modifier
+Params: const char *sequence => Sequence to be checked
+*/
+int is_modifier(const char *sequence) {
+    return (strcmp(sequence, "global") == 0
+            || strcmp(sequence, "local") == 0
+            || strcmp(sequence, "secure") == 0) ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given character is a quote or not
+Return Type: int => 1 = is a quote; 0 = not a quote
+Params: const char character => Character to be checked
+*/
+int is_quote(const char character) {
+    return character == '"' ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given sequence is a logic operator or not
+Return Type: int => 1 = is a logic operator; 0 = not a logic operator
+Params: const char *sequence => Sequence to be checked
+*/
+int is_logic_operator(const char *sequence) {
+    return (strcmp(sequence, "and") == 0
+            || strcmp(sequence, "or") == 0
+            || strcmp(sequence, "!") == 0) ? 1 : 0;
 }
