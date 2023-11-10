@@ -11,6 +11,9 @@
 //////////////////////////////   SYNTAX ANALYSIS   /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
+int is_function_call(TOKEN **tokens, size_t currentTokenPosition);
+int work_down_function_call_parameters(TOKEN **tokens, size_t currentTokenPos);
+int is_atom(const TOKEN *token);
 int is_string(const TOKEN *token);
 int is_identifier(const TOKEN *token);
 
@@ -31,10 +34,107 @@ int is_quote(const char character);
 int is_logic_operator(const char *sequence);
 
 
-void check(TOKEN *token) {
+void check(TOKEN **tokens) {
     //char *seq = "!";
 
-    printf("is_str: %i\n", is_string(token));
+    printf("is_func: %i\n", is_function_call(tokens, 0));
+}
+
+/*
+Purpose: Check if a function call is going by the rule FUNCTION_CALL
+Return Type: int => Number of how many tokens got checked
+Params: TOKEN **tokens => Tokens array pointer with the function call;
+        size_t currentTokenPos => Position from where to start checking
+*/
+int is_function_call(TOKEN **tokens, size_t currentTokenPosition) {
+    int workedDownParameters = 0;
+    size_t checkedTokens = 0;
+
+    for (int i = currentTokenPosition; (*tokens)[i].type != __EOF__; i++) {
+        TOKEN currentToken = (*tokens)[i];
+
+        if (i - currentTokenPosition < 2 && currentToken.type == __EOF__) {
+            return 0;
+        }
+
+        if (i == 0 && (int)is_identifier(&currentToken) != 1) {
+            return 0;
+        } else if (i == 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
+            return 0;
+        } else if (i > 1 && workedDownParameters == 0) {
+            int tokensToSkip = (int)work_down_function_call_parameters(tokens, i);
+            checkedTokens += tokensToSkip;
+            i += tokensToSkip;
+            workedDownParameters = 1;
+            continue;
+        } else if (i > 1 && workedDownParameters == 1) {
+            if (currentToken.type != _OP_SEMICOLON_) {
+                return 0;
+            } else {
+                break;
+            }
+        }
+
+        checkedTokens ++;
+    }
+
+    return checkedTokens;
+}
+
+/*
+Purpose: Check if the parameters in a fuctioncall are valid or not
+Return Type: int => Number of how many tokens got checked
+Params: TOKEN **tokens => Tokens array pointer with the parameters to be checked;
+        size_t currentTokenPos => Position from where to start checking
+*/
+int work_down_function_call_parameters(TOKEN **tokens, size_t currentTokenPos) {
+    size_t i = currentTokenPos;
+
+    while ((*tokens)[i].type != _OP_LEFT_BRACKET_ && (*tokens)[i].type != __EOF__) {
+        if ((*tokens)[i + 1].type == _OP_LEFT_BRACKET_ && (*tokens)[i + 2].type != _OP_SEMICOLON_) {
+            return 0;
+        }
+
+        if (i % 2 == 0) {
+            if ((int)is_atom(&(*tokens)[i]) != 1) {
+                return 0;
+            }
+        } else {
+            if ((*tokens)[i].type != _OP_COMMA_ 
+                && ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
+                return 0;
+            }
+        }
+
+        i++;
+    }
+
+    if ((*tokens)[i].type == __EOF__) {
+        return 0;
+    }
+
+    return i - currentTokenPos;
+}
+
+/*
+Purpose: Check whether a given value is written according to the ATOM rule
+Return Type: int => 1 = is an ATOM; 0 = is not an ATOM
+Params: const TOKEN *token => Token to be checked
+*/
+int is_atom(const TOKEN *token) {
+    if (token == NULL) {
+        (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
+    }
+
+    if ((int)is_identifier(token) == 1) {
+        return 1;
+    } else if ((int)is_string(token) == 1) {
+        return 1;
+    } else if (token->type == _OP_LEFT_BRACKET_ || token->type == _OP_RIGHT_BRACKET_) {
+        return 1;
+    }
+
+    return 0;
 }
 
 /*
@@ -73,7 +173,7 @@ int is_identifier(const TOKEN *token) {
 
         if ((int)is_letter(currentCharacter) == 1) {
             continue;
-        } else if ((int)is_digit(currentCharacter) == 1 && i > 0) {
+        } else if ((int)is_number(currentCharacter) == 1 && i > 0) {
             continue;
         } else if ((int)is_underscore(currentCharacter) == 1) {
             continue;

@@ -224,7 +224,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         (void)print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
     
-    (void)check(&(tokens[0]));
+    (void)check(&(tokens));
 
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
