@@ -11,7 +11,9 @@
 //////////////////////////////   SYNTAX ANALYSIS   /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-int is_function_call(TOKEN **tokens, size_t currentTokenPosition);
+int is_runnable();
+int is_function(TOKEN **tokens, size_t currentTokenPosition);
+int is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
 int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction);
 int is_pointer(TOKEN **tokens, size_t currentTokenPosition);
 int is_reference(TOKEN **tokens, size_t currentTokenPosition);
@@ -36,40 +38,87 @@ int is_logic_operator(const char *sequence);
 void check(TOKEN **tokens) {
     //char *seq = "!";
 
-    printf("is_func: %i\n", is_function_call(tokens, 0));
+    printf("is_func: %i\n", is_function(tokens, 0));
+}
+
+int is_runnable() {
+    return 1;
+}
+
+int is_function(TOKEN **tokens, size_t currentTokenPosition) {
+    int index = currentTokenPosition;
+    
+    switch ((*tokens)[currentTokenPosition].type) {
+    case _KW_GLOBAL_:
+    case _KW_SECURE_:
+    case _KW_PRIVATE_:
+        index++;
+        break;
+    default:
+        break;
+    }
+
+    if ((*tokens)[index].type == _KW_FUNCTION_) {
+        int skipTokens = (int)is_function_call(tokens, index + 1, 1);
+
+        if (skipTokens == 0) {
+            return 0;
+        }
+
+        if ((*tokens)[index + skipTokens].type == _OP_RIGHT_BRACE_) {
+            int endOfRunnable = (int)is_runnable();
+            
+            if ((*tokens)[index + skipTokens + endOfRunnable].type == _OP_LEFT_BRACE_) {
+                return 1;
+            } else {
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    return 0;
 }
 
 /*
 Purpose: Check if a function call is going by the rule FUNCTION_CALL
 Return Type: int => Number of how many tokens got checked
 Params: TOKEN **tokens => Tokens array pointer with the function call;
-        size_t currentTokenPos => Position from where to start checking
+        size_t currentTokenPos => Position from where to start checking;
+        int inFunction => Determines, if the function call is in a function or called seperately
 */
-int is_function_call(TOKEN **tokens, size_t currentTokenPosition) {
+int is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction) {
     int workedDownParameters = 0;
     size_t checkedTokens = 0;
 
-    for (int i = currentTokenPosition; (*tokens)[i].type != __EOF__; i++) {
+    for (size_t i = currentTokenPosition; (*tokens)[i].type != __EOF__; i++) {
         TOKEN currentToken = (*tokens)[i];
 
         if (i - currentTokenPosition < 2 && currentToken.type == __EOF__) {
             return 0;
         }
-
-        if (i == 0 && (int)is_identifier(&currentToken) != 1) {
+        
+        if (i == currentTokenPosition && (int)is_identifier(&currentToken) != 1) {
             return 0;
-        } else if (i == 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
+        } else if (i == currentTokenPosition + 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
             return 0;
-        } else if (i > 1 && workedDownParameters == 0) {
-            int tokensToSkip = (int)is_parameter(tokens, i, 0);
+        } else if (i > currentTokenPosition + 1 && workedDownParameters == 0) {
+            int tokensToSkip = (int)is_parameter(tokens, i, inFunction);
+            
+            if (tokensToSkip == -1) {
+                return 0;
+            }
+            
             checkedTokens += tokensToSkip;
             i += tokensToSkip;
             workedDownParameters = 1;
             continue;
-        } else if (i > 1 && workedDownParameters == 1) {
+        } else if (i > currentTokenPosition + 1 && workedDownParameters == 1 && inFunction == 0) {
             if (currentToken.type != _OP_SEMICOLON_) {
                 return 0;
             } else {
+                checkedTokens ++;
                 break;
             }
         }
@@ -82,7 +131,7 @@ int is_function_call(TOKEN **tokens, size_t currentTokenPosition) {
 
 /*
 Purpose: Check if the parameters in a fuctioncall are valid or not
-Return Type: int => Number of how many tokens got checked
+Return Type: int => Number of how many tokens got checked; -1 = ERROR
 Params: TOKEN **tokens => Tokens array pointer with the parameters to be checked;
         size_t currentTokenPos => Position from where to start checking;
         int inFunction => Is the parameter checker caled as a function parameter or functioncall parameter?
@@ -92,8 +141,8 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
     int isCurrentlyComma = 0;
 
     while ((*tokens)[i].type != _OP_LEFT_BRACKET_ && (*tokens)[i].type != __EOF__) {
-        if ((*tokens)[i + 1].type == _OP_LEFT_BRACKET_ && (*tokens)[i + 2].type != _OP_SEMICOLON_) {
-            return 0;
+        if ((*tokens)[i + 1].type == _OP_LEFT_BRACKET_ && ((*tokens)[i + 2].type != _OP_SEMICOLON_ && inFunction == 0)) {
+            return -1;
         }
 
         switch (isCurrentlyComma) {
@@ -108,18 +157,18 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
                         i += is_reference(tokens, i);
                         break;
                     } else {
-                        return 0;
+                        return -1;
                     }
                 case 1:
                     if ((int)is_pointer(tokens, i) == 1) {
                         i++;
                         break;
                     } else {
-                        return 0;
+                        return -1;
                     }
 
                     if ((*tokens)[i].type == _OP_AND_) {
-                        return 0;
+                        return -1;
                     }
                 } 
                 
@@ -130,8 +179,7 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
         case 1:
             //Prevents that the user ends the parameter with a comma instead of IDENTFIER / ATOM
             if ((*tokens)[i].type != _OP_COMMA_ || ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
-                printf("IS\n");
-                return 0;
+                return -1;
             }
 
             isCurrentlyComma = 0;

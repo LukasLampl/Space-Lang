@@ -1,1 +1,1 @@
-add(&hu, *num2);
+global function add(num1, *num2) {}
