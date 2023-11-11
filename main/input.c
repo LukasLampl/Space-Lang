@@ -193,7 +193,8 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
         && (!(int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength])
         || (((*buffer)[currentBufferCharacterPosition + identifierLength] == '.')
         && (isdigit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) 
-        || isdigit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]))))) {
+        || isdigit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]))))
+        && (*buffer)[currentBufferCharacterPosition + identifierLength + 1] != '#') {
         
         identifierLength ++;
     }
