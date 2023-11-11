@@ -539,7 +539,7 @@ TOKENTYPES fill_operator_type(char *value) {
         {'[', _OP_RIGHT_EDGE_BRACKET_}, {']', _OP_LEFT_EDGE_BRACKET_},  {'$', _OP_OVERWRITE_},
         {'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
         {'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
-        {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_}
+        {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {'&', _OP_AND_}
     };
 
     for (int i = 0; i < (sizeof(lookup) / sizeof(lookup[0])); i++) {

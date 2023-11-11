@@ -92,7 +92,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | <ATOM> $
     | *(<ATOM> -> ",") $_
     | *(*("*") -> <ATOM> -> ",") $
-    | *(*("*") -> <ATOM> -> ",") $_
+    | *("&" -> <ATOM> -> ",") $
+    | *("&" -> "(" -> <ATOM> -> ")" -> ",") $_
 
 ### IF ###
 <IF> ::= "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] -> *("else" -> "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) -> *("else" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) $_

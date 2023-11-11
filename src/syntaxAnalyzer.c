@@ -12,7 +12,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 
 int is_function_call(TOKEN **tokens, size_t currentTokenPosition);
-int is_parameter(TOKEN **tokens, size_t currentTokenPos);
+int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction);
+int is_pointer(TOKEN **tokens, size_t currentTokenPosition);
+int is_reference(TOKEN **tokens, size_t currentTokenPosition);
 int is_atom(const TOKEN *token);
 int is_string(const TOKEN *token);
 int is_identifier(const TOKEN *token);
@@ -59,7 +61,7 @@ int is_function_call(TOKEN **tokens, size_t currentTokenPosition) {
         } else if (i == 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
             return 0;
         } else if (i > 1 && workedDownParameters == 0) {
-            int tokensToSkip = (int)is_parameter(tokens, i);
+            int tokensToSkip = (int)is_parameter(tokens, i, 0);
             checkedTokens += tokensToSkip;
             i += tokensToSkip;
             workedDownParameters = 1;
@@ -82,9 +84,10 @@ int is_function_call(TOKEN **tokens, size_t currentTokenPosition) {
 Purpose: Check if the parameters in a fuctioncall are valid or not
 Return Type: int => Number of how many tokens got checked
 Params: TOKEN **tokens => Tokens array pointer with the parameters to be checked;
-        size_t currentTokenPos => Position from where to start checking
+        size_t currentTokenPos => Position from where to start checking;
+        int inFunction => Is the parameter checker caled as a function parameter or functioncall parameter?
 */
-int is_parameter(TOKEN **tokens, size_t currentTokenPos) {
+int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
     size_t i = currentTokenPos;
     int isCurrentlyComma = 0;
 
@@ -96,7 +99,30 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos) {
         switch (isCurrentlyComma) {
         case 0:
             if ((int)is_atom(&(*tokens)[i]) == 0) {
-                return 0;
+                switch (inFunction) {
+                case 0:
+                    if (is_pointer(tokens, i) == 1) {
+                        i++;
+                        break;
+                    } else if (is_reference(tokens, i) > 0) {
+                        i += is_reference(tokens, i);
+                        break;
+                    } else {
+                        return 0;
+                    }
+                case 1:
+                    if ((int)is_pointer(tokens, i) == 1) {
+                        i++;
+                        break;
+                    } else {
+                        return 0;
+                    }
+
+                    if ((*tokens)[i].type == _OP_AND_) {
+                        return 0;
+                    }
+                } 
+                
             }
 
             isCurrentlyComma = 1;
@@ -104,6 +130,7 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos) {
         case 1:
             //Prevents that the user ends the parameter with a comma instead of IDENTFIER / ATOM
             if ((*tokens)[i].type != _OP_COMMA_ || ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
+                printf("IS\n");
                 return 0;
             }
 
@@ -120,6 +147,40 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos) {
     }
 
     return i - currentTokenPos;
+}
+
+/*
+Purpose: Check if a given TOKEN array at a specific position is equivalent to the POINTER rule
+Return Type: int => 1 = is pointer; 0 = not a pointer
+Params: TOKEN **tokens => Token array to be checked; size_t currentTokenPosition => Position of the token that should be checked
+*/
+int is_pointer(TOKEN **tokens, size_t currentTokenPosition) {
+    //Layout here: *<IDENTIFIER>
+    if ((*tokens)[currentTokenPosition].type == _OP_MULTIPLY_ && (*tokens)[currentTokenPosition + 1].type == _IDENTIFIER_
+        && (*tokens)[currentTokenPosition - 1].type != _IDENTIFIER_) {
+        return 1;
+    }
+    
+    return 0;
+}
+
+/*
+Purpose: Check if a given TOKEN array at a specific position is equivalent to the REFERENCE rule
+Return Type: int => > 1 = is reference; 0 = not a reference
+Params: TOKEN **tokens => Token array to be checked; size_t currentTokenPosition => Position of the token that should be checked
+*/
+int is_reference(TOKEN **tokens, size_t currentTokenPosition) {
+    //Layout here: &<IDENTIFIER>
+    if ((*tokens)[currentTokenPosition].type == _OP_AND_ && (*tokens)[currentTokenPosition + 1].type == _IDENTIFIER_) {
+        return 1;
+    //Layout here: &(*<IDENTIFIER>)
+    } else if ((*tokens)[currentTokenPosition].type == _OP_AND_ && (*tokens)[currentTokenPosition + 1].type == _OP_RIGHT_BRACKET_
+        && (*tokens)[currentTokenPosition + 2].type == _OP_MULTIPLY_ && (*tokens)[currentTokenPosition + 3].type == _IDENTIFIER_
+        && (*tokens)[currentTokenPosition + 4].type == _OP_LEFT_BRACKET_) {
+        return 4;
+    }
+
+    return 0;
 }
 
 /*
