@@ -12,16 +12,13 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 
 int is_function_call(TOKEN **tokens, size_t currentTokenPosition);
-int work_down_function_call_parameters(TOKEN **tokens, size_t currentTokenPos);
+int is_parameter(TOKEN **tokens, size_t currentTokenPos);
 int is_atom(const TOKEN *token);
 int is_string(const TOKEN *token);
 int is_identifier(const TOKEN *token);
 
 int is_letter(const char character);
 int is_number(const char character);
-int is_bracket(const char character);
-int is_brace(const char character);
-int is_square_bracket(const char character);
 int is_rational_operator(const char *sequence);
 int is_arithmetic_operator(const char character);
 int is_assignment_operator(const char *sequence);
@@ -62,7 +59,7 @@ int is_function_call(TOKEN **tokens, size_t currentTokenPosition) {
         } else if (i == 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
             return 0;
         } else if (i > 1 && workedDownParameters == 0) {
-            int tokensToSkip = (int)work_down_function_call_parameters(tokens, i);
+            int tokensToSkip = (int)is_parameter(tokens, i);
             checkedTokens += tokensToSkip;
             i += tokensToSkip;
             workedDownParameters = 1;
@@ -87,28 +84,37 @@ Return Type: int => Number of how many tokens got checked
 Params: TOKEN **tokens => Tokens array pointer with the parameters to be checked;
         size_t currentTokenPos => Position from where to start checking
 */
-int work_down_function_call_parameters(TOKEN **tokens, size_t currentTokenPos) {
+int is_parameter(TOKEN **tokens, size_t currentTokenPos) {
     size_t i = currentTokenPos;
+    int isCurrentlyComma = 0;
 
     while ((*tokens)[i].type != _OP_LEFT_BRACKET_ && (*tokens)[i].type != __EOF__) {
         if ((*tokens)[i + 1].type == _OP_LEFT_BRACKET_ && (*tokens)[i + 2].type != _OP_SEMICOLON_) {
             return 0;
         }
 
-        if (i % 2 == 0) {
-            if ((int)is_atom(&(*tokens)[i]) != 1) {
+        switch (isCurrentlyComma) {
+        case 0:
+            if ((int)is_atom(&(*tokens)[i]) == 0) {
                 return 0;
             }
-        } else {
-            if ((*tokens)[i].type != _OP_COMMA_ 
-                && ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
+
+            isCurrentlyComma = 1;
+            break;
+        case 1:
+            //Prevents that the user ends the parameter with a comma instead of IDENTFIER / ATOM
+            if ((*tokens)[i].type != _OP_COMMA_ || ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
                 return 0;
             }
+
+            isCurrentlyComma = 0;
+            break;
         }
 
         i++;
     }
 
+    //Checking for missing semicolon, if the functioncall should be at the end of the source code
     if ((*tokens)[i].type == __EOF__) {
         return 0;
     }
@@ -224,33 +230,6 @@ int is_number(const char character) {
         default:
             return 0;
     }
-}
-
-/*
-Purpose: Check whether a given character is a bracket or not
-Return Type: int => 1 = is a bracket; 0 = not a bracket
-Params: const char character => Character to be checked
-*/
-int is_bracket(const char character) {
-    return (character == '(' || character == ')') ? 1 : 0;
-}
-
-/*
-Purpose: Check whether a given character is a brace or not
-Return Type: int => 1 = is a brace; 0 = not a brace
-Params: const char character => Character to be checked
-*/
-int is_brace(const char character) {
-    return (character == '{' || character == '}') ? 1 : 0;
-}
-
-/*
-Purpose: Check whether a given character is a square bracket or not
-Return Type: int => 1 = is a square bracket; 0 = not a square bracket
-Params: const char character => Character to be checked
-*/
-int is_square_bracket(const char character) {
-    return (character == '[' || character == ']') ? 1 : 0;
 }
 
 /*
