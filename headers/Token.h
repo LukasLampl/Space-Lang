@@ -32,8 +32,8 @@ typedef enum TOKENTYPES {
     _OP_CLASS_ACCESSOR,              _OP_OVERWRITE_,                  _OP_SEMICOLON_,
     _OP_PLUS_EQUALS_,                _OP_MINUS_EQUALS_,               _OP_DIVIDE_EQUALS_,
     _OP_MULTIPLY_EQUALS_,            _OP_ADD_ONE_,                    _OP_SUBTRACT_ONE_,
-    _OP_AND_,                        _NUMBER_,                        _STRING_,
-    _FLOAT_,                         _UNDEF_
+    _OP_AND_,                        _OP_COLON_,                      _NUMBER_,
+    _STRING_,                        _FLOAT_,                         _UNDEF_
 } TOKENTYPES;
 
 ///////////////////

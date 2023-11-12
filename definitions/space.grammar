@@ -131,7 +131,13 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
         ::  "class" -> <FUNCTION_CALL> -> "with" -> *(<IDENTIFIER> -> ",") -> "=>" -> [BRACE] -> <RUNABLE> -> [BRACE] $_
 
 ### ENUM ###
-<ENUM> ::= "enum" -> <IDENTIFIER> -> [BRACE] -> *(<IDENTIFIER> -> *":" -> *<EXPRESSION>) -> [BRACE] $_
+<ENUM>:
+    | "enum" -> <IDENTIFIER> -> "{" -> (<IDENTIFIER> -> ",") -> "}" -> ";" $
+    | "enum" -> <IDENTIFIER> -> "{" -> *(<IDENTIFIER> -> *(":" -> <EXPRESSION> -> ",")) -> "}" -> ";" $_
+
+### BREAK ###
+<BREAK>:
+    | "break" -> ";" $_
 
 ### RUNABLE ###
 <RUNABLE> ::= *<FOR> / *<WHILE> / *<STATEMENT> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> $_

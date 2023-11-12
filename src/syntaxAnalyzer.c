@@ -1,7 +1,8 @@
-#include "stdio.h"
-#include "ctype.h"
-#include "string.h"
-#include "stdlib.h"
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+#include <stdlib.h>
+#include <time.h>
 #include "../headers/Token.h"
 #include "../headers/errors.h"
 
@@ -12,6 +13,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 
 int is_runnable();
+int is_enumeration(TOKEN **tokens, size_t currentTokenPosition);
+int are_enumerators(TOKEN **tokens, size_t startPosition);
 int is_function(TOKEN **tokens, size_t currentTokenPosition);
 int is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
 int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction);
@@ -37,14 +40,105 @@ int is_logic_operator(const char *sequence);
 
 void check(TOKEN **tokens) {
     //char *seq = "!";
+    clock_t start, end;
+    start = clock();;
 
-    printf("is_func: %i\n", is_function(tokens, 0));
+    printf("is_enum: %i\n", is_enumeration(tokens, 0));
+
+    end = clock();
+    printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
 }
 
 int is_runnable() {
     return 1;
 }
 
+int is_enumeration(TOKEN **tokens, size_t currentTokenPosition) {
+    if ((*tokens)[currentTokenPosition].type != _KW_ENUM_) {
+        return 0;
+    }
+
+    if ((int)is_identifier(&(*tokens)[currentTokenPosition + 1]) != 1) {
+        return 0;
+    }
+
+    if ((*tokens)[currentTokenPosition + 2].type != _OP_RIGHT_BRACE_) {
+        return 0;
+    }
+
+    int tokensToSkip = (int)are_enumerators(tokens, currentTokenPosition + 3);
+
+    if (tokensToSkip > 0) {
+        if ((*tokens)[currentTokenPosition + tokensToSkip + 4].type != _OP_SEMICOLON_) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+/*
+
+*/
+int are_enumerators(TOKEN **tokens, size_t startPosition) {
+    size_t tokensToSkip = 0;
+    int commaAwaited = 0;
+
+    while ((*tokens)[startPosition + tokensToSkip].type != _OP_LEFT_BRACE_ && (*tokens)[startPosition + tokensToSkip].type != __EOF__) {
+        switch (commaAwaited) {
+        case 0:
+            //Layout here: <IDENTIFIER>
+            if ((int)is_identifier(&(*tokens)[startPosition + tokensToSkip]) == 1) {
+                //Layout here: <IDENTIFIER> : [NUMBER]
+                if ((*tokens)[startPosition + tokensToSkip + 1].type == _OP_COLON_
+                    && ((*tokens)[startPosition + tokensToSkip + 2].type == _NUMBER_
+                    || (*tokens)[startPosition + tokensToSkip + 3].type == _FLOAT_)) {
+                    
+                    tokensToSkip += 2;
+                    commaAwaited = 1;
+                }
+
+                tokensToSkip ++;
+                commaAwaited = 1;
+                break;
+            } else {
+                return 0;
+            }
+        case 1:
+            if ((*tokens)[startPosition + tokensToSkip].type == _OP_COMMA_ && (*tokens)[startPosition + tokensToSkip + 1].type != _OP_LEFT_BRACE_) {
+                tokensToSkip ++;
+                commaAwaited = 0;
+                break;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    return tokensToSkip;
+}
+
+/*
+Purpose: Check if the following tokens starting from currentTokenPosition match the BREAK rule
+Return Type: int => 1 = is break statement; 0 = is not a break statement
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t currentTokenPosition => Position of the current token
+*/
+int is_break_statement(TOKEN **tokens, size_t currentTokenPosition) {
+    //Layout: break;
+    if ((*tokens)[currentTokenPosition].type == _KW_BREAK_ && (*tokens)[currentTokenPosition + 1].type == _OP_SEMICOLON_) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
+Purpose: Check if the following tokens starting from currentTokenPosition match the FUNCTION rule
+Return Type: int => 1 = is function; 0 = is not a function
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t currentTokenPosition => Position of the current token
+*/
 int is_function(TOKEN **tokens, size_t currentTokenPosition) {
     int index = currentTokenPosition;
     
@@ -92,7 +186,7 @@ int is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction
     int workedDownParameters = 0;
     size_t checkedTokens = 0;
 
-    for (size_t i = currentTokenPosition; (*tokens)[i].type != __EOF__; i++) {
+    for (int i = currentTokenPosition; (*tokens)[i].type != __EOF__; i++) {
         TOKEN currentToken = (*tokens)[i];
 
         if (i - currentTokenPosition < 2 && currentToken.type == __EOF__) {

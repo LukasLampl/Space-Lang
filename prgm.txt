@@ -1,1 +1,4 @@
-global function add(num1, *num2) {}
+enum TEST {
+    a : 1,
+    b : 2
+};
