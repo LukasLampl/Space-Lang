@@ -12,7 +12,10 @@
 //////////////////////////////   SYNTAX ANALYSIS   /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
-int is_runnable();
+int is_runnable(TOKEN **tokens, size_t blockStartPosition);
+int is_try_statement(TOKEN **tokens, size_t currentTokenPosition);
+int is_catch_statement(TOKEN **tokens, size_t startPosition);
+int is_include(TOKEN **tokens, size_t currentTokenPosition);
 int is_enumeration(TOKEN **tokens, size_t currentTokenPosition);
 int are_enumerators(TOKEN **tokens, size_t startPosition);
 int is_function(TOKEN **tokens, size_t currentTokenPosition);
@@ -43,16 +46,107 @@ void check(TOKEN **tokens) {
     clock_t start, end;
     start = clock();;
 
-    printf("is_enum: %i\n", is_enumeration(tokens, 0));
+    printf("is_try: %i\n", is_try_statement(tokens, 0));
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
 }
 
-int is_runnable() {
+int is_runnable(TOKEN **tokens, size_t blockStartPosition) {
+    if ((*tokens)[blockStartPosition].type != _OP_RIGHT_BRACE_) {
+        return 0;
+    }
+
+    if ((*tokens)[blockStartPosition + 1].type != _OP_LEFT_BRACE_) {
+        return 0;
+    }
+
     return 1;
 }
 
+/*
+Purpose: Check if the following tokens starting from currentTokenPosition match the TRY rule
+Return Type: int => 1 = is try statement; 0 = is not a try statement
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t currentTokenPosition => Position of the current token
+*/
+int is_try_statement(TOKEN **tokens, size_t currentTokenPosition) {
+    if ((*tokens)[currentTokenPosition].type != _KW_TRY_) {
+        return 0;
+    }
+
+    int skipTokensFromRunnable = (int)is_runnable(tokens, currentTokenPosition + 1);
+    
+    if (skipTokensFromRunnable == -1) {
+        return 0;
+    }
+
+    int catchStatementSkips = (int)is_catch_statement(tokens, currentTokenPosition + skipTokensFromRunnable);
+
+    if (catchStatementSkips != 1) {
+        return 0;
+    }
+
+    return catchStatementSkips;
+}
+
+/*
+Purpose: Check if the following tokens starting from startPosition match the CATCH rule
+Return Type: int => > 0 = how many tokens to skip; 0 = is not a catch statement
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t startPosition => Position of the current token
+*/
+int is_catch_statement(TOKEN **tokens, size_t startPosition) {
+    if ((*tokens)[startPosition].type != _KW_CATCH_) {
+        printf("iddus %s %s\n", (*tokens)[startPosition - 1].value, (*tokens)[startPosition].value);
+        return 0;
+    }
+
+    if ((*tokens)[startPosition + 1].type != _OP_RIGHT_BRACKET_) {
+        return 0;
+    }
+
+    if (is_identifier(&(*tokens)[startPosition + 2]) != 1 || is_identifier(&(*tokens)[startPosition + 3]) != 1) {
+        return 0;
+    }
+
+    int skipTokensFromRunnable = (int)is_runnable(tokens, startPosition + 4);
+    
+    if (skipTokensFromRunnable == -1) {
+        return 0;
+    }
+
+    return skipTokensFromRunnable + 4;
+}
+
+/*
+Purpose: Check if the following tokens starting from currentTokenPosition match the INCLUDE rule
+Return Type: int => 2 = is inclusion / tokens to skip; 0 = is not an inclusion
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t currentTokenPosition => Position of the current token
+*/
+int is_include(TOKEN **tokens, size_t currentTokenPosition) {
+    if ((*tokens)[currentTokenPosition].type != _KW_INCLUDE_) {
+        return 0;
+    }
+
+    if ((int)is_string(&(*tokens)[currentTokenPosition + 1]) != 1) {
+        return 0;
+    }
+
+    if ((*tokens)[currentTokenPosition + 2].type != _OP_SEMICOLON_) {
+        return 0;
+    }
+
+    return 2;
+}
+
+/*
+Purpose: Check if the following tokens starting from currentTokenPosition match the ENUM rule
+Return Type: int => > 0 is enumeration; 0 = is not an enumeration
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t currentTokenPosition => Position of the current token
+*/
 int is_enumeration(TOKEN **tokens, size_t currentTokenPosition) {
     if ((*tokens)[currentTokenPosition].type != _KW_ENUM_) {
         return 0;
@@ -74,11 +168,14 @@ int is_enumeration(TOKEN **tokens, size_t currentTokenPosition) {
         }
     }
 
-    return 1;
+    return currentTokenPosition + tokensToSkip + 4;
 }
 
 /*
-
+Purpose: Check if the contained enumaerators match the ENUMERATOR rule
+Return Type: int => > 0 = how many token got checked; 0 = is not an enumerator
+Params: TOKEN **tokens => TOKEN array to be checked;
+        size_t startPosition => Start position of the checking procedure
 */
 int are_enumerators(TOKEN **tokens, size_t startPosition) {
     size_t tokensToSkip = 0;
@@ -120,14 +217,14 @@ int are_enumerators(TOKEN **tokens, size_t startPosition) {
 
 /*
 Purpose: Check if the following tokens starting from currentTokenPosition match the BREAK rule
-Return Type: int => 1 = is break statement; 0 = is not a break statement
+Return Type: int => 2 = is break statement / tokens to skip; 0 = is not a break statement
 Params: TOKEN **tokens => Pointer to the tokens array;
         size_t currentTokenPosition => Position of the current token
 */
 int is_break_statement(TOKEN **tokens, size_t currentTokenPosition) {
     //Layout: break;
     if ((*tokens)[currentTokenPosition].type == _KW_BREAK_ && (*tokens)[currentTokenPosition + 1].type == _OP_SEMICOLON_) {
-        return 1;
+        return 2;
     }
 
     return 0;
@@ -159,16 +256,10 @@ int is_function(TOKEN **tokens, size_t currentTokenPosition) {
             return 0;
         }
 
-        if ((*tokens)[index + skipTokens].type == _OP_RIGHT_BRACE_) {
-            int endOfRunnable = (int)is_runnable();
-            
-            if ((*tokens)[index + skipTokens + endOfRunnable].type == _OP_LEFT_BRACE_) {
-                return 1;
-            } else {
-                return 0;
-            }
-        } else {
+        if ((int)is_runnable(tokens, index + skipTokens) == -1) {
             return 0;
+        } else {
+            return 1;
         }
     }
 
@@ -356,13 +447,7 @@ int is_string(const TOKEN *token) {
         (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
     }
 
-    size_t tokenValueLength = (size_t)strlen(token->value);
-
-    if ((*token).value[0] == '"' && (*token).value[tokenValueLength - 1] == '"') {
-        return 1;
-    }
-
-    return 0;
+    return (*token).type == _STRING_ ? 1 : 0;
 }
 
 /*
