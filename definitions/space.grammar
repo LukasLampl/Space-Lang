@@ -40,14 +40,15 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | *<STRING> / *<IDENTIFIER> / *"(" / *")" $_
 
 ### TERM ###
-<TERM> ::= <IDENTIFIER> $
-       ::  <FUNCTION_CALL> $
-       ::  <ATOM> -> [ARITHMETIC_OPERATOR] -> <ATOM> $
-       ::  <ATOM> -> [ASSIGNMENT_OPERATORS] -> <ATOM> $_
+<TERM>:
+    | <IDENTIFIER> $
+    | <FUNCTION_CALL> $
+    | <ATOM> -> [ARITHMETIC_OPERATOR] -> <ATOM> $
+    | <ATOM> -> [ASSIGNMENT_OPERATORS] -> <ATOM> $_
 
 ### STRING ###
 <STRING>:
-    | [QUOTE] -> **\{[QUOTE]} -> [QUOTE] $_         #**\{[QUOTE]} = Everything allowed except of [QUOTE]#
+    | [QUOTE] -> **\{[QUOTE]} -> [QUOTE] $_       #**\{[QUOTE]} = Everything allowed except of [QUOTE]#
 
 ### ASSIGNMENT ###
 <ASSIGNMENT> ::= "=" -> *<EXPRESSION> $
@@ -106,11 +107,11 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### TRY ###
 <TRY>:
-    | "try" -> [BRACE] -> <RUNABLE> -> [BRACE] -> <CATCH> $_
+    | "try" -> <RUNABLE> -> <CATCH> $_
 
 ### CATCH ###
 <CATCH>:
-    | "catch" -> "(" -> *<IDENTIFIER> ")" -> "{" -> <RUNABLE> -> "}" $_
+    | "catch" -> "(" -> *<IDENTIFIER> -> ")" -> <RUNABLE> $_
 
 ### FOR ###
 <FOR> ::= "for" -> [BRACKET] -> <TERM> -> ";" -> <EXPRESSION> -> ";" -> <EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] $_
@@ -123,8 +124,9 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 <IS>:
     | "is" -> <EXPRESSION> -> ":" -> <RUNABLE> $_
 
-### INSERT ###
-<INSERT> ::= "insert" -> [QUOTE] -> *<IDENTIFIER> -> [QUOTE] $_
+### INCLUDE ###
+<INCLUDE>:
+    | "include" -> <STRING> -> ";" $_
 
 ### CLASS ###
 <CLASS> ::= "class" -> <FUNCTION_CALL> -> "=>" -> [BRACE] -> <RUNABLE> -> [BRACE] $
@@ -132,8 +134,12 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### ENUM ###
 <ENUM>:
-    | "enum" -> <IDENTIFIER> -> "{" -> (<IDENTIFIER> -> ",") -> "}" -> ";" $
-    | "enum" -> <IDENTIFIER> -> "{" -> *(<IDENTIFIER> -> *(":" -> <EXPRESSION> -> ",")) -> "}" -> ";" $_
+    | "enum" -> <IDENTIFIER> -> "{" -> *<ENUMERATOR> -> "}" -> ";" $_
+
+### ENUMERATOR ###
+<ENUMERATOR>:
+    | (<IDENTIFIER> -> ",") $
+    | *(<IDENTIFIER> -> *(":" -> <IDENTIFIER> -> ","))
 
 ### BREAK ###
 <BREAK>:

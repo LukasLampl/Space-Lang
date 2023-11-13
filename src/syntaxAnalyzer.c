@@ -13,6 +13,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 
 int is_runnable(TOKEN **tokens, size_t blockStartPosition);
+int is_term(TOKEN **tokens, size_t currentTokenPosition);
+int is_simple_term(TOKEN **tokens, size_t startPosition);
+int is_end_indicator(const TOKEN *token);
 int is_try_statement(TOKEN **tokens, size_t currentTokenPosition);
 int is_catch_statement(TOKEN **tokens, size_t startPosition);
 int is_include(TOKEN **tokens, size_t currentTokenPosition);
@@ -25,6 +28,7 @@ int is_pointer(TOKEN **tokens, size_t currentTokenPosition);
 int is_reference(TOKEN **tokens, size_t currentTokenPosition);
 int is_atom(const TOKEN *token);
 int is_string(const TOKEN *token);
+int is_numeral_identifier(const TOKEN *token);
 int is_identifier(const TOKEN *token);
 
 int is_letter(const char character);
@@ -46,7 +50,7 @@ void check(TOKEN **tokens) {
     clock_t start, end;
     start = clock();;
 
-    printf("is_try: %i\n", is_try_statement(tokens, 0));
+    printf("is_s_term: %i\n", is_simple_term(tokens, 0));
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -65,8 +69,130 @@ int is_runnable(TOKEN **tokens, size_t blockStartPosition) {
 }
 
 /*
+Purpose: Check if a given TOKEN array contains a term at a specific position
+Return Type: int => > 0 = how many tokens to skip; 0 = not a term
+Params: TOKEN **tokens => Tokens to check;
+        size_t currentTokenPosition => Position from here to start checking
+*/
+int is_term(TOKEN **tokens, size_t currentTokenPosition) {
+    if (is_identifier(&(*tokens)[currentTokenPosition])
+        && (int)is_end_indicator(&(*tokens)[currentTokenPosition + 1]) == 1) {
+        return 1;
+    }
+
+    int functionCallTokensToSkip = (int)is_function_call(tokens, currentTokenPosition, 0);
+
+    if (functionCallTokensToSkip != 0
+        && (int)is_end_indicator(&(*tokens)[currentTokenPosition + functionCallTokensToSkip]) == 1) {
+        return functionCallTokensToSkip;
+    }
+
+    int simpleTermTokensToSkip = (int)is_simple_term(tokens, currentTokenPosition);
+
+    if (simpleTermTokensToSkip != 0
+        && (int)is_end_indicator(&(*tokens)[currentTokenPosition + functionCallTokensToSkip]) == 1) {
+        return simpleTermTokensToSkip;
+    }
+
+    return 0;
+}
+
+/*
+Purpose: Check if a given array of TOKENS at a specific position is a simple term or not
+Return Type: int => > 0 = how many tokens got checked; 0 = not a simple term
+Params: TOKEN **tokens => Token array; size_t startPosition => Position from where to start checking
+*/
+int is_simple_term(TOKEN **tokens, size_t startPosition) {
+    if ((*tokens)[startPosition].type == _OP_RIGHT_BRACKET_
+        || (int)is_identifier(&(*tokens)[startPosition]) == 1) {
+        int openBrackets = (*tokens)[startPosition].type == _OP_RIGHT_BRACKET_ ? 1 : 0;
+        int counter = openBrackets == 1 ? 1 : 0;
+
+        while ((int)is_end_indicator(&(*tokens)[startPosition + counter]) != 1
+            || (*tokens)[startPosition + counter].type == _OP_LEFT_BRACKET_) {
+            int endIndicator = (int)is_end_indicator(&(*tokens)[startPosition + counter]);
+            
+            if (endIndicator == 1) {
+                if ((*tokens)[startPosition + counter].type == _OP_LEFT_BRACKET_) {
+                    if ((*tokens)[startPosition + counter + 1].type != _OP_RIGHT_BRACKET_) {
+                        openBrackets--;
+                        counter++;
+                        continue;
+                    } else {
+                        return 0;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if ((*tokens)[startPosition + counter].type == _OP_RIGHT_BRACKET_) {
+                if ((*tokens)[startPosition + counter + 1].type != _OP_LEFT_BRACKET_) {
+                    openBrackets++;
+                    counter++;
+                    continue;
+                } else {
+                    return 0;
+                }
+            }
+
+            //Layout check: <IDENTIFIER> [ARITHMETIC_OPERATOR] <IDENTIFER>
+            if ((int)is_arithmetic_operator((*tokens)[startPosition + counter].value[0]) == 1) {
+                if ((int)is_identifier(&(*tokens)[startPosition + counter - 1]) == 1
+                    || (int)is_numeral_identifier(&(*tokens)[startPosition + counter - 1]) == 1
+                    || (*tokens)[startPosition + counter - 1].type == _OP_LEFT_BRACKET_) {
+
+                    if ((int)is_identifier(&(*tokens)[startPosition + counter + 1]) == 1
+                        || (int)is_numeral_identifier(&(*tokens)[startPosition + counter + 1]) == 1
+                        || (*tokens)[startPosition + counter + 1].type == _OP_RIGHT_BRACKET_) {
+                        
+                        counter++;
+                        continue;
+                    } else {
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+            }
+
+            counter++;
+        }
+
+        if (openBrackets != 0 || (*tokens)[startPosition + counter].type == __EOF__) {
+            return 0;
+        }
+
+        return counter;
+    }
+
+    return 0;
+}
+
+/*
+Purpose: Check if a given TOKEN matches an "end of statement" indicator ("=", ";", "]", "}", "?", ")")
+Return Type: int => 1 = is end indicator; 0 = is not an end indicator
+Params: const TOKEN *token -> Token to be checked
+*/
+int is_end_indicator(const TOKEN *token) {
+    char endIndicators[][2] = {"=", ";", "]", "}", ")", "?"};
+
+    for (int i = 0; i < (sizeof(endIndicators) / sizeof(endIndicators[0])); i++) {
+        if (strcmp(token->value, endIndicators[i]) == 0) {
+            return 1;
+        }
+    }
+
+    if (token->type == __EOF__) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
 Purpose: Check if the following tokens starting from currentTokenPosition match the TRY rule
-Return Type: int => 1 = is try statement; 0 = is not a try statement
+Return Type: int => > 0 = is try statement / tokens to skip; 0 = is not a try statement
 Params: TOKEN **tokens => Pointer to the tokens array;
         size_t currentTokenPosition => Position of the current token
 */
@@ -87,7 +213,7 @@ int is_try_statement(TOKEN **tokens, size_t currentTokenPosition) {
         return 0;
     }
 
-    return catchStatementSkips;
+    return catchStatementSkips + skipTokensFromRunnable;
 }
 
 /*
@@ -448,6 +574,38 @@ int is_string(const TOKEN *token) {
     }
 
     return (*token).type == _STRING_ ? 1 : 0;
+}
+
+/*
+Purpose: Check whether a given value is a number or float
+Return Type: int => 1 = is a number or float; 0 = is not a number or a float
+Params: const TOKEN *token => Token to be checked
+*/
+int is_numeral_identifier(const TOKEN *token) {
+    if (token == NULL) {
+        (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
+    }
+    
+    int points = 0;
+
+    for (int i = 0; i < (size_t)strlen(token->value); i++) {
+        char currentChar = (*token).value[i];
+        
+        if ((int)is_digit(currentChar) == 1) {
+            continue;
+        } else if (currentChar == '.') {
+            if (points == 0) {
+                points ++;
+                continue;
+            } else {
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
+    return 1;
 }
 
 /*

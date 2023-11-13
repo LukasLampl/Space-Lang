@@ -11,7 +11,9 @@ Obj b = new Obj[4];
 
 ### FUNCTION ###
 function test(param1, param2) {}
+function test(*param1, param2) {}
 global function test(param1, param2) {}
+global function test(param1, *param2) {}
 
 ### IF ###
 if (a < 10 and b == 20 or c >= 30) {} else if (c < 10 and b > 30) {} else {}
@@ -34,8 +36,8 @@ check (a) {
     is 20:
 }
 
-### INSERT ###
-insert "myTest.lib"
+### INCLUDE ###
+include "myTest.lib";
 
 ### CLASS ###
 class obj(param1, param2) => {}
@@ -47,8 +49,11 @@ constructor::obj(param1) {}
 ### ENUM ###
 enum Test {
     a : 10,
-    b : 20
+    b,
+    c
 }
 
 ### FUNCTION CALL ###
 a(param1, param2);
+a(param1, *param2);
+a(&param1, param2);
