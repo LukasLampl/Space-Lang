@@ -30,6 +30,6 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
 // Parse
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);
 
-void check(TOKEN **tokens);
+void check(TOKEN **tokens, size_t tokenArrayLength);
 
 #endif  // SPACE_MODULES_H_

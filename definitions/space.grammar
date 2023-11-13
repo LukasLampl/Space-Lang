@@ -30,10 +30,23 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
         | *[UNDERSCORE] $_
 
 ### EXPRESSION ###
-<EXPRESSION> ::= *<TERM> $
-             ::  [LOGIC_OPERATOR] $
+<EXPRESSION> ::= <TERM> $
+             ::  (<TERM> / <IDENTIFIER> / [BOOL] / <POINTER_POINTING_TO_VALUE> / "null") -> [LOGIC_OPERATOR] $
              ::  <EXPRESSION> -> [ARITHMETIC_OPERATOR] -> <TERM> $
              ::  <IDENTIFIER> -> [INCREMENT_OPERATOR] / [DECREMENT_OPERATOR] $_
+
+### POINTER POINTING TO VALUE ###
+<POINTER_POINTING_TO_VALUE>:
+    | "*" -> <ATOM> $_
+
+### POINTER ###
+<POINTER>:
+    | *"*" -> <ATOM> &_
+
+### REFERENCE ###
+<REFERENCE>:
+    | "&" -> <ATOM> $
+    | "&" -> "(" -> "*" -> <ATOM> -> ")" $_
 
 ### ATOM ###
 <ATOM>:
@@ -43,8 +56,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 <TERM>:
     | <IDENTIFIER> $
     | <FUNCTION_CALL> $
-    | <ATOM> -> [ARITHMETIC_OPERATOR] -> <ATOM> $
-    | <ATOM> -> [ASSIGNMENT_OPERATORS] -> <ATOM> $_
+    | (<IDENTIFIER> / *[DIGIT] / *"(" / ")") -> [ARITHMETIC_OPERATOR] -> (<IDENTIFIER> / *[DIGIT] / *"(" / ")") $_
 
 ### STRING ###
 <STRING>:
@@ -92,9 +104,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 <PARAMETER>:
     | <ATOM> $
     | *(<ATOM> -> ",") $_
-    | *(*("*") -> <ATOM> -> ",") $
-    | *("&" -> <ATOM> -> ",") $
-    | *("&" -> "(" -> <ATOM> -> ")" -> ",") $_
+    | *((<POINTER> / <ATOM) -> ",") $
+    | *((<REFERENCE> / <ATOM>) -> ",") $_
 
 ### IF ###
 <IF> ::= "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] -> *("else" -> "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) -> *("else" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) $_

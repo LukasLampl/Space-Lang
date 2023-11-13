@@ -12,6 +12,26 @@
 //////////////////////////////   SYNTAX ANALYSIS   /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
+// Keywords
+struct lookup {
+    char kwName[9];
+    TOKENTYPES kwValue;
+};
+
+struct lookup KeywordLookupTable[] = {
+    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
+    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
+    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
+    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
+    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
+    {"is", _KW_IS_,},              {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
+    {"continue", _KW_CONTINUE_,},  {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
+    {"and", _KW_AND_,},            {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
+    {"secure", _KW_SECURE_,},      {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
+    {"for", _KW_FOR_,},            {"this", _KW_THIS_},       {"this", _KW_THIS_}
+};
+
+
 int is_runnable(TOKEN **tokens, size_t blockStartPosition);
 int is_term(TOKEN **tokens, size_t currentTokenPosition);
 int is_simple_term(TOKEN **tokens, size_t startPosition);
@@ -24,12 +44,14 @@ int are_enumerators(TOKEN **tokens, size_t startPosition);
 int is_function(TOKEN **tokens, size_t currentTokenPosition);
 int is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
 int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction);
-int is_pointer(TOKEN **tokens, size_t currentTokenPosition);
+int is_pointer_pointing_to_value(TOKEN **tokens, size_t currentTokenPosition);
+int is_pointer(TOKEN **tokens, size_t startPosition);
 int is_reference(TOKEN **tokens, size_t currentTokenPosition);
 int is_atom(const TOKEN *token);
 int is_string(const TOKEN *token);
 int is_numeral_identifier(const TOKEN *token);
 int is_identifier(const TOKEN *token);
+int is_keyword(char *value);
 
 int is_letter(const char character);
 int is_number(const char character);
@@ -44,13 +66,15 @@ int is_modifier(const char *sequence);
 int is_quote(const char character);
 int is_logic_operator(const char *sequence);
 
+size_t tokenLength = 0;
 
-void check(TOKEN **tokens) {
+void check(TOKEN **tokens, size_t tokenArrayLength) {
+    tokenLength = tokenArrayLength;
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-
-    printf("is_s_term: %i\n", is_simple_term(tokens, 0));
+    printf("start");
+    printf("is_pointer: %i\n", is_pointer_pointing_to_value(tokens, 0));
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -313,9 +337,9 @@ int are_enumerators(TOKEN **tokens, size_t startPosition) {
             //Layout here: <IDENTIFIER>
             if ((int)is_identifier(&(*tokens)[startPosition + tokensToSkip]) == 1) {
                 //Layout here: <IDENTIFIER> : [NUMBER]
-                if ((*tokens)[startPosition + tokensToSkip + 1].type == _OP_COLON_
-                    && ((*tokens)[startPosition + tokensToSkip + 2].type == _NUMBER_
-                    || (*tokens)[startPosition + tokensToSkip + 3].type == _FLOAT_)) {
+                if (startPosition + tokensToSkip + 2 < tokenLength - 1
+                    && (*tokens)[startPosition + tokensToSkip + 1].type == _OP_COLON_
+                    && (*tokens)[startPosition + tokensToSkip + 2].type == _NUMBER_) {
                     
                     tokensToSkip += 2;
                     commaAwaited = 1;
@@ -328,7 +352,8 @@ int are_enumerators(TOKEN **tokens, size_t startPosition) {
                 return 0;
             }
         case 1:
-            if ((*tokens)[startPosition + tokensToSkip].type == _OP_COMMA_ && (*tokens)[startPosition + tokensToSkip + 1].type != _OP_LEFT_BRACE_) {
+            if ((*tokens)[startPosition + tokensToSkip].type == _OP_COMMA_
+                && (*tokens)[startPosition + tokensToSkip + 1].type != _OP_LEFT_BRACE_) {
                 tokensToSkip ++;
                 commaAwaited = 0;
                 break;
@@ -461,7 +486,7 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
             if ((int)is_atom(&(*tokens)[i]) == 0) {
                 switch (inFunction) {
                 case 0:
-                    if (is_pointer(tokens, i) == 1) {
+                    if (is_pointer_pointing_to_value(tokens, i) == 1) {
                         i++;
                         break;
                     } else if (is_reference(tokens, i) > 0) {
@@ -471,7 +496,7 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
                         return -1;
                     }
                 case 1:
-                    if ((int)is_pointer(tokens, i) == 1) {
+                    if ((int)is_pointer_pointing_to_value(tokens, i) == 1) {
                         i++;
                         break;
                     } else {
@@ -489,7 +514,8 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
             break;
         case 1:
             //Prevents that the user ends the parameter with a comma instead of IDENTFIER / ATOM
-            if ((*tokens)[i].type != _OP_COMMA_ || ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
+            if ((*tokens)[i].type != _OP_COMMA_
+                || ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
                 return -1;
             }
 
@@ -509,14 +535,27 @@ int is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
 }
 
 /*
-Purpose: Check if a given TOKEN array at a specific position is equivalent to the POINTER rule
-Return Type: int => 1 = is pointer; 0 = not a pointer
-Params: TOKEN **tokens => Token array to be checked; size_t currentTokenPosition => Position of the token that should be checked
+Purpose: Check if a given TOKEN array at a specific position is equivalent to the POINTER_TO_VALUE rule
+Return Type: int => 1 = is pointer to a value; 0 = not a pointer to a value
+Params: TOKEN **tokens => Token array to be checked;
+        size_t currentTokenPosition => Position of the token that should be checked
+        [The currentTokePosition can either be the "*" or the ATOM of "*ATOM"]
 */
-int is_pointer(TOKEN **tokens, size_t currentTokenPosition) {
-    //Layout here: *<IDENTIFIER>
-    if ((*tokens)[currentTokenPosition].type == _OP_MULTIPLY_ && (*tokens)[currentTokenPosition + 1].type == _IDENTIFIER_
-        && (*tokens)[currentTokenPosition - 1].type != _IDENTIFIER_) {
+int is_pointer_pointing_to_value(TOKEN **tokens, size_t currentTokenPosition) {
+    //Layout here: *<ATOM>
+    if (currentTokenPosition - 1 > 0
+        && (*tokens)[currentTokenPosition].type == _OP_MULTIPLY_
+        && (int)is_atom(&(*tokens)[currentTokenPosition + 1]) == 1
+        && (int)is_atom(&(*tokens)[currentTokenPosition - 1]) != 1
+        && (*tokens)[currentTokenPosition - 1].type != _OP_LEFT_BRACKET_
+        && (*tokens)[currentTokenPosition - 1].type != _OP_MULTIPLY_) {
+        return 1;
+    } else if (currentTokenPosition - 2 > 0
+        && (*tokens)[currentTokenPosition - 1].type == _OP_MULTIPLY_
+        && (int)is_atom(&(*tokens)[currentTokenPosition]) == 1
+        && (int)is_atom(&(*tokens)[currentTokenPosition - 2]) != 1
+        && (*tokens)[currentTokenPosition - 2].type != _OP_LEFT_BRACKET_
+        && (*tokens)[currentTokenPosition - 2].type != _OP_MULTIPLY_) {
         return 1;
     }
     
@@ -524,18 +563,68 @@ int is_pointer(TOKEN **tokens, size_t currentTokenPosition) {
 }
 
 /*
+Purpose: Check if the given TOKEN array cantains a pointer starting from a given position
+Return Type: int => 0 = not a pointer; > 0 = is a pointer (returnNumber - 1 = how many pointers point on the pointer)
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPosition => Position from where to start checking
+*/
+int is_pointer(TOKEN **tokens, size_t startPosition) {
+    if (startPosition < 1 || (*tokens)[startPosition].type == __EOF__) {
+        return 0;
+    }
+    
+    if ((int)is_atom(&(*tokens)[startPosition]) != 1) {
+        return 0;
+    }
+
+    if (startPosition > 1
+        && (int)is_atom(&(*tokens)[startPosition - 2]) == 1
+        && (*tokens)[startPosition - 2].type != _OP_LEFT_BRACKET_) {
+        return 0;
+    }
+    
+    int pointersPointingOnPointer = 0;
+
+    while ((*tokens)[startPosition - pointersPointingOnPointer - 1].type == _OP_MULTIPLY_
+        && (startPosition - pointersPointingOnPointer) > 0) {
+        pointersPointingOnPointer++;
+    }
+
+    return pointersPointingOnPointer;
+}
+
+/*
 Purpose: Check if a given TOKEN array at a specific position is equivalent to the REFERENCE rule
 Return Type: int => > 1 = is reference; 0 = not a reference
-Params: TOKEN **tokens => Token array to be checked; size_t currentTokenPosition => Position of the token that should be checked
+Params: TOKEN **tokens => Token array to be checked;
+        size_t currentTokenPosition => Position of the token that should be checked
+        [THE currentTokenPosition can be the '&' and the last character ')' of the "&(example)"]
 */
 int is_reference(TOKEN **tokens, size_t currentTokenPosition) {
-    //Layout here: &<IDENTIFIER>
-    if ((*tokens)[currentTokenPosition].type == _OP_AND_ && (*tokens)[currentTokenPosition + 1].type == _IDENTIFIER_) {
+    //Layout here: &<ATOM>
+    if ((*tokens)[currentTokenPosition].type == _OP_AND_
+        && (int)is_atom(&(*tokens)[currentTokenPosition + 1]) == 1
+        && (*tokens)[currentTokenPosition + 2].type != _OP_MULTIPLY_) {
         return 1;
-    //Layout here: &(*<IDENTIFIER>)
-    } else if ((*tokens)[currentTokenPosition].type == _OP_AND_ && (*tokens)[currentTokenPosition + 1].type == _OP_RIGHT_BRACKET_
-        && (*tokens)[currentTokenPosition + 2].type == _OP_MULTIPLY_ && (*tokens)[currentTokenPosition + 3].type == _IDENTIFIER_
+    } else if ((*tokens)[currentTokenPosition - 1].type == _OP_AND_
+        && (int)is_atom(&(*tokens)[currentTokenPosition]) == 1
+        && (*tokens)[currentTokenPosition + 1].type != _OP_MULTIPLY_) {
+        return 1;
+
+        //Layout here: &(*<ATOM>)
+    } else if (tokenLength - 1 >= currentTokenPosition + 4
+        && (*tokens)[currentTokenPosition].type == _OP_AND_
+        && (*tokens)[currentTokenPosition + 1].type == _OP_RIGHT_BRACKET_
+        && (*tokens)[currentTokenPosition + 2].type == _OP_MULTIPLY_
+        && (int)is_atom(&(*tokens)[currentTokenPosition + 3]) == 1
         && (*tokens)[currentTokenPosition + 4].type == _OP_LEFT_BRACKET_) {
+        return 4;
+    } else if (currentTokenPosition - 4 >= 0
+        && (*tokens)[currentTokenPosition].type == _OP_LEFT_BRACKET_
+        && (int)is_atom(&(*tokens)[currentTokenPosition - 1]) == 1
+        && (*tokens)[currentTokenPosition - 2].type == _OP_MULTIPLY_
+        && (*tokens)[currentTokenPosition - 3].type == _OP_RIGHT_BRACKET_
+        && (*tokens)[currentTokenPosition - 4].type == _OP_AND_) {
         return 4;
     }
 
@@ -550,6 +639,10 @@ Params: const TOKEN *token => Token to be checked
 int is_atom(const TOKEN *token) {
     if (token == NULL) {
         (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
+    }
+
+    if (token->type == __EOF__) {
+        return 0;
     }
 
     if ((int)is_identifier(token) == 1) {
@@ -618,6 +711,10 @@ int is_identifier(const TOKEN *token) {
         (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
     }
 
+    if ((int)is_keyword(token->value)) {
+        return 0;
+    }
+
     size_t tokenValueLength = (size_t)strlen(token->value);
 
     for (size_t i = 0; i < tokenValueLength; i++) {
@@ -635,6 +732,21 @@ int is_identifier(const TOKEN *token) {
     }
 
     return 1;
+}
+
+/*
+Purpose: Check if a given value is a keyword or not
+Return Type: int => 1 = is keyword; 0 = not a keyword
+Params: char *value => Value to be checked
+*/
+int is_keyword(char *value) {
+    for (int i = 0; i < (sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0])); i++) {
+        if (strcmp(value, KeywordLookupTable[i].kwName) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 //////////////////////////////////////////////////

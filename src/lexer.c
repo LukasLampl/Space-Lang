@@ -42,12 +42,12 @@ size_t maxlength = 0;
 size_t maxTokensLength = 0;
 int tokensreserved = 0;
 
-// Keywords
+// Keywords [CHANGES ALSO HAVE TO BE APPLIED IN THE SYNTAX ANALYZER]
 struct kwLookup {
     char kwName[9];
     TOKENTYPES kwValue;
 };
-    
+
 struct kwLookup KeywordTable[] = {
     {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
     {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
@@ -60,6 +60,7 @@ struct kwLookup KeywordTable[] = {
     {"secure", _KW_SECURE_,},      {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
     {"for", _KW_FOR_,},            {"this", _KW_THIS_},       {"this", _KW_THIS_}
 };
+
 
 /*
 Purpose: Tokenize the passed input
@@ -224,7 +225,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         (void)print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
     
-    (void)check(&(tokens));
+    (void)check(&(tokens), maxTokensLength);
 
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
