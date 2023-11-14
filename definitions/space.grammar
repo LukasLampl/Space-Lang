@@ -37,16 +37,16 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### POINTER POINTING TO VALUE ###
 <POINTER_POINTING_TO_VALUE>:
-    | "*" -> <ATOM> $_
+    | "(" -> "*" -> <IDENTIFIER> -> ")" $_
 
 ### POINTER ###
 <POINTER>:
-    | *"*" -> <ATOM> &_
+    | *"*" -> <IDENTIFIER> &_
 
 ### REFERENCE ###
 <REFERENCE>:
-    | "&" -> <ATOM> $
-    | "&" -> "(" -> "*" -> <ATOM> -> ")" $_
+    | "&" -> <IDENTIFIER> $
+    | "&" -> "(" -> "*" -> <IDENTIFIER> -> ")" $_
 
 ### ATOM ###
 <ATOM>:
@@ -63,10 +63,11 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | [QUOTE] -> **\{[QUOTE]} -> [QUOTE] $_       #**\{[QUOTE]} = Everything allowed except of [QUOTE]#
 
 ### ASSIGNMENT ###
-<ASSIGNMENT> ::= "=" -> *<EXPRESSION> $
-             ::  "=" -> <STRING> $
-             ::  "=" -> <IDENTIFIER> $
-             ::  "=" -> [BOOL] $_
+<ASSIGNMENT>:
+    | "=" -> <TERM> $
+    | "=" -> <STRING> $
+    | "=" -> <IDENTIFIER> $
+    | "=" -> [BOOL] $_
 
 ### STATEMENT ###
 <STATEMENT> ::= *(<IDENTIFIER> / <TERM>) -> "=" -> *(<IDENTIFIER> / <TERM> / <STRING>) $
