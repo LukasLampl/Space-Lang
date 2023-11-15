@@ -86,8 +86,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
            ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $
            ::  "const" -> <IDENTIFIER> -> ";" $_
 
-### CLASS CALL ###
-<CLASS_CALL> ::= <IDENTIFIER> -> <IDENTIFIER> "=" -> "new" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
+### CLASS INSTANCE ###
+<CLASS_INSTANCE> ::= <IDENTIFIER> -> <IDENTIFIER> "=" -> "new" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
              ::  <IDENTIFIER> -> <IDENTIFIER> -> "=" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $_
 
 ### FUNCTION ###
@@ -141,8 +141,9 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "include" -> <STRING> -> ";" $_
 
 ### CLASS ###
-<CLASS> ::= "class" -> <FUNCTION_CALL> -> "=>" -> [BRACE] -> <RUNABLE> -> [BRACE] $
-        ::  "class" -> <FUNCTION_CALL> -> "with" -> *(<IDENTIFIER> -> ",") -> "=>" -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+<CLASS>:
+    | "class" -> <FUNCTION_CALL> -> "=>" -> "{" -> <RUNABLE> -> "}" $
+    | "class" -> <FUNCTION_CALL> -> "with" -> *(<IDENTIFIER> -> ",") -> "=>" -> "{" -> <RUNABLE> -> "}" $_
 
 ### ENUM ###
 <ENUM>:

@@ -100,6 +100,10 @@ int is_runnable(TOKEN **tokens, size_t blockStartPosition) {
 
     return 1;
 }
+/*
+int is_class(TOKEN **token, size_t currentTokenPosition) {
+
+}*/
 
 /*
 Purpose: Check if a given TOKEN array at a specific position is equivalent to an ASSIGNMENT rule

@@ -44,6 +44,7 @@ typedef struct TOKEN {
     TOKENTYPES type;
     char *value;
     size_t size;
+    size_t line;
 } TOKEN;
 
 #endif  // SPACE_TOKEN_H_
