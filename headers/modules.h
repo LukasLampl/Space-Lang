@@ -40,7 +40,7 @@ typedef enum SyntaxErrorType {
     _NOT_A_REFERENCE_,     _NOT_A_POINTER_,      _NOT_A_PARAMETER_,   _NOT_A_POINTER_POINTING_ON_VALUE,
     _NOT_A_FUNCTION_CALL_, _NOT_A_FUNCTION_,     _NOT_A_BREAK_,       _NOT_AN_ENUMERATOR_,
     _NOT_AN_ENUM_,         _NOT_AN_INCLUDE_,     _NOT_A_CATCH_,       _NOT_A_TRY_,
-    _NOT_A_SIMPLE_TERM_,   _NOT_A_TERM_,         _NOT_AN_ASSIGNMENT_, 
+    _NOT_A_SIMPLE_TERM_,   _NOT_A_TERM_,         _NOT_AN_ASSIGNMENT_, _NOT_A_CLASS_
 } SyntaxErrorType;
 
 typedef struct SyntaxReport {

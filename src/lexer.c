@@ -23,7 +23,7 @@ int skip_comment(const char *input, const size_t currentIndex, size_t *lineNumbe
 int write_string_in_token(TOKEN *token, const char *input, const size_t currentInputIndex, const char *crucial_character);
 int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
-void write_class_accessor_in_token(TOKEN *token);
+void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar);
 int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex);
 int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex, size_t lineNumber);
 void set_keyword_type_to_token(TOKEN *token);
@@ -176,8 +176,8 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             storagePointer += (int)token_clearance_check(&tokens[storagePointer], lineNumber); 
 
             // Check whether the input could be an ELEMENT ACCESSOR or not
-            if (input[i] == '-' && input[i + 1] == '>') {
-                (void)write_class_accessor_in_token(&tokens[storagePointer]);
+            if ((input[i] == '-' || input[i] == '=') && input[i + 1] == '>') {
+                (void)write_class_accessor_or_creator_in_token(&tokens[storagePointer], input[i]);
                 (void)set_line_and_token_number(&tokens[storagePointer], lineNumber);
                 storagePointer++;
                 storageIndex = 0;
@@ -445,13 +445,17 @@ void put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
 }
 
 /*
-Purpose: Write a class accessor symbol to the current token
+Purpose: Write a class accessor or class creator symbol to the current token
 Return Type: void
-Params: TOKEN *token => Token to which the symbol should be written to
+Params: TOKEN *token => Token to which the symbol should be written to;
+        char crucialChar => Character, that determines which of the accsessor or creator gets written
 */
-void write_class_accessor_in_token(TOKEN *token) {
+void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar) {
     if (token != NULL && token->value != NULL) {
-        char *src = "->\0";
+        char src[3];
+        src[0] = crucialChar;
+        src[1] = '>';
+        src[2] = '\0';
         
         // Check for possible buffer overflow (important when changes occour)
         if (strlen(src) <= token->size) {
@@ -468,7 +472,14 @@ void write_class_accessor_in_token(TOKEN *token) {
             token->size = length;
         }
 
-        token->type = _OP_CLASS_ACCESSOR;
+        switch (crucialChar) {
+        case '-':
+            token->type = _OP_CLASS_ACCESSOR;
+            break;
+        case '=':
+            token->type = _OP_CLASS_CREATOR_;
+            break;
+        }
     }
 }
 
@@ -615,7 +626,7 @@ TOKENTYPES fill_condition_type(char *value) {
         {"/=", _OP_DIVIDE_EQUALS_},              {"*=", _OP_MULTIPLY_EQUALS_},
         {"!=", _OP_NOT_EQUALS_CONDITION_},       {"==", _OP_EQUALS_CONDITION_},
         {"<", _OP_SMALLER_CONDITION_},           {">", _OP_GREATER_CONDITION_},
-        {">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_}
+        {">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_},
     };
 
     for (int i = 0; i < (sizeof(lookup) / sizeof(lookup[0])); i++) {

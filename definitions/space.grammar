@@ -99,7 +99,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### FUNCTION CALL ###
 <FUNCTION_CALL>:
-    | <IDENTIFIER> -> "(" -> <PARAMETER> -> ")" -> ";" $_
+    | <IDENTIFIER> -> "(" -> <PARAMETER> -> ")" $_
 
 ### PARAMETER ###
 <PARAMETER>:
