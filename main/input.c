@@ -236,6 +236,8 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
                     isInReferenceToPointer = 0;
                     identifierLength++;
                     continue;
+                } else {
+                    break;
                 }
             } else {
                 break;
