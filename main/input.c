@@ -199,7 +199,8 @@ Params: size_t currentBufferCharacterPasition => Position of the current charact
         size_t tokenNumber => Current token number that is processed
 */
 int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, char **buffer, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber) {
-    int identifierLength = 1;
+    int identifierLength = 0;
+    int isInReferenceToPointer = 0;
 
     while (currentBufferCharacterPosition + identifierLength < bufferLength) {
         if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength]) == 1) {
@@ -208,6 +209,10 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
 
         if ((int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength]) == 1) {
             if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '&') {
+                if ((*buffer)[currentBufferCharacterPosition + identifierLength + 1] == '(') {
+                    isInReferenceToPointer = 1;
+                }
+                
                 identifierLength++;
                 continue;
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '.') {
@@ -216,11 +221,22 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
                     identifierLength++;
                     continue;
                 }
-            } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '*'
-                && (int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
+            } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '*') {
+                if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
                 && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0) {
-                identifierLength++;
-                continue;
+                    identifierLength++;
+                    continue;
+                } else if (isInReferenceToPointer == 1) {
+                    identifierLength++;
+                    continue;
+                }
+            } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == ')'
+                || (*buffer)[currentBufferCharacterPosition + identifierLength] == '(') {
+                if (isInReferenceToPointer == 1) {
+                    isInReferenceToPointer = 0;
+                    identifierLength++;
+                    continue;
+                }
             } else {
                 break;
             }
@@ -305,6 +321,8 @@ int check_double_operator(char currentInputChar, char NextInputChar) {
     }
 
     if (currentInputChar == '-' && NextInputChar == '>') {
+        return 1;
+    } else if (currentInputChar == '=' && NextInputChar == '>') {
         return 1;
     }
 

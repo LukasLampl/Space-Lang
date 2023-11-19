@@ -1,1 +1,1 @@
-var *p = 10 * 39;
+var num = 10 * &(*Test);

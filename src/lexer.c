@@ -18,6 +18,7 @@ void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray);
 void resize_tokens_value(TOKEN *token, size_t oldSize);
 int token_clearance_check(TOKEN *token, size_t lineNumber);
 void set_line_and_token_number(TOKEN *token, size_t lineNumber);
+int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
 int skip_comment(const char *input, const size_t currentIndex, size_t *lineNumber);
 int write_string_in_token(TOKEN *token, const char *input, const size_t currentInputIndex, const char *crucial_character);
@@ -192,9 +193,17 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 i++;
                 continue;
             }  else if (input[i] == '&') {
-                (void)write_reference_in_token(&tokens[storagePointer]);
-                storageIndex++;
-                continue;
+                if (input[i + 1] == '(') {
+                    i += (int)is_reference_on_pointer(&tokens[storagePointer], buffer, i);
+                    printf("i: %i, %i | st: %i, %i", i, maxlength, storagePointer, maxTokensLength);
+                    storageIndex = 0;
+                    storagePointer++;
+                    continue;
+                } else {
+                    (void)write_reference_in_token(&tokens[storagePointer]);
+                    storageIndex++;
+                    continue;
+                }
 
             // Figure out whether the input is a double operator like "++" or "--" or not
             } else if ((int)check_for_double_operator(input, i)) {
@@ -257,6 +266,50 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     // Free the tokens
     (void)FREE_TOKENS(tokens);
 
+}
+
+/*
+Purpose: Write a possible reference from a pointer into the token
+Return Type: int => > 0 = how many chars to skip; 0 = something went wrong
+Params: TOKEN *token => Token to be written in;
+        char **buffer => Buffer with the file content;
+        size_t currentSymbolIndex => Position of the current character in the buffer
+*/
+int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex) {
+    if ((*buffer)[currentSymbolIndex + 1] != '(') {
+        return 0;
+    }
+
+    int symbolsToSkip = 0;
+
+    while ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')'
+        && (int)is_space((*buffer)[currentSymbolIndex + symbolsToSkip + 1]) == 0
+        && currentSymbolIndex + symbolsToSkip + 1 < maxlength) {
+        if (token->size > symbolsToSkip + 2) {
+            token->value[symbolsToSkip + 2] = (*buffer)[currentSymbolIndex + symbolsToSkip + 2];
+        } else {
+            printf("Size: %i\n", token->size);
+        }
+
+        symbolsToSkip++;
+    }
+
+    if ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')') {
+        token->value = "";
+        return 0;
+    }
+
+    if (token->size >= symbolsToSkip + 2) {
+        token->value[0] = '&';
+        token->value[1] = '(';
+        token->value[symbolsToSkip + 1] = ')';
+        token->value[symbolsToSkip + 2] = '\0';
+    	token->type = _REFERENCE_ON_POINTER_;
+    } else {
+        printf("Too small! %i", token->size);
+    }
+
+    return symbolsToSkip + 1;
 }
 
 /*

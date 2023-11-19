@@ -69,6 +69,7 @@ int is_modifier(const char *sequence);
 int is_quote(const char character);
 int is_logic_operator(const char *sequence);
 SyntaxReport create_syntax_report(TOKEN *tokenToAssign, int tokensToSkip, SyntaxErrorType errorType);
+void throw_error(TOKEN *token, SyntaxErrorType error);
 
 size_t tokenLength = 0;
 
@@ -556,7 +557,6 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
             //Prevents that the user ends the parameter with a comma instead of IDENTFIER / ATOM
             if ((*tokens)[i].type != _OP_COMMA_
                 || ((*tokens)[i].type == _OP_COMMA_ && (*tokens)[i + 1].type == _OP_LEFT_BRACKET_)) {
-                printf("MCR\n");
                 return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
             }
 
@@ -937,5 +937,54 @@ SyntaxReport create_syntax_report(TOKEN *tokenToAssign, int tokensToSkip, Syntax
     report.errorType = errorType;
     report.tokensToSkip = tokensToSkip;
 
+    if (errorType != _NONE_) {
+        throw_error(tokenToAssign, errorType);
+    }
+
     return report;
+}
+
+void throw_error(TOKEN *token, SyntaxErrorType error) {
+    switch (error) {
+    case _NOT_AN_IDENTIFIER_:
+    break;
+    case _NOT_A_FLOAT_:
+    break;
+    case _NOT_AN_ATOM_:
+    break;
+    case _NOT_A_REFERENCE_:
+    break;
+    case _NOT_A_POINTER_:
+    break;
+    case _NOT_A_PARAMETER_:
+    break;
+    case _NOT_A_POINTER_POINTING_ON_VALUE:
+    break;
+    case _NOT_A_FUNCTION_CALL_:
+    break;
+    case _NOT_A_FUNCTION_:
+    break;
+    case _NOT_A_BREAK_:
+    break;
+    case _NOT_AN_ENUMERATOR_:
+    break;
+    case _NOT_AN_ENUM_:
+    break;
+    case _NOT_AN_INCLUDE_:
+    break;
+    case _NOT_A_CATCH_:
+    break;
+    case _NOT_A_TRY_:
+    break;
+    case _NOT_A_SIMPLE_TERM_:
+    break;
+    case _NOT_A_TERM_:
+    break;
+    case _NOT_AN_ASSIGNMENT_:
+    break;
+    case _NOT_A_CLASS_:
+    break;
+    default:
+    break;
+    }
 }
