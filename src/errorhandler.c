@@ -83,11 +83,11 @@ void IO_FILE_CLOSING_EXCEPTION() {
 /*
 Purpose: Throw an error, if the lexer detects an unexpected symbol
 Return Type: void
-Params: const char **input -> Source code; int pos -> position of error;
+Params: char **input -> Source code; int pos -> position of error;
         int maxBackPos -> Maximum backup bounds; int line -> Line at which
         the error was found
 */
-void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(const char **input, int pos, int maxBackPos, int line) {
+void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(char **input, int pos, int maxBackPos, int line) {
     char *errormsg = "unexpected symbol has been found in the input.";
     printf("\n%s\n", errormsg);
     printf("At line: %i : position: %i of the input\n", line + 1, pos);

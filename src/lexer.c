@@ -24,6 +24,7 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
 int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar);
+void write_reference_in_token(TOKEN *token);
 int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex);
 int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex, size_t lineNumber);
 void set_keyword_type_to_token(TOKEN *token);
@@ -183,6 +184,10 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 storageIndex = 0;
                 i++;
                 continue;
+            }  else if (input[i] == '&') {
+                (void)write_reference_in_token(&tokens[storagePointer]);
+                storageIndex++;
+                continue;
 
             // Figure out whether the input is a double operator like "++" or "--" or not
             } else if ((int)check_for_double_operator(input, i)) {
@@ -205,7 +210,8 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 (void)check_for_number(&tokens[storagePointer]);
 
                 if (tokens[storagePointer].type != _FLOAT_
-                    && tokens[storagePointer].type != _NUMBER_) {
+                    && tokens[storagePointer].type != _NUMBER_
+                    && tokens[storagePointer].type != _REFERENCE_) {
                     tokens[storagePointer].type = _IDENTIFIER_;
                 }
             }
@@ -243,6 +249,22 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     // Free the tokens
     (void)FREE_TOKENS(tokens);
 
+}
+
+/*
+Purpose: Write the reference operator into the token and sets the type, so the later process is easier to handle
+Return Type: void
+Params: TOKEN *token => Token to be set as reference
+*/
+void write_reference_in_token(TOKEN *token) {
+    if (token != NULL) {
+        token->type = _REFERENCE_;
+
+        if (token->size > 1) {
+            token->value[0] = '&';
+            token->value[1] = '\0';
+        }
+    }
 }
 
 /*
@@ -543,7 +565,7 @@ Params: TOKEN *token => Token to set its token type
 */
 void set_keyword_type_to_token(TOKEN *token) {
     if (token != NULL && token->value != NULL) {
-        if (token->type == _NUMBER_ || token->type == _FLOAT_) {
+        if (token->type == _NUMBER_ || token->type == _FLOAT_ || token->type == _REFERENCE_) {
             return;
         }
 
@@ -583,8 +605,7 @@ TOKENTYPES fill_operator_type(char *value) {
         {'[', _OP_RIGHT_EDGE_BRACKET_}, {']', _OP_LEFT_EDGE_BRACKET_},  {'$', _OP_OVERWRITE_},
         {'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
         {'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
-        {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {'&', _OP_AND_},
-        {':', _OP_COLON_}
+        {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {':', _OP_COLON_}
     };
 
     for (int i = 0; i < (sizeof(lookup) / sizeof(lookup[0])); i++) {

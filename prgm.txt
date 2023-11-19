@@ -1,1 +1,1 @@
-function test(all, num, t, *u, g, r, t);
+var number = &add + 102.65;

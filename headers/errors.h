@@ -17,7 +17,7 @@ void IO_BUFFER_EXCEPTION(char *Step);
 void IO_BUFFER_RESERVATION_EXCEPTION();
 void IO_FILE_CLOSING_EXCEPTION();
 
-void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(const char **input, int pos, int maxBackPos, int line);
+void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(char **input, int pos, int maxBackPos, int line);
 void LEXER_NULL_TOKEN_EXCEPTION();
 void LEXER_UNFINISHED_STRING_EXCEPTION();
 

@@ -149,21 +149,25 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
             }
 
             int isWhitespace = is_space((*buffer)[i]);
-            int isOperator = isWhitespace == 0 ? (int)check_for_operator((*buffer)[i]) : 0;
-
+            int isOperator = 0;
+            
+            if (isWhitespace == 0 && ((int)check_for_operator((*buffer)[i]) == 1 && (*buffer)[i] != '&')) {
+                isOperator = 1;
+            }
+            
             // If input is start of a string
             if ((*buffer)[i] == '\"') {
                 i += (int)skip_string(buffer, *bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber++;
                 continue;
             }
-
+            
             if (isOperator) {
                 i += (int)set_operator_size(buffer, *bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber ++;
                 continue;
             }
-
+            
             if (!isWhitespace && !isOperator) {
                 i += (int)add_identifiers(i, *bufferLength, buffer, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber ++;
@@ -188,15 +192,31 @@ Params: size_t currentBufferCharacterPasition => Position of the current charact
 int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, char **buffer, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber) {
     int identifierLength = 1;
 
-    while (currentBufferCharacterPosition + identifierLength < bufferLength
-        && !(int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength])
-        && (!(int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength])
-        || (((*buffer)[currentBufferCharacterPosition + identifierLength] == '.')
-        && (isdigit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) 
-        || isdigit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]))))
-        && (*buffer)[currentBufferCharacterPosition + identifierLength + 1] != '#') {
-        
-        identifierLength ++;
+    while (currentBufferCharacterPosition + identifierLength < bufferLength) {
+        if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength]) == 1) {
+            break;
+        }
+
+        if ((int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength]) == 1) {
+            if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '&') {
+                identifierLength++;
+                continue;
+            } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '.') {
+                if (is_digit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) == 1
+                    && is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 1) {
+                    identifierLength++;
+                    continue;
+                }
+            } else {
+                break;
+            }
+        }
+
+        if ((*buffer)[currentBufferCharacterPosition + identifierLength + 1] == '#') {
+            break;
+        }
+
+        identifierLength++;
     }
 
     (*arrayOfIndividualTokenSizes)[currentTokenNumber] = identifierLength + 1;

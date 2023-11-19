@@ -544,7 +544,7 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
                         return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
                     }
 
-                    if ((*tokens)[i].type == _OP_AND_) {
+                    if ((*tokens)[i].type == _REFERENCE_) {
                         return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
                     }
                 } 
@@ -621,18 +621,18 @@ Params: TOKEN **tokens => Token array to be checked;
 */
 SyntaxReport is_reference(TOKEN **tokens, size_t currentTokenPosition) {
     //Layout here: &<ATOM>
-    if ((*tokens)[currentTokenPosition].type == _OP_AND_
+    if ((*tokens)[currentTokenPosition].type == _REFERENCE_
         && is_identifier(&(*tokens)[currentTokenPosition + 1]).errorType == _NONE_
         && (*tokens)[currentTokenPosition + 2].type != _OP_MULTIPLY_) {
         return create_syntax_report(NULL, 1, _NONE_);
-    } else if ((*tokens)[currentTokenPosition - 1].type == _OP_AND_
+    } else if ((*tokens)[currentTokenPosition - 1].type == _REFERENCE_
         && is_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_
         && (*tokens)[currentTokenPosition + 1].type != _OP_MULTIPLY_) {
         return create_syntax_report(NULL, 1, _NONE_);
 
         //Layout here: &(*<ATOM>)
     } else if (tokenLength - 1 >= currentTokenPosition + 4
-        && (*tokens)[currentTokenPosition].type == _OP_AND_
+        && (*tokens)[currentTokenPosition].type == _REFERENCE_
         && (*tokens)[currentTokenPosition + 1].type == _OP_RIGHT_BRACKET_
         && (*tokens)[currentTokenPosition + 2].type == _OP_MULTIPLY_
         && is_identifier(&(*tokens)[currentTokenPosition + 3]).errorType == _NONE_
@@ -643,7 +643,7 @@ SyntaxReport is_reference(TOKEN **tokens, size_t currentTokenPosition) {
         && is_identifier(&(*tokens)[currentTokenPosition - 1]).errorType == _NONE_
         && (*tokens)[currentTokenPosition - 2].type == _OP_MULTIPLY_
         && (*tokens)[currentTokenPosition - 3].type == _OP_RIGHT_BRACKET_
-        && (*tokens)[currentTokenPosition - 4].type == _OP_AND_) {
+        && (*tokens)[currentTokenPosition - 4].type == _REFERENCE_) {
         return create_syntax_report(NULL, 4, _NONE_);
     }
 
