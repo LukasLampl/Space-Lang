@@ -1,1 +1,1 @@
-var number = &add + 102.65;
+var *p = 10 * 39;

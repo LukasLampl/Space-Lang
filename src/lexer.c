@@ -24,6 +24,7 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
 int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar);
+void write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex);
 void write_reference_in_token(TOKEN *token);
 int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex);
 int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex, size_t lineNumber);
@@ -170,6 +171,12 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 (void)put_type_float_in_token(&tokens[storagePointer], storageIndex);
                 storageIndex++;
                 continue;
+            } else if (input[i] == '*') {
+                if ((int)is_space(input[i + 1]) == 0 && (int)is_digit(input[i + 1]) == 0) {
+                    (void)write_pointer_in_token(&tokens[storagePointer], storageIndex);
+                    storageIndex++;
+                    continue;
+                }
             }
 
             // Check if the current token is used or not, and if it increases storagePointer by 1
@@ -211,7 +218,8 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
 
                 if (tokens[storagePointer].type != _FLOAT_
                     && tokens[storagePointer].type != _NUMBER_
-                    && tokens[storagePointer].type != _REFERENCE_) {
+                    && tokens[storagePointer].type != _REFERENCE_
+                    && tokens[storagePointer].type != _POINTER_) {
                     tokens[storagePointer].type = _IDENTIFIER_;
                 }
             }
@@ -249,6 +257,23 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     // Free the tokens
     (void)FREE_TOKENS(tokens);
 
+}
+
+/*
+Purpose: Write the pointer operator into the token and sets the type, so the later process is easier to handle
+Return Type: void
+Params: TOKEN *token => Token to be set as pointer;
+        size_t currentSymbolIndex => Position of the current character pointer in the value field of the token
+*/
+void write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex) {
+    if (token != NULL) {
+        token->type = _POINTER_;
+
+        if (token->size > currentSymbolIndex + 1) {
+            token->value[currentSymbolIndex] = '*';
+            token->value[currentSymbolIndex + 1] = '\0';
+        }
+    }
 }
 
 /*
@@ -555,6 +580,7 @@ void set_EOF_token(TOKEN *token) {
 
         token->value[6] = '\0';
         token->type = __EOF__;
+        token->line = -1;
     }
 }
 
@@ -565,7 +591,7 @@ Params: TOKEN *token => Token to set its token type
 */
 void set_keyword_type_to_token(TOKEN *token) {
     if (token != NULL && token->value != NULL) {
-        if (token->type == _NUMBER_ || token->type == _FLOAT_ || token->type == _REFERENCE_) {
+        if (token->type == _NUMBER_ || token->type == _FLOAT_ || token->type == _REFERENCE_ || token->type == _POINTER_) {
             return;
         }
 

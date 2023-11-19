@@ -148,11 +148,20 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
                 continue;
             }
 
-            int isWhitespace = is_space((*buffer)[i]);
+            int isWhitespace = (int)is_space((*buffer)[i]);
             int isOperator = 0;
             
-            if (isWhitespace == 0 && ((int)check_for_operator((*buffer)[i]) == 1 && (*buffer)[i] != '&')) {
-                isOperator = 1;
+            if (isWhitespace == 0) {
+                if ((int)check_for_operator((*buffer)[i]) == 1) {
+                    if ((*buffer)[i] == '&') {
+                        isOperator = 0;
+                    } else if ((*buffer)[i] == '*' && (int)is_space((*buffer)[i + 1]) == 0
+                        && (int)is_digit((*buffer)[i + 1]) == 0) {
+                        isOperator = 0;
+                    } else {
+                        isOperator = 1;
+                    }
+                }
             }
             
             // If input is start of a string
@@ -202,11 +211,16 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
                 identifierLength++;
                 continue;
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '.') {
-                if (is_digit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) == 1
-                    && is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 1) {
+                if ((int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) == 1
+                    && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 1) {
                     identifierLength++;
                     continue;
                 }
+            } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '*'
+                && (int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
+                && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0) {
+                identifierLength++;
+                continue;
             } else {
                 break;
             }
