@@ -17,7 +17,7 @@
 void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray);
 void resize_tokens_value(TOKEN *token, size_t oldSize);
 int token_clearance_check(TOKEN *token, size_t lineNumber);
-void set_line_and_token_number(TOKEN *token, size_t lineNumber);
+void set_line_number(TOKEN *token, size_t lineNumber);
 int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
 int skip_comment(const char *input, const size_t currentIndex, size_t *lineNumber);
@@ -133,7 +133,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         if (input[i] == '"' || input[i] == '\'') {
             storagePointer += (int)token_clearance_check(&(tokens[storagePointer]), lineNumber);
             i += (int)write_string_in_token(&tokens[storagePointer], input, i, &input[i]);
-            (void)set_line_and_token_number(&tokens[storagePointer], lineNumber);
+            (void)set_line_number(&tokens[storagePointer], lineNumber);
             storagePointer++;
             storageIndex = 0;
             continue;
@@ -175,6 +175,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             } else if (input[i] == '*') {
                 if ((int)is_space(input[i + 1]) == 0 && (int)is_digit(input[i + 1]) == 0) {
                     (void)write_pointer_in_token(&tokens[storagePointer], storageIndex);
+                    (void)set_line_number(&tokens[storagePointer], lineNumber);
                     storageIndex++;
                     continue;
                 }
@@ -187,7 +188,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             // Check whether the input could be an ELEMENT ACCESSOR or not
             if ((input[i] == '-' || input[i] == '=') && input[i + 1] == '>') {
                 (void)write_class_accessor_or_creator_in_token(&tokens[storagePointer], input[i]);
-                (void)set_line_and_token_number(&tokens[storagePointer], lineNumber);
+                (void)set_line_number(&tokens[storagePointer], lineNumber);
                 storagePointer++;
                 storageIndex = 0;
                 i++;
@@ -195,12 +196,13 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             }  else if (input[i] == '&') {
                 if (input[i + 1] == '(') {
                     i += (int)is_reference_on_pointer(&tokens[storagePointer], buffer, i);
-                    printf("i: %i, %i | st: %i, %i", i, maxlength, storagePointer, maxTokensLength);
+                    (void)set_line_number(&tokens[storagePointer], lineNumber);
                     storageIndex = 0;
                     storagePointer++;
                     continue;
                 } else {
                     (void)write_reference_in_token(&tokens[storagePointer]);
+                    (void)set_line_number(&tokens[storagePointer], lineNumber);
                     storageIndex++;
                     continue;
                 }
@@ -208,7 +210,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             // Figure out whether the input is a double operator like "++" or "--" or not
             } else if ((int)check_for_double_operator(input, i)) {
                 i += (int)write_double_operator_in_token(&tokens[storagePointer], input, i);
-                (void)set_line_and_token_number(&tokens[storagePointer], lineNumber);
+                (void)set_line_number(&tokens[storagePointer], lineNumber);
                 storagePointer++;
                 storageIndex = 0;
                 continue;
@@ -351,7 +353,7 @@ Return Type: void
 Params: TOKEN *token => Token to which the numbers are getting set;
         size_t lineNumber => Current line;
 */
-void set_line_and_token_number(TOKEN *token, size_t lineNumber) {
+void set_line_number(TOKEN *token, size_t lineNumber) {
     token->line = lineNumber;
 }
 
@@ -611,7 +613,7 @@ int write_default_operator_in_token(TOKEN *token, const char *input, const size_
     if (token != NULL && token->value != NULL && input != NULL) {
         token->value[0] = input[currentSymbolIndex];
         token->value[1] = '\0';
-        (void)set_line_and_token_number(token, lineNumber);
+        (void)set_line_number(token, lineNumber);
 
         token->type = (TOKENTYPES)fill_operator_type(token->value);
     }

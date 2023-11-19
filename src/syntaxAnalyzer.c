@@ -47,9 +47,9 @@ SyntaxReport are_enumerators(TOKEN **tokens, size_t startPosition);
 SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
 SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction);
-SyntaxReport is_pointer_pointing_to_value(TOKEN **tokens, size_t currentTokenPosition);
-SyntaxReport is_pointer(TOKEN **tokens, size_t startPosition);
-SyntaxReport is_reference(TOKEN **tokens, size_t currentTokenPosition);
+SyntaxReport is_pointer_pointing_to_value(TOKEN *token);
+SyntaxReport is_pointer(TOKEN *token);
+SyntaxReport is_reference(TOKEN *token);
 SyntaxReport is_atom(TOKEN *token);
 int is_string(TOKEN *token);
 SyntaxReport is_numeral_identifier(TOKEN *token);
@@ -78,7 +78,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-    printf("is_param: %i\n", is_function(tokens, 0).tokensToSkip);
+    printf("is_param: %i\n", is_parameter(tokens, 0, 1).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -528,24 +528,17 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
             if (is_atom(&(*tokens)[i]).errorType != _NONE_) {
                 switch (inFunction) {
                 case 0:
-                    if (is_pointer_pointing_to_value(tokens, i).errorType == _NONE_) {
-                        i++;
+                    if (is_pointer_pointing_to_value(&(*tokens)[i]).errorType == _NONE_) {
                         break;
-                    } else if (is_reference(tokens, i).errorType == _NONE_) {
-                        i += is_reference(tokens, i).tokensToSkip;
+                    } else if (is_reference(&(*tokens)[i]).errorType == _NONE_) {
                         break;
                     } else {
                         return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
                     }
                 case 1:
-                    if (is_pointer(tokens, i).errorType == _NONE_) {
-                        i += is_pointer(tokens, i).tokensToSkip;
+                    if (is_pointer(&(*tokens)[i]).errorType == _NONE_) {
                         break;
                     } else {
-                        return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
-                    }
-
-                    if ((*tokens)[i].type == _REFERENCE_) {
                         return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
                     }
                 } 
@@ -573,81 +566,52 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
 /*
 Purpose: Check if a given TOKEN array at a specific position is equivalent to the POINTER_TO_VALUE rule
 Return Type: SyntaxReport => Contains errors, tokensToSkip, token itself when error
-Params: TOKEN **tokens => Token array to be checked;
-        size_t currentTokenPosition => Position of the token that should be checked
-        [The currentTokePosition can either be the "*" or the ATOM of "*ATOM"]
+Params: TOKEN *token => Token to be check after POINTER_POINTING_ON_VALUE rule
 */
-SyntaxReport is_pointer_pointing_to_value(TOKEN **tokens, size_t currentTokenPosition) {
-    //Layout here: *<ATOM>
-    if ((*tokens)[currentTokenPosition].type == _OP_MULTIPLY_
-        && is_identifier(&(*tokens)[currentTokenPosition + 1]).errorType == _NONE_) {
-        return create_syntax_report(NULL, 1, _NONE_);
-    } else if ((*tokens)[currentTokenPosition - 1].type == _OP_MULTIPLY_
-        && is_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_) {
-        return create_syntax_report(NULL, 1, _NONE_);
+SyntaxReport is_pointer_pointing_to_value(TOKEN *token) {
+    if (token->type == _POINTER_) {
+        int counter = 0;
+
+        for (int i = 0; i < token->size; i++) {
+            if (token->value[i] == '*') {
+                counter++;
+            }
+
+            if (counter > 1) {
+                return create_syntax_report(token, 0, _NOT_A_POINTER_POINTING_ON_VALUE);
+            }
+        }
     }
     
-    return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_POINTER_POINTING_ON_VALUE);
+    return create_syntax_report(NULL, 1, _NONE_);
 }
 
 /*
 Purpose: Check if the given TOKEN array cantains a pointer starting from a given position
 Return Type: int =>  SyntaxReport => Contains errors, tokensToSkip (How many pointers point onto the pointer),
             token itself when error
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPosition => Position from where to start checking
+Params: TOKEN *token => Token to be checked after POINTER rule
+        [Layout: "*pointer"]
 */
-SyntaxReport is_pointer(TOKEN **tokens, size_t startPosition) {
-    int pointersPointingOnPointer = 0;
-
-    while ((*tokens)[startPosition + pointersPointingOnPointer].type == _OP_MULTIPLY_
-        && (startPosition + pointersPointingOnPointer) < tokenLength) {
-        pointersPointingOnPointer++;
-    }
-
-    if (is_identifier(&(*tokens)[startPosition + pointersPointingOnPointer]).errorType != _NONE_) {
-        return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_POINTER_);
-    }
-
-    return create_syntax_report(NULL, pointersPointingOnPointer, _NONE_);
+SyntaxReport is_pointer(TOKEN *token) {
+    return token->type == _POINTER_ ?
+    create_syntax_report(NULL, 1, _NONE_) :
+    create_syntax_report(token, 0, _NOT_A_POINTER_);
 }
 
 /*
 Purpose: Check if a given TOKEN array at a specific position is equivalent to the REFERENCE rule
 Return Type: SyntaxReport => Contains errors, tokensToSkip, token itself when error
-Params: TOKEN **tokens => Token array to be checked;
-        size_t currentTokenPosition => Position of the token that should be checked
-        [THE currentTokenPosition can be the '&' and the last character ')' of the "&(example)"]
+Params: TOKEN *token => Token to be checked after REFERENCE rule
+        [Layout: "&reference" or "&(*pointerReference)"]
 */
-SyntaxReport is_reference(TOKEN **tokens, size_t currentTokenPosition) {
+SyntaxReport is_reference(TOKEN *token) {
     //Layout here: &<ATOM>
-    if ((*tokens)[currentTokenPosition].type == _REFERENCE_
-        && is_identifier(&(*tokens)[currentTokenPosition + 1]).errorType == _NONE_
-        && (*tokens)[currentTokenPosition + 2].type != _OP_MULTIPLY_) {
+    if (token->type == _REFERENCE_ || token->type == _REFERENCE_ON_POINTER_) {
         return create_syntax_report(NULL, 1, _NONE_);
-    } else if ((*tokens)[currentTokenPosition - 1].type == _REFERENCE_
-        && is_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_
-        && (*tokens)[currentTokenPosition + 1].type != _OP_MULTIPLY_) {
-        return create_syntax_report(NULL, 1, _NONE_);
-
-        //Layout here: &(*<ATOM>)
-    } else if (tokenLength - 1 >= currentTokenPosition + 4
-        && (*tokens)[currentTokenPosition].type == _REFERENCE_
-        && (*tokens)[currentTokenPosition + 1].type == _OP_RIGHT_BRACKET_
-        && (*tokens)[currentTokenPosition + 2].type == _OP_MULTIPLY_
-        && is_identifier(&(*tokens)[currentTokenPosition + 3]).errorType == _NONE_
-        && (*tokens)[currentTokenPosition + 4].type == _OP_LEFT_BRACKET_) {
-        return create_syntax_report(NULL, 4, _NONE_);
-    } else if (currentTokenPosition - 4 >= 0
-        && (*tokens)[currentTokenPosition].type == _OP_LEFT_BRACKET_
-        && is_identifier(&(*tokens)[currentTokenPosition - 1]).errorType == _NONE_
-        && (*tokens)[currentTokenPosition - 2].type == _OP_MULTIPLY_
-        && (*tokens)[currentTokenPosition - 3].type == _OP_RIGHT_BRACKET_
-        && (*tokens)[currentTokenPosition - 4].type == _REFERENCE_) {
-        return create_syntax_report(NULL, 4, _NONE_);
     }
 
-    return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_REFERENCE_);
+    return create_syntax_report(token, 0, _NOT_A_REFERENCE_);
 }
 
 /*
@@ -662,16 +626,14 @@ SyntaxReport is_atom(TOKEN *token) {
 
     if (token->type == __EOF__) {
         return create_syntax_report(token, 0, _NOT_AN_ATOM_);
-    }
-
-    if ((SyntaxErrorType)is_identifier(token).tokensToSkip == 1) {
+    } else if (is_identifier(token).errorType == _NONE_) {
         return create_syntax_report(NULL, 1, _NONE_);
     } else if ((int)is_string(token) == 1) {
         return create_syntax_report(NULL, 1, _NONE_);
     } else if (token->type == _OP_LEFT_BRACKET_ || token->type == _OP_RIGHT_BRACKET_) {
         return create_syntax_report(NULL, 1, _NONE_);
     }
-
+    
     return create_syntax_report(token, 0, _NOT_AN_ATOM_);
 }
 
@@ -690,7 +652,7 @@ int is_string(TOKEN *token) {
 
 /*
 Purpose: Check whether a given value is a number or float
-Return Type: SyntaxReport => Contains error, tokensToSkip and the token itself
+Return Type: SyntaxReport => Reports an error if necessary, returns _NONE_ if everything is ok
 Params: TOKEN *token => Token to be checked
 */
 SyntaxReport is_numeral_identifier(TOKEN *token) {
@@ -700,7 +662,7 @@ SyntaxReport is_numeral_identifier(TOKEN *token) {
     
     int points = 0;
 
-    for (int i = 0; i < (size_t)strlen(token->value); i++) {
+    for (int i = 0; i < token->size; i++) {
         char currentChar = (*token).value[i];
         
         if ((int)is_digit(currentChar) == 1) {
@@ -722,7 +684,7 @@ SyntaxReport is_numeral_identifier(TOKEN *token) {
 
 /*
 Purpose: Check whether a given value is written according to the IDENTIFIER rule
-Return Type: SyntaxReport => Contains how many tokens to skip and if the token has an error
+Return Type: SyntaxReport => Contains how many tokens to skip and if the token has an error, it gets delivered with the report
 Params: TOKEN *token => Token to be checked
 */
 SyntaxReport is_identifier(TOKEN *token) {
@@ -730,13 +692,11 @@ SyntaxReport is_identifier(TOKEN *token) {
         (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
     }
 
-    if ((int)is_keyword(token->value)) {
+    if ((int)is_keyword(token->value) == 1) {
         return create_syntax_report(token, 0, _NOT_AN_IDENTIFIER_);
     }
 
-    size_t tokenValueLength = (size_t)strlen(token->value);
-
-    for (size_t i = 0; i < tokenValueLength; i++) {
+    for (size_t i = 0; i < strlen(token->value); i++) {
         char currentCharacter = (*token).value[i];
 
         if ((int)is_letter(currentCharacter) == 1) {
