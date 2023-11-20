@@ -78,7 +78,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-    printf("is_term: %i\n", is_simple_term(tokens, 0).tokensToSkip);
+    printf("is_func_Call: %i\n", is_function_call(tokens, 0, 1).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -208,7 +208,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPosition) {
         switch (hasToBeArithmeticOperator) {
         case 0:
             if (is_identifier(&currentToken).errorType != _NONE_
-                && currentToken.type != _POINTER_
+                && is_pointer_pointing_to_value(&currentToken).errorType != _NONE_
                 && is_numeral_identifier(&currentToken).errorType != _NONE_) {
                 return create_syntax_report(&currentToken, 0, _NOT_A_SIMPLE_TERM_);
             } else {
@@ -469,13 +469,14 @@ SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int i
         } else if (i == currentTokenPosition + 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
         } else if (i > currentTokenPosition + 1 && workedDownParameters == 0) {
-            int tokensToSkip = is_parameter(tokens, i, inFunction).tokensToSkip;
-            if (tokensToSkip == 0) {
+            SyntaxReport paramReport = is_parameter(tokens, i, inFunction);
+
+            if (paramReport.errorType != _NONE_) {
                 return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
             }
             
-            checkedTokens += tokensToSkip - 1;
-            i += tokensToSkip - 1;
+            checkedTokens += paramReport.tokensToSkip - 1;
+            i += paramReport.tokensToSkip - 1;
             workedDownParameters = 1;
             continue;
         } else if (workedDownParameters == 1) {
