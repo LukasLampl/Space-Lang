@@ -78,7 +78,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-    printf("is_func: %i\n", is_function(tokens, 0).tokensToSkip);
+    printf("is_term: %i\n", is_simple_term(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -185,70 +185,53 @@ Return Type: SyntaxReport => Contains errors, tokensToSkip, token itself when er
 Params: TOKEN **tokens => Token array; size_t startPosition => Position from where to start checking
 */
 SyntaxReport is_simple_term(TOKEN **tokens, size_t startPosition) {
-    if ((*tokens)[startPosition].type == _OP_RIGHT_BRACKET_
-        || is_identifier(&(*tokens)[startPosition]).errorType == _NONE_) {
-        int openBrackets = (*tokens)[startPosition].type == _OP_RIGHT_BRACKET_ ? 1 : 0;
-        int counter = openBrackets == 1 ? 1 : 0;
+    int openBrackets = 0;
+    int hasToBeArithmeticOperator = 0;
+    size_t jumpTokensForward = 0;
 
-        while ((int)is_end_indicator(&(*tokens)[startPosition + counter]) != 1
-            || (*tokens)[startPosition + counter].type == _OP_LEFT_BRACKET_) {
-            int endIndicator = (int)is_end_indicator(&(*tokens)[startPosition + counter]);
-            
-            if (endIndicator == 1) {
-                if ((*tokens)[startPosition + counter].type == _OP_LEFT_BRACKET_) {
-                    if ((*tokens)[startPosition + counter + 1].type != _OP_RIGHT_BRACKET_) {
-                        openBrackets--;
-                        counter++;
-                        continue;
-                    } else {
-                        return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);
-                    }
-                } else {
-                    break;
-                }
-            }
+    while ((*tokens)[startPosition + jumpTokensForward].type != __EOF__) {
+        TOKEN currentToken = (*tokens)[startPosition + jumpTokensForward];
 
-            if ((*tokens)[startPosition + counter].type == _OP_RIGHT_BRACKET_) {
-                if ((*tokens)[startPosition + counter + 1].type != _OP_LEFT_BRACKET_) {
-                    openBrackets++;
-                    counter++;
-                    continue;
-                } else {
-                    return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);
-                }
-            }
-
-            //Layout check: <IDENTIFIER> [ARITHMETIC_OPERATOR] <IDENTIFER>
-            if ((int)is_arithmetic_operator((*tokens)[startPosition + counter].value[0]) == 1) {
-                if (is_identifier(&(*tokens)[startPosition + counter - 1]).errorType == _NONE_
-                    || is_numeral_identifier(&(*tokens)[startPosition + counter - 1]).errorType == _NONE_
-                    || (*tokens)[startPosition + counter - 1].type == _OP_LEFT_BRACKET_) {
-
-                    if (is_identifier(&(*tokens)[startPosition + counter + 1]).errorType == _NONE_
-                        || is_numeral_identifier(&(*tokens)[startPosition + counter + 1]).errorType == _NONE_
-                        || (*tokens)[startPosition + counter + 1].type == _OP_RIGHT_BRACKET_) {
-                        
-                        counter++;
-                        continue;
-                    } else {
-                        return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);;
-                    }
-                } else {
-                    return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);;
-                }
-            }
-
-            counter++;
+        if (currentToken.type == _OP_RIGHT_BRACKET_) {
+            openBrackets++;
+            jumpTokensForward++;
+            continue;
+        } else if (currentToken.type == _OP_LEFT_BRACKET_) {
+            openBrackets--;
+            jumpTokensForward++;
+            continue;
+        } else if ((int)is_end_indicator(&currentToken) == 1
+            && currentToken.type != _OP_LEFT_BRACKET_) {
+            break;
         }
 
-        if (openBrackets != 0 || (*tokens)[startPosition + counter].type == __EOF__) {
-            return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);
+        switch (hasToBeArithmeticOperator) {
+        case 0:
+            if (is_identifier(&currentToken).errorType != _NONE_
+                && currentToken.type != _POINTER_
+                && is_numeral_identifier(&currentToken).errorType != _NONE_) {
+                return create_syntax_report(&currentToken, 0, _NOT_A_SIMPLE_TERM_);
+            } else {
+                jumpTokensForward++;
+                hasToBeArithmeticOperator = 1;
+            }
+            break;
+        case 1:
+            if ((int)is_arithmetic_operator(currentToken.value[0]) == 0) {
+                return create_syntax_report(&currentToken, 0, _NOT_A_SIMPLE_TERM_);
+            } else {
+                jumpTokensForward++;
+                hasToBeArithmeticOperator = 0;
+            }
+            break;
         }
-
-        return create_syntax_report(NULL, counter, _NONE_);
     }
 
-    return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);
+    if (openBrackets != 0) {
+        return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_SIMPLE_TERM_);
+    }
+
+    return create_syntax_report(NULL, jumpTokensForward, _NONE_);
 }
 
 /*
@@ -311,8 +294,7 @@ SyntaxReport is_catch_statement(TOKEN **tokens, size_t startPosition) {
     }
 
     if (is_identifier(&(*tokens)[startPosition + 2]).errorType != _NONE_
-        || is_identifier(&(*tokens)[startPosition + 3]).errorType != _NONE_
-        || (*tokens)[startPosition + 4].type != _OP_LEFT_BRACKET_) {
+        || (*tokens)[startPosition + 3].type != _OP_LEFT_BRACKET_) {
         return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_CATCH_);
     }
 
@@ -662,7 +644,7 @@ SyntaxReport is_numeral_identifier(TOKEN *token) {
     
     int points = 0;
 
-    for (int i = 0; i < token->size; i++) {
+    for (int i = 0; i < strlen(token->value); i++) {
         char currentChar = (*token).value[i];
         
         if ((int)is_digit(currentChar) == 1) {
