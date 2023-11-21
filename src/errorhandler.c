@@ -194,6 +194,19 @@ void LEXER_NULL_TOKEN_EXCEPTION() {
 }
 
 /*
+Purpose: Throw an error, if there is a pointer without correct definition
+Returny Type: void
+Params: void
+*/
+void LEXER_UNFINISHED_POINTER_EXCEPTION() {
+    printf("Unfinished or invalid pointer declaration");
+
+    if (FREE_MEMORY() == 1) {
+        exit(EXIT_SUCCESS);
+    }
+}
+
+/*
 Purpose: Throw an error, if the tokens couldn't be transmitted to the parse section
 Return Type: void
 Params: void

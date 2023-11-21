@@ -25,7 +25,7 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
 int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar);
-void write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex);
+int write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffer, size_t currentBufferCharPos);
 void write_reference_in_token(TOKEN *token);
 int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex);
 int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex, size_t lineNumber);
@@ -104,7 +104,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     }
     
     size_t lineNumber = 0;
-
+    
     for (size_t i = 0; i < *fileLength; i++) {
         // When the input character at index i is a hashtag, then skip the input till the next hashtag
         if (input[i] == '#') {
@@ -114,7 +114,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             lineNumber++;
             continue;
         }
-
+        
         if (storagePointer > requiredTokenLength) {
             (void)LEXER_NULL_TOKEN_EXCEPTION();
         }
@@ -123,7 +123,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         if (storageIndex > tokens[storagePointer].size) {
             (void)resize_tokens_value(&tokens[storagePointer], tokens[storagePointer].size);
         }
-
+        
          // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
         int isWhiteSpace = (int)is_space((*buffer)[i]);
 
@@ -138,15 +138,13 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             storageIndex = 0;
             continue;
         }
-
         if (i + 1 == *fileLength) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
         }
-
+        
         // If the input character at index i is a whitespace, then filter the whitespace character
         if (isWhiteSpace) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
-
             i += (int)skip_whitespaces(input, *fileLength, i, &lineNumber);
 
             // If the current token is already filled or not, if then add "\0" to close the string  
@@ -173,8 +171,12 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 storageIndex++;
                 continue;
             } else if (input[i] == '*') {
-                if ((int)is_space(input[i + 1]) == 0 && (int)is_digit(input[i + 1]) == 0) {
-                    (void)write_pointer_in_token(&tokens[storagePointer], storageIndex);
+                if ((int)is_space(input[i + 1]) == 0
+                    && (int)is_digit(input[i + 1]) == 0) {
+                    
+                    int ptrRet = (int)write_pointer_in_token(&tokens[storagePointer], storageIndex, &input, i);
+                    i += ptrRet - 1;
+                    storageIndex = ptrRet - 1;
                     (void)set_line_number(&tokens[storagePointer], lineNumber);
                     storageIndex++;
                     continue;
@@ -220,7 +222,6 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             storagePointer += (int)write_default_operator_in_token(&tokens[storagePointer], input, i, lineNumber);
             storageIndex = 0;
             continue;
-
         } else {
             if (tokens[storagePointer].size > storageIndex + 1) {
                 // Sets the rest as IDENTIFIER. Adding the current input to the current token value
@@ -320,15 +321,37 @@ Return Type: void
 Params: TOKEN *token => Token to be set as pointer;
         size_t currentSymbolIndex => Position of the current character pointer in the value field of the token
 */
-void write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex) {
+int write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffer, size_t currentBufferCharPos) {
     if (token != NULL) {
-        token->type = _POINTER_;
+        int pointers = 0;
 
-        if (token->size > currentSymbolIndex + 1) {
-            token->value[currentSymbolIndex] = '*';
-            token->value[currentSymbolIndex + 1] = '\0';
+        for (size_t i = 0; i < maxlength - currentBufferCharPos; i++) {
+            if ((*buffer)[currentBufferCharPos + i] == '*') {
+                pointers++;
+            } else {
+                if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
+                    || (int)is_digit((*buffer)[currentBufferCharPos + i] == 1)) {
+                    LEXER_UNFINISHED_POINTER_EXCEPTION();
+                } else {
+                    break;
+                }
+            }
         }
+
+        while (token->size < pointers + 1) {
+            (void)resize_tokens_value(token, token->size);
+        }
+
+        for (int i = 0; i < pointers; i++) {
+            token->value[i] = '*';
+        }
+
+        token->value[pointers + 1] = '\0';
+        token->type = _POINTER_;
+        return pointers;
     }
+
+    return 0;
 }
 
 /*
@@ -454,7 +477,8 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
 
         // write the current character into the current token value
         // while the input is not the crucial character again the input gets set into the current token value
-        while (input[currentInputIndex + jumpForward] != *crucial_character
+        while ((input[currentInputIndex + jumpForward] != *crucial_character
+            || input[currentInputIndex + jumpForward - 1] == '\\')
             && (currentInputIndex + jumpForward) < maxlength) {
             // If the string size is bigger than size, resize the token
             if (jumpForward + 1 >= (((token->size * currentIncremental) - 1))) {
@@ -628,13 +652,14 @@ Params: TOKEN *token => Current token which should be the EOF token
 */
 void set_EOF_token(TOKEN *token) {
     if (token != NULL) {
-        char *src = "$EOF$";
+        char *src = "$EOF$\0";
 
-        token->value = (char*)realloc(token->value, sizeof(char) * 6);
-        strcpy(token->value, src);
+        token->value = (char*)realloc(token->value, sizeof(char) * (strlen(src) + 1));    
+        strncpy(token->value, src, sizeof(char) * strlen(src));
 
         token->value[6] = '\0';
         token->type = __EOF__;
+        token->size = 6;
         token->line = -1;
     }
 }

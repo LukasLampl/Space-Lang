@@ -18,6 +18,7 @@ int set_operator_size(char **buffer, size_t bufferLength, size_t currentBufferCh
 int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
 void reserve_token_lengths(const size_t *fileLength, int **arrayOfIndividualTokenSizes);
 int check_double_operator(char currentInputChar, char NextInputChar);
+int is_correct_pointer(char **buffer, size_t currentBufferCharPos, const size_t maxSize);
 
 /*
 Purpose: Read in the source files to compile, then read in the grammar file and tokenize the whole input
@@ -49,12 +50,12 @@ int main() {
 
     // Read the contents of the file into the buffer
     (void)fread(buffer, sizeof(char), fileLength, filePointer);
-
     int requiredTokenLength = (int)get_minimum_token_number(&buffer, &arrayOfIndividualTokenSizes, &fileLength);
+    
     (void)Tokenize(&buffer, &arrayOfIndividualTokenSizes, &fileLength, requiredTokenLength);
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", pathToInputFile);
-
+    
     if (fclose(filePointer) == EOF) {
         (void)IO_FILE_CLOSING_EXCEPTION();
     }
@@ -153,10 +154,8 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
             
             if (isWhitespace == 0) {
                 if ((int)check_for_operator((*buffer)[i]) == 1) {
-                    if ((*buffer)[i] == '&') {
-                        isOperator = 0;
-                    } else if ((*buffer)[i] == '*' && (int)is_space((*buffer)[i + 1]) == 0
-                        && (int)is_digit((*buffer)[i + 1]) == 0) {
+                    if ((*buffer)[i] == '&'
+                        || (int)is_correct_pointer(buffer, i, *bufferLength) == 1) {
                         isOperator = 0;
                     } else {
                         isOperator = 1;
@@ -190,9 +189,40 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
 }
 
 /*
+Purpose: Check if a pointer is defined correctly
+Return Type: int => 1 = is correct defined pointer; 0 = not correct defined pointer;
+Params: char **buffer => Buffer to be checked;
+        size_T currentBufferCharPos => Position of the current character in the buffer;
+        const size_t maxSize => File size
+*/
+int is_correct_pointer(char **buffer, size_t currentBufferCharPos, const size_t maxSize) {
+    if (buffer != NULL) {
+        int skips = 0;
+        
+        while (currentBufferCharPos + skips < maxSize) {
+            if ((*buffer)[currentBufferCharPos + skips] == '*') {
+                skips++;
+            } else {
+                break;
+            }
+        }
+        
+        if ((int)is_space((*buffer)[currentBufferCharPos + skips]) == 1
+            || (int)is_digit((*buffer)[currentBufferCharPos + skips]) == 1
+            || (int)check_for_operator((*buffer)[currentBufferCharPos + skips]) == 1) {
+            return 0;
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
 Purpose: Skips everything, till it scans a comment, operator, whitespace, string ect.
 Return Type: int => How many chars to skip
-Params: size_t currentBufferCharacterPasition => Position of the current character in the buffer;
+Params: size_t currentBufferCharacterPosition => Position of the current character in the buffer;
         size_t bufferLength => Length of the buffer;
         char **buffer => Buffer, in which the content of the source file can be found;
         int **arrayOfIndividualTokens => Array in which the size of every token is stored;
@@ -222,11 +252,11 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
                     continue;
                 }
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '*') {
-                if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
-                && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0) {
+                /*if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
+                    && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0) {
                     identifierLength++;
                     continue;
-                } else if (isInReferenceToPointer == 1) {
+                } else*/ if (isInReferenceToPointer == 1) {
                     identifierLength++;
                     continue;
                 }
@@ -294,7 +324,8 @@ int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacte
 
     // Skip the whole string till the end
     while (currentTokenNumber + lengthOfString < bufferLength 
-            && (*buffer)[currentBufferCharacterPosition + lengthOfString] != '\"') {
+            && ((*buffer)[currentBufferCharacterPosition + lengthOfString] != '\"'
+            || (*buffer)[currentBufferCharacterPosition + lengthOfString - 1] == '\\')) {
         lengthOfString++;
     }
 
