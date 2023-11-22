@@ -103,10 +103,10 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### PARAMETER ###
 <PARAMETER>:
-    | <ATOM> $
-    | *(<ATOM> -> ",") $_
-    | *((<POINTER> / <ATOM) -> ",") $
-    | *((<REFERENCE> / <ATOM>) -> ",") $_
+    | <IDENTIFIER> $
+    | *(<IDENTIFIER> -> ",") $_
+    | *((<POINTER> / <IDENTIFIER) -> ",") $
+    | *((<REFERENCE> / <IDENTIFIER>) -> ",") $_
 
 ### IF ###
 <IF> ::= "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] -> *("else" -> "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) -> *("else" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) $_
@@ -143,7 +143,11 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 ### CLASS ###
 <CLASS>:
     | "class" -> <FUNCTION_CALL> -> "=>" -> "{" -> <RUNABLE> -> "}" $
-    | "class" -> <FUNCTION_CALL> -> "with" -> *(<IDENTIFIER> -> ",") -> "=>" -> "{" -> <RUNABLE> -> "}" $_
+    | "class" -> <FUNCTION_CALL> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNABLE> -> "}" $_
+
+### WITH STATEMENT ###
+<WITH_STATEMENT>:
+    | "with" -> <PARAMETER> $_
 
 ### ENUM ###
 <ENUM>:

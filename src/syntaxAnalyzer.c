@@ -35,6 +35,7 @@ void enter_panic_mode(TOKEN **tokens, size_t currentTokenPosition);
 
 int is_runnable(TOKEN **tokens, size_t blockStartPosition);
 SyntaxReport is_class(TOKEN **tokens, size_t currentTokenPosition);
+SyntaxReport is_with_statement(TOKEN **tokens, size_t currentTokenPos);
 SyntaxReport is_assignment(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_term(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_simple_term(TOKEN **tokens, size_t startPosition);
@@ -46,7 +47,7 @@ SyntaxReport is_enumeration(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport are_enumerators(TOKEN **tokens, size_t startPosition);
 SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
-SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction);
+SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction, TOKENTYPES crucialType);
 SyntaxReport is_pointer_pointing_to_value(TOKEN *token);
 SyntaxReport is_pointer(TOKEN *token);
 SyntaxReport is_reference(TOKEN *token);
@@ -78,7 +79,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-    printf("is_func_Call: %i\n", is_function_call(tokens, 0, 1).tokensToSkip);
+    printf("is_class: %i\n", is_class(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -119,14 +120,37 @@ SyntaxReport is_class(TOKEN **tokens, size_t currentTokenPosition) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_CLASS_);
     }
 
-    if ((*tokens)[currentTokenPosition + functionCallTokensToSkip + 1].type != _OP_CLASS_CREATOR_
-        || (*tokens)[currentTokenPosition + functionCallTokensToSkip + 2].type != _OP_RIGHT_BRACE_) {
+    int withTokensToSkip = is_with_statement(tokens, currentTokenPosition + functionCallTokensToSkip + 1).tokensToSkip;
+
+    if ((*tokens)[currentTokenPosition + functionCallTokensToSkip + withTokensToSkip + 1].type != _OP_CLASS_CREATOR_
+        || (*tokens)[currentTokenPosition + functionCallTokensToSkip + withTokensToSkip + 2].type != _OP_RIGHT_BRACE_) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_CLASS_);
     }
 
-    int runnableTokensToSkip = is_runnable(tokens, currentTokenPosition + functionCallTokensToSkip + 2);
+    int runnableTokensToSkip = is_runnable(tokens, currentTokenPosition + withTokensToSkip + functionCallTokensToSkip + 2);
 
-    return create_syntax_report(NULL, functionCallTokensToSkip + runnableTokensToSkip + 3, _NONE_);
+    return create_syntax_report(NULL, functionCallTokensToSkip + withTokensToSkip + runnableTokensToSkip + 2, _NONE_);
+}
+
+/*
+Purpose: Check whether a class contains a with statement or not
+Return Type: SyntaxReport => Contains tokensToSkip; returns _NOT_A_WITH_STATEMENT if the class doesn't contain
+             a with statement
+Params: TOKEN **tokens => Tokens to be scanned;
+        size_t currentTokenPos => Start position of the scan
+*/
+SyntaxReport is_with_statement(TOKEN **tokens, size_t currentTokenPos) {
+    if ((*tokens)[currentTokenPos].type == _KW_WITH_) {
+        SyntaxReport isParam = is_parameter(tokens, currentTokenPos + 1, 1, _OP_CLASS_CREATOR_);
+
+        if (isParam.errorType == _NONE_) {
+            return create_syntax_report(NULL, isParam.tokensToSkip + 1, _NONE_);
+        } else {
+            return create_syntax_report(&(*tokens)[currentTokenPos + 1], 0, _NOT_A_WITH_STATEMENT_);
+        }
+    }
+    
+    return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_WITH_STATEMENT_);
 }
 
 /*
@@ -469,7 +493,7 @@ SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int i
         } else if (i == currentTokenPosition + 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
         } else if (i > currentTokenPosition + 1 && workedDownParameters == 0) {
-            SyntaxReport paramReport = is_parameter(tokens, i, inFunction);
+            SyntaxReport paramReport = is_parameter(tokens, i, inFunction, _OP_LEFT_BRACKET_);
 
             if (paramReport.errorType != _NONE_) {
                 return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
@@ -499,13 +523,14 @@ Purpose: Check if the parameters in a fuctioncall are valid or not
 Return Type: SyntaxReport => Contains errors, tokensToSkip, token itself when error
 Params: TOKEN **tokens => Tokens array pointer with the parameters to be checked;
         size_t currentTokenPos => Position from where to start checking;
-        int inFunction => Is the parameter checker caled as a function parameter or functioncall parameter?
+        int inFunction => Is the parameter checker caled as a function parameter or functioncall parameter?;
+        TOKENTYPES crucialType => Which type determines the end of a parameter
 */
-SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction) {
+SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction, TOKENTYPES crucialType) {
     size_t i = currentTokenPos;
     int isCurrentlyComma = 0;
 
-    while ((*tokens)[i].type != _OP_LEFT_BRACKET_ && (*tokens)[i].type != __EOF__) {
+    while ((*tokens)[i].type != crucialType && (*tokens)[i].type != __EOF__) {
         switch (isCurrentlyComma) {
         case 0:
             if (is_atom(&(*tokens)[i]).errorType != _NONE_) {
@@ -645,7 +670,7 @@ SyntaxReport is_numeral_identifier(TOKEN *token) {
     
     int points = 0;
 
-    for (int i = 0; i < strlen(token->value); i++) {
+    for (int i = 0; i < token->size; i++) {
         char currentChar = (*token).value[i];
         
         if ((int)is_digit(currentChar) == 1) {
@@ -657,6 +682,8 @@ SyntaxReport is_numeral_identifier(TOKEN *token) {
             } else {
                 return create_syntax_report(token, 0, _NOT_A_FLOAT_);
             }
+        } else if (currentChar == '\0') {
+            break;
         }
 
         return create_syntax_report(token, 0, _NOT_A_FLOAT_);
@@ -679,7 +706,7 @@ SyntaxReport is_identifier(TOKEN *token) {
         return create_syntax_report(token, 0, _NOT_AN_IDENTIFIER_);
     }
 
-    for (size_t i = 0; i < strlen(token->value); i++) {
+    for (size_t i = 0; i < token->size; i++) {
         char currentCharacter = (*token).value[i];
 
         if ((int)is_letter(currentCharacter) == 1) {
@@ -688,6 +715,8 @@ SyntaxReport is_identifier(TOKEN *token) {
             continue;
         } else if ((int)is_underscore(currentCharacter) == 1) {
             continue;
+        } else if (currentCharacter == '\0') {
+            break;
         }
         
         return create_syntax_report(token, 0, _NOT_AN_IDENTIFIER_);
