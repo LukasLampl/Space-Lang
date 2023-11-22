@@ -134,7 +134,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### IS ###
 <IS>:
-    | "is" -> <EXPRESSION> -> ":" -> <RUNABLE> $_
+    | "is" -> (<IDENTIFIER> / <DIGIT>) -> ":" -> <RUNABLE> $_
 
 ### INCLUDE ###
 <INCLUDE>:
