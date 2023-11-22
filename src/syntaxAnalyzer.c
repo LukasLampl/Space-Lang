@@ -33,7 +33,9 @@ struct lookup KeywordLookupTable[] = {
 
 void enter_panic_mode(TOKEN **tokens, size_t currentTokenPosition);
 
-int is_runnable(TOKEN **tokens, size_t blockStartPosition);
+int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock);
+SyntaxReport is_check_statement(TOKEN **tokens, size_t currentTokenPos);
+SyntaxReport is_is_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_class(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_with_statement(TOKEN **tokens, size_t currentTokenPos);
 SyntaxReport is_assignment(TOKEN **tokens, size_t currentTokenPosition);
@@ -79,7 +81,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-    printf("is_class: %i\n", is_class(tokens, 0).tokensToSkip);
+    printf("is_check: %i\n", is_check_statement(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -91,16 +93,97 @@ void enter_panic_mode(TOKEN **tokens, size_t currenTokenPosition) {
 
 }
 
-int is_runnable(TOKEN **tokens, size_t blockStartPosition) {
-    if ((*tokens)[blockStartPosition].type != _OP_RIGHT_BRACE_) {
-        return 0;
-    }
+int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock) {
+    switch (withBlock) {
+    case 1:
+        if ((*tokens)[blockStartPosition].type != _OP_RIGHT_BRACE_) {
+            return 0;
+        }
 
-    if ((*tokens)[blockStartPosition + 1].type != _OP_LEFT_BRACE_) {
+        if ((*tokens)[blockStartPosition + 1].type != _OP_LEFT_BRACE_) {
+            return 0;
+        }
+
+        break;
+    case 0:
         return 0;
+        break;
     }
 
     return 2;
+}
+
+/*
+Purpose: Check if a given token array contains a check statement at a specific position
+Return Type: SyntaxReport => Returns _NONE_ as errortype when erverything works fine
+Params: TOKEN **tokens => Token array to be scanned
+        size_t currentTokenPos => Position from where to start checking
+*/
+SyntaxReport is_check_statement(TOKEN **tokens, size_t currentTokenPos) {
+    if ((*tokens)[currentTokenPos].type != _KW_CHECK_
+        || (*tokens)[currentTokenPos + 1].type != _OP_RIGHT_BRACKET_
+        || is_identifier(&(*tokens)[currentTokenPos + 2]).errorType != _NONE_
+        || (*tokens)[currentTokenPos + 3].type != _OP_LEFT_BRACKET_) {
+        return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_CHECK_STATEMENT_);
+    }
+
+    if ((*tokens)[currentTokenPos + 4].type == _OP_RIGHT_BRACE_) {
+        SyntaxReport isTokenSkip = is_is_statement(tokens, currentTokenPos + 5);
+
+        if (isTokenSkip.errorType == _NONE_) {
+            if ((*tokens)[currentTokenPos + isTokenSkip.tokensToSkip + 5].type == _OP_LEFT_BRACE_) {
+                return create_syntax_report(NULL, isTokenSkip.tokensToSkip + 6, _NONE_);
+            }
+        }
+    }
+
+    return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_CHECK_STATEMENT_);
+}
+
+/*
+Purpose: Check if a given token array at a given position is according to the IS_STATEMENT rule
+Return Type: SyntaxReport => Contains Token on error, but return error _NONE_ on success
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking;
+*/
+SyntaxReport is_is_statement(TOKEN **tokens, size_t startPos) {
+    int jumper = 0;
+    int isRunnableTurn = 0;
+
+    while ((*tokens)[startPos + jumper].type != _OP_LEFT_BRACE_
+        && (*tokens)[startPos + jumper].type != __EOF__) {
+        switch (isRunnableTurn) {
+        case 0:
+            if (startPos + jumper + 2 > tokenLength) {
+                return create_syntax_report(&(*tokens)[startPos], 0, _NOT_AN_IS_STATEMENT_);
+            }
+
+            if ((*tokens)[startPos + jumper].type == _KW_IS_
+                && (is_identifier(&(*tokens)[startPos + jumper + 1]).errorType == _NONE_
+                || is_numeral_identifier(&(*tokens)[startPos + jumper + 1]).errorType == _NONE_)
+                && (*tokens)[startPos + jumper + 2].type == _OP_COLON_) {
+                isRunnableTurn = 1;
+                jumper += 2;
+                continue;
+            } else {
+                return create_syntax_report(&(*tokens)[startPos], 0, _NOT_AN_IS_STATEMENT_);
+            }
+        case 1:
+            if ((int)is_runnable(tokens, startPos + jumper, 0) == 0) {
+                isRunnableTurn = 0;
+                jumper += (int)is_runnable(tokens, startPos + jumper, 0) + 1;
+                continue;
+            } else {
+                return create_syntax_report(&(*tokens)[startPos], 0, _NOT_AN_IS_STATEMENT_);
+            }
+        }
+    }
+
+    if ((*tokens)[startPos + jumper].type == __EOF__) {
+        return create_syntax_report(&(*tokens)[startPos], 0, _NOT_AN_IS_STATEMENT_);
+    }
+    
+    return create_syntax_report(NULL, jumper, _NONE_);
 }
 
 /*
@@ -127,7 +210,7 @@ SyntaxReport is_class(TOKEN **tokens, size_t currentTokenPosition) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_CLASS_);
     }
 
-    int runnableTokensToSkip = is_runnable(tokens, currentTokenPosition + withTokensToSkip + functionCallTokensToSkip + 2);
+    int runnableTokensToSkip = is_runnable(tokens, currentTokenPosition + withTokensToSkip + functionCallTokensToSkip + 2, 1);
 
     return create_syntax_report(NULL, functionCallTokensToSkip + withTokensToSkip + runnableTokensToSkip + 2, _NONE_);
 }
@@ -290,7 +373,7 @@ SyntaxReport is_try_statement(TOKEN **tokens, size_t currentTokenPosition) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_TRY_);
     }
 
-    int skipTokensFromRunnable = (int)is_runnable(tokens, currentTokenPosition + 1);
+    int skipTokensFromRunnable = (int)is_runnable(tokens, currentTokenPosition + 1, 1);
     
     if (skipTokensFromRunnable == -1) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_TRY_);
@@ -322,7 +405,7 @@ SyntaxReport is_catch_statement(TOKEN **tokens, size_t startPosition) {
         return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_CATCH_);
     }
 
-    int skipTokensFromRunnable = (int)is_runnable(tokens, startPosition + 5);
+    int skipTokensFromRunnable = (int)is_runnable(tokens, startPosition + 5, 1);
     
     if (skipTokensFromRunnable == -1) {
         return create_syntax_report(&(*tokens)[startPosition], 0, _NOT_A_CATCH_);
@@ -458,7 +541,7 @@ SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition) {
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_);
         }
 
-        int runnableTokensToSkip = (int)is_runnable(tokens, index + skipTokens);
+        int runnableTokensToSkip = (int)is_runnable(tokens, index + skipTokens, 1);
 
         if (runnableTokensToSkip == -1) {
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_);

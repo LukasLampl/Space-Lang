@@ -1,1 +1,4 @@
-class Circle() with class1, class2 => {}
+check (num) {
+is 1:
+is 2:
+}
