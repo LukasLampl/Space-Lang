@@ -52,6 +52,7 @@ SyntaxReport are_enumerators(TOKEN **tokens, size_t startPosition);
 SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
 SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction, TOKENTYPES crucialType);
+SyntaxReport is_function_parameter_initializer(TOKEN **token, size_t startPos);
 SyntaxReport is_pointer_pointing_to_value(TOKEN *token);
 SyntaxReport is_pointer(TOKEN *token);
 SyntaxReport is_reference(TOKEN *token);
@@ -83,7 +84,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     //char *seq = "!";
     clock_t start, end;
     start = clock();;
-    printf("is_expression: %i\n", is_expression(tokens, 0).tokensToSkip);
+    printf("is_func: %i\n", is_function(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -614,7 +615,7 @@ SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int i
     for (int i = currentTokenPosition; (*tokens)[i].type != __EOF__; i++) {
         TOKEN currentToken = (*tokens)[i];
 
-        if (i - currentTokenPosition < 2 || currentToken.type == __EOF__) {
+        if (currentToken.type == __EOF__) {
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
         }
         
@@ -663,7 +664,8 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
     while ((*tokens)[i].type != crucialType && (*tokens)[i].type != __EOF__) {
         switch (isCurrentlyComma) {
         case 0:
-            if (is_atom(&(*tokens)[i]).errorType != _NONE_) {
+            if (is_atom(&(*tokens)[i]).errorType != _NONE_
+                || (*tokens)[i + 1].type == _OP_EQUALS_) {
                 switch (inFunction) {
                 case 0:
                     if (is_pointer_pointing_to_value(&(*tokens)[i]).errorType == _NONE_) {
@@ -675,6 +677,9 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
                     }
                 case 1:
                     if (is_pointer(&(*tokens)[i]).errorType == _NONE_) {
+                        break;
+                    } else if (is_function_parameter_initializer(tokens, i).errorType == _NONE_) {
+                        i += 2;
                         break;
                     } else {
                         return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
@@ -699,6 +704,23 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
     }
 
     return create_syntax_report(NULL, i - currentTokenPos, _NONE_);
+}
+
+/*
+Purpose: Check if a token array is accordingly layed out like the a function parameter initializer
+Return Type: SyntaxReport => ErrorType = _NONE_ on success, else _NOT_A_FUNCTION_PARAMETER_INITIALIZER_
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking
+*/
+SyntaxReport is_function_parameter_initializer(TOKEN **tokens, size_t startPos) {
+    if (is_identifier(&(*tokens)[startPos]).errorType == _NONE_
+        && (*tokens)[startPos + 1].type == _OP_EQUALS_
+        && (is_identifier(&(*tokens)[startPos + 2]).errorType == _NONE_
+        || is_numeral_identifier(&(*tokens)[startPos + 2]).errorType == _NONE_)) {
+        return create_syntax_report(NULL, 2, _NONE_);
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_FUNCTION_PARAMETER_INITIALIZER_);
 }
 
 /*
