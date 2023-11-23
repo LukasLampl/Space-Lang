@@ -41,7 +41,8 @@ typedef enum SyntaxErrorType {
     _NOT_A_FUNCTION_CALL_,  _NOT_A_FUNCTION_,        _NOT_A_BREAK_,         _NOT_AN_ENUMERATOR_,
     _NOT_AN_ENUM_,          _NOT_AN_INCLUDE_,        _NOT_A_CATCH_,         _NOT_A_TRY_,
     _NOT_A_SIMPLE_TERM_,    _NOT_A_TERM_,            _NOT_AN_ASSIGNMENT_,   _NOT_A_CLASS_,
-    _NOT_A_WITH_STATEMENT_, _NOT_A_CHECK_STATEMENT_, _NOT_AN_IS_STATEMENT_,  
+    _NOT_A_WITH_STATEMENT_, _NOT_A_CHECK_STATEMENT_, _NOT_AN_IS_STATEMENT_, _NOT_AN_EXPORT_,
+    _NOT_AN_EXPRESSION_
 } SyntaxErrorType;
 
 typedef struct SyntaxReport {

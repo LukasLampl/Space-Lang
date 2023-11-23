@@ -30,10 +30,10 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
         | *[UNDERSCORE] $_
 
 ### EXPRESSION ###
-<EXPRESSION> ::= <TERM> $
-             ::  (<TERM> / <IDENTIFIER> / [BOOL] / <POINTER_POINTING_TO_VALUE> / "null") -> [LOGIC_OPERATOR] $
-             ::  <EXPRESSION> -> [ARITHMETIC_OPERATOR] -> <TERM> $
-             ::  <IDENTIFIER> -> [INCREMENT_OPERATOR] / [DECREMENT_OPERATOR] $_
+<EXPRESSION>:
+    | <TERM> $
+    | <IDENTIFIER> -> <ASSIGNMENT> $
+    | <IDENTIFIER> -> ([INCREMENT_OPERATOR] / [DECREMENT_OPERATOR]) $_
 
 ### POINTER POINTING TO VALUE ###
 <POINTER_POINTING_TO_VALUE>:
@@ -68,10 +68,6 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "=" -> <STRING> $
     | "=" -> <IDENTIFIER> $
     | "=" -> [BOOL] $_
-
-### STATEMENT ###
-<STATEMENT> ::= *(<IDENTIFIER> / <TERM>) -> "=" -> *(<IDENTIFIER> / <TERM> / <STRING>) $
-            ::  *<ATOM> -> [ARITHMETIC_OPERATOR] -> *<ATOM> $_
 
 ### ARRAY ELEMENT ###
 <ARRAY_ELEMENT> ::= [SQUARE_BRACKET] -> <EXPRESSION> -> [SQUARE_BRACKET] $_
@@ -163,7 +159,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "break" -> ";" $_
 
 ### RUNABLE ###
-<RUNABLE> ::= *<FOR> / *<WHILE> / *<STATEMENT> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> $_
+<RUNABLE> ::= *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> $_
 
 ### EXPORT ###
-<EXPORT> ::= "export" -> <IDENTIFIER> -> ";" $_
+<EXPORT>:
+    | "export" -> <IDENTIFIER> -> ";" $_
