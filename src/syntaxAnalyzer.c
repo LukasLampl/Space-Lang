@@ -12,6 +12,10 @@
 //////////////////////////////   SYNTAX ANALYSIS   /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 
+typedef enum ParameterUse {
+    _PARAM_FUNCTION_, _PARAM_FUNCTION_CALL_, _PARAM_VARIABLE_, _PARAM_WITH_STATEMENT_, _PARAM_CLASS_
+} ParameterUse;
+
 // Keywords
 struct lookup {
     char kwName[9];
@@ -34,6 +38,8 @@ struct lookup KeywordLookupTable[] = {
 void enter_panic_mode(TOKEN **tokens, size_t currentTokenPosition);
 
 int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock);
+SyntaxReport is_variable(TOKEN **tokens, size_t startPos);
+SyntaxReport is_array_element(TOKEN **tokens, size_t startPos);
 SyntaxReport is_expression(TOKEN **tokens, size_t startPos);
 SyntaxReport is_export(TOKEN **tokens, size_t startPos);
 SyntaxReport is_check_statement(TOKEN **tokens, size_t currentTokenPos);
@@ -50,8 +56,8 @@ SyntaxReport is_include(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport is_enumeration(TOKEN **tokens, size_t currentTokenPosition);
 SyntaxReport are_enumerators(TOKEN **tokens, size_t startPosition);
 SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition);
-SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction);
-SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction, TOKENTYPES crucialType);
+SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, ParameterUse parameterUsage);
+SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, ParameterUse usage, TOKENTYPES crucialType);
 SyntaxReport is_function_parameter_initializer(TOKEN **token, size_t startPos);
 SyntaxReport is_pointer_pointing_to_value(TOKEN *token);
 SyntaxReport is_pointer(TOKEN *token);
@@ -81,10 +87,10 @@ size_t tokenLength = 0;
 
 void check(TOKEN **tokens, size_t tokenArrayLength) {
     tokenLength = tokenArrayLength;
-    //char *seq = "!";
+
     clock_t start, end;
     start = clock();;
-    printf("is_func: %i\n", is_function(tokens, 0).tokensToSkip);
+    printf("is_var: %i\n", is_variable(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -116,6 +122,82 @@ int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock) {
     return 2;
 }
 
+SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
+    int skipper = 0;
+
+    switch ((*tokens)[startPos].type) {
+    case _KW_CONST_:
+        skipper = 1;
+        break;
+    default:
+        break;
+    }
+
+    if ((*tokens)[startPos + skipper].type == _KW_VAR_) {
+        if (is_identifier(&(*tokens)[startPos + skipper + 1]).errorType == _NONE_
+            || is_pointer(&(*tokens)[startPos + skipper + 1]).errorType == _NONE_) {
+
+            //Here: "var IDEN = IDEN;"
+            SyntaxReport assignmentReport = is_assignment(tokens, startPos + skipper + 2);
+
+            if (assignmentReport.errorType == _NONE_
+                && (*tokens)[startPos + skipper + assignmentReport.tokensToSkip + 2].type == _OP_SEMICOLON_) {
+                return create_syntax_report(NULL, skipper + assignmentReport.tokensToSkip + 3, _NONE_);
+
+            //Here: "var IDEN;"
+            } else if ((*tokens)[startPos + skipper + 2].type == _OP_SEMICOLON_) {
+                return create_syntax_report(NULL, skipper + 3, _NONE_);
+            }
+
+            SyntaxReport paramReport = is_parameter(tokens, startPos + skipper + 1, _PARAM_VARIABLE_, _OP_EQUALS_);
+
+            //Here: var IDEN, IDEN, ... = IDEN;
+            if (paramReport.errorType == _NONE_) {
+                SyntaxReport paramAssignReport = is_assignment(tokens, startPos + skipper + paramReport.tokensToSkip + 1);
+                if (paramAssignReport.errorType == _NONE_
+                    && (*tokens)[startPos + skipper + paramAssignReport.tokensToSkip + paramReport.tokensToSkip].type == _OP_SEMICOLON_) {
+                    return create_syntax_report(NULL, skipper + paramAssignReport.tokensToSkip + paramReport.tokensToSkip + 1, _NONE_);
+                }
+            }
+
+            paramReport = is_parameter(tokens, startPos + skipper + 1, _PARAM_VARIABLE_, _OP_SEMICOLON_);
+
+            //Here: var IDEN, IDEN, IDEN, ...;
+            if ((*tokens)[startPos + skipper + paramReport.tokensToSkip + 1].type == _OP_SEMICOLON_) {
+                return create_syntax_report(NULL, skipper + paramReport.tokensToSkip + 2, _NONE_);
+            }
+        }
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_VARIABLE_);
+}
+
+/*
+Purpose: Check if a token sequence matches the ARRAY_ELEMENT rule
+Return Type: SyntaxReport => ErrorType = _NONE_ on success and _NOT_AN_ARRAY_ELEMENT_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking
+*/
+SyntaxReport is_array_element(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type == _OP_RIGHT_EDGE_BRACKET_) {
+        SyntaxReport expressionReport = is_expression(tokens, startPos + 1);
+
+        if (expressionReport.errorType == _NONE_) {
+            if ((*tokens)[startPos + expressionReport.tokensToSkip + 1].type == _OP_LEFT_EDGE_BRACKET_) {
+                return create_syntax_report(NULL, 2 + expressionReport.tokensToSkip, _NONE_);
+            }
+        }
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_AN_ARRAY_ELEMENT_);
+}
+
+/*
+Purpose: Check if a token sequence matches the EXPRESSION rule
+Return Type: SyntaxReport => ErrorType = _NONE_ on success and _NOT_AN_EXPRESSION_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking
+*/
 SyntaxReport is_expression(TOKEN **tokens, size_t startPos) {
     SyntaxReport assignmentReport = is_assignment(tokens, startPos + 1);
 
@@ -123,6 +205,13 @@ SyntaxReport is_expression(TOKEN **tokens, size_t startPos) {
         && assignmentReport.errorType == _NONE_
         && (int)is_end_indicator(&(*tokens)[startPos + assignmentReport.tokensToSkip + 1]) == 1) {
         return create_syntax_report(NULL, assignmentReport.tokensToSkip + 1, _NONE_);
+    }
+
+    if (is_identifier(&(*tokens)[startPos]).errorType == _NONE_
+        && ((int)is_decrement_operator((*tokens)[startPos + 1].value) == 1
+        || (int)is_increment_operator((*tokens)[startPos].value) == 1)
+        && (int)is_end_indicator(&(*tokens)[startPos + assignmentReport.tokensToSkip + 2]) == 1) {
+        return create_syntax_report(NULL, 2, _NONE_);
     }
     
     SyntaxReport termReport = is_term(tokens, startPos);
@@ -240,7 +329,7 @@ SyntaxReport is_class(TOKEN **tokens, size_t currentTokenPosition) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_CLASS_);
     }
 
-    int functionCallTokensToSkip = is_function_call(tokens, currentTokenPosition + 1, 1).tokensToSkip;
+    int functionCallTokensToSkip = is_function_call(tokens, currentTokenPosition + 1, _PARAM_CLASS_).tokensToSkip;
     
     if (functionCallTokensToSkip == 0) {
         return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_CLASS_);
@@ -267,7 +356,7 @@ Params: TOKEN **tokens => Tokens to be scanned;
 */
 SyntaxReport is_with_statement(TOKEN **tokens, size_t currentTokenPos) {
     if ((*tokens)[currentTokenPos].type == _KW_WITH_) {
-        SyntaxReport isParam = is_parameter(tokens, currentTokenPos + 1, 1, _OP_CLASS_CREATOR_);
+        SyntaxReport isParam = is_parameter(tokens, currentTokenPos + 1, _PARAM_WITH_STATEMENT_, _OP_CLASS_CREATOR_);
 
         if (isParam.errorType == _NONE_) {
             return create_syntax_report(NULL, isParam.tokensToSkip + 1, _NONE_);
@@ -289,8 +378,9 @@ SyntaxReport is_assignment(TOKEN **tokens, size_t currentTokenPosition) {
     if ((*tokens)[currentTokenPosition].type == _OP_EQUALS_) {
         SyntaxReport termReport = is_term(tokens, currentTokenPosition + 1);
 
-        if (termReport.errorType == _NONE_) {
-            return create_syntax_report(NULL, termReport.tokensToSkip + 1, _NONE_);
+        if (termReport.errorType == _NONE_
+            && (int)is_end_indicator(&(*tokens)[currentTokenPosition + termReport.tokensToSkip + 1]) == 1) {
+            return create_syntax_report(NULL, termReport.tokensToSkip + 2, _NONE_);
         } else if (((int)is_string(&(*tokens)[currentTokenPosition + 1]) == 1
             || is_identifier(&(*tokens)[currentTokenPosition + 1]).errorType == _NONE_
             || (int)is_bool((*tokens)[currentTokenPosition + 1].value) == 1
@@ -312,12 +402,13 @@ Params: TOKEN **tokens => Tokens to check;
         size_t currentTokenPosition => Position from here to start checking
 */
 SyntaxReport is_term(TOKEN **tokens, size_t currentTokenPosition) {
-    if (is_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_
+    if ((is_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_
+        || is_numeral_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_)
         && (int)is_end_indicator(&(*tokens)[currentTokenPosition + 1]) == 1) {
         return create_syntax_report(NULL, 1, _NONE_);
     }
 
-    SyntaxReport functionCallReport = is_function_call(tokens, currentTokenPosition, 0);
+    SyntaxReport functionCallReport = is_function_call(tokens, currentTokenPosition, _PARAM_FUNCTION_CALL_);
 
     if (functionCallReport.errorType == _NONE_
         && (int)is_end_indicator(&(*tokens)[currentTokenPosition + functionCallReport.tokensToSkip]) == 1) {
@@ -582,7 +673,7 @@ SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition) {
     }
 
     if ((*tokens)[index].type == _KW_FUNCTION_) {
-        int skipTokens = is_function_call(tokens, index + 1, 1).tokensToSkip;
+        int skipTokens = is_function_call(tokens, index + 1, _PARAM_FUNCTION_).tokensToSkip;
         index++;
 
         if (skipTokens == 0) {
@@ -606,9 +697,9 @@ Purpose: Check if a function call is going by the rule FUNCTION_CALL
 Return Type: SyntaxReport => Contains errors, tokensToSkip, token itself when error
 Params: TOKEN **tokens => Tokens array pointer with the function call;
         size_t currentTokenPos => Position from where to start checking;
-        int inFunction => Determines, if the function call is in a function or called seperately
+        ParameterUse parameterUsage => Determines, if the function call is in a function or called seperately
 */
-SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int inFunction) {
+SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, ParameterUse parameterUsage) {
     int workedDownParameters = 0;
     size_t checkedTokens = 0;
 
@@ -624,7 +715,7 @@ SyntaxReport is_function_call(TOKEN **tokens, size_t currentTokenPosition, int i
         } else if (i == currentTokenPosition + 1 && currentToken.type != _OP_RIGHT_BRACKET_) {
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
         } else if (i > currentTokenPosition + 1 && workedDownParameters == 0) {
-            SyntaxReport paramReport = is_parameter(tokens, i, inFunction, _OP_LEFT_BRACKET_);
+            SyntaxReport paramReport = is_parameter(tokens, i, parameterUsage, _OP_LEFT_BRACKET_);
 
             if (paramReport.errorType != _NONE_) {
                 return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_CALL_);
@@ -654,10 +745,10 @@ Purpose: Check if the parameters in a fuctioncall are valid or not
 Return Type: SyntaxReport => Contains errors, tokensToSkip, token itself when error
 Params: TOKEN **tokens => Tokens array pointer with the parameters to be checked;
         size_t currentTokenPos => Position from where to start checking;
-        int inFunction => Is the parameter checker caled as a function parameter or functioncall parameter?;
+        ParameterUse usage => For what purpose is the parameter;
         TOKENTYPES crucialType => Which type determines the end of a parameter
 */
-SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction, TOKENTYPES crucialType) {
+SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, ParameterUse usage, TOKENTYPES crucialType) {
     size_t i = currentTokenPos;
     int isCurrentlyComma = 0;
 
@@ -665,21 +756,40 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t currentTokenPos, int inFunction
         switch (isCurrentlyComma) {
         case 0:
             if (is_atom(&(*tokens)[i]).errorType != _NONE_
-                || (*tokens)[i + 1].type == _OP_EQUALS_) {
-                switch (inFunction) {
-                case 0:
+                || (*tokens)[i + 1].type == _OP_EQUALS_
+                || (*tokens)[i + 1].type == _OP_RIGHT_BRACKET_) {
+                switch (usage) {
+                case _PARAM_WITH_STATEMENT_:
+                case _PARAM_FUNCTION_CALL_:
                     if (is_pointer_pointing_to_value(&(*tokens)[i]).errorType == _NONE_) {
                         break;
                     } else if (is_reference(&(*tokens)[i]).errorType == _NONE_) {
                         break;
                     } else {
-                        return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
+                        SyntaxReport funcCallReport = is_function_call(tokens, i, _PARAM_FUNCTION_CALL_);
+
+                        if (funcCallReport.errorType == _NONE_) {
+                            i += funcCallReport.tokensToSkip - 1;
+                            break;
+                        } else {
+                            return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
+                        }
                     }
-                case 1:
+                case _PARAM_CLASS_:
+                case _PARAM_FUNCTION_:
                     if (is_pointer(&(*tokens)[i]).errorType == _NONE_) {
                         break;
                     } else if (is_function_parameter_initializer(tokens, i).errorType == _NONE_) {
                         i += 2;
+                        break;
+                    } else {
+                        return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
+                    }
+
+                case _PARAM_VARIABLE_:
+                    if (is_pointer(&(*tokens)[i]).errorType == _NONE_) {
+                        break;
+                    } else if ((*tokens)[i + 1].type == _OP_EQUALS_) {
                         break;
                     } else {
                         return create_syntax_report(&(*tokens)[currentTokenPos], 0, _NOT_A_PARAMETER_);
@@ -741,14 +851,16 @@ SyntaxReport is_pointer_pointing_to_value(TOKEN *token) {
                 return create_syntax_report(token, 0, _NOT_A_POINTER_POINTING_ON_VALUE);
             }
         }
+
+        return create_syntax_report(NULL, 1, _NONE_);
     }
     
-    return create_syntax_report(NULL, 1, _NONE_);
+    return create_syntax_report(token, 0, _NOT_A_POINTER_POINTING_ON_VALUE);
 }
 
 /*
-Purpose: Check if the given TOKEN array cantains a pointer starting from a given position
-Return Type: int =>  SyntaxReport => Contains errors, tokensToSkip (How many pointers point onto the pointer),
+Purpose: Check if the given TOKEN is a POINTER or not
+Return Type: SyntaxReport => Contains errors, tokensToSkip (How many pointers point onto the pointer),
             token itself when error
 Params: TOKEN *token => Token to be checked after POINTER rule
         [Layout: "*pointer"]

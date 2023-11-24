@@ -70,17 +70,19 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "=" -> [BOOL] $_
 
 ### ARRAY ELEMENT ###
-<ARRAY_ELEMENT> ::= [SQUARE_BRACKET] -> <EXPRESSION> -> [SQUARE_BRACKET] $_
+<ARRAY_ELEMENT>:
+    | [SQUARE_BRACKET] -> <EXPRESSION> -> [SQUARE_BRACKET] $_
 
 ### SUMMON ###
-<VARIABLE> ::= "var" -> <IDENTIFIER> -> <ASSIGNMENT> -> ";" $
-           ::  "var" -> *(<IDENTIFIER> -> ",") -> *<ASSIGNMENT> -> ";" $
-           ::  "var" -> <IDENTIFIER> -> ";" $
-           ::  "var" -> *(<IDENTIFIER> -> ",") -> ";" $
+<VARIABLE>:
+    | "var" -> <IDENTIFIER> -> <ASSIGNMENT> -> ";" $
+    | "var" -> <PARAMETER> -> <ASSIGNMENT> -> ";" $
+    | "var" -> <IDENTIFIER> -> ";" $
+    | "var" -> <PARAMETER> -> ";" $
            ::  "var" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $
            ::  "var" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> "=" -> *[BRACE] -> *<EXPRESSION> -> *[BRACE] -> ";" $
-           ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $
-           ::  "const" -> <IDENTIFIER> -> ";" $_
+           ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $_
+           ::  "const" $_
 
 ### CLASS INSTANCE ###
 <CLASS_INSTANCE> ::= <IDENTIFIER> -> <IDENTIFIER> "=" -> "new" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
@@ -89,9 +91,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 ### FUNCTION ###
 <FUNCTION>:
     | "function" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
-    | [MODIFIER] -> "function" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
-    | "function" -> <IDENTIFIER> -> "(" -> (<IDENTIFIER> -> ASSIGNMENT) -> ")" -> "{" -> <RUNABLE -> "}" $
-    | [MODIFIER] -> "function" -> <IDENTIFIER> -> "(" -> (<IDENTIFIER> -> ASSIGNMENT) -> ")" -> "{" -> <RUNABLE -> "}" $_
+    | [MODIFIER] -> "function" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $_
 
 ### FUNCTION CALL ###
 <FUNCTION_CALL>:
@@ -100,6 +100,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 ### PARAMETER ###
 <PARAMETER>:
     | <IDENTIFIER> $
+    | <FUNCTION_CALL> $
+    | <IDENTIFIER> -> <ASSIGNMENT> $
     | *(<IDENTIFIER> -> ",") $_
     | *((<POINTER> / <IDENTIFIER) -> ",") $
     | *((<REFERENCE> / <IDENTIFIER>) -> ",") $_
