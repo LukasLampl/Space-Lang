@@ -1,1 +1,1 @@
-var num, num1, num2;
+var num[][];

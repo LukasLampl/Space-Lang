@@ -71,7 +71,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### ARRAY ELEMENT ###
 <ARRAY_ELEMENT>:
-    | [SQUARE_BRACKET] -> <EXPRESSION> -> [SQUARE_BRACKET] $_
+    | "[" -> <EXPRESSION> -> "]" $
+    | "[" -> "]" $_
 
 ### SUMMON ###
 <VARIABLE>:
@@ -79,8 +80,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "var" -> <PARAMETER> -> <ASSIGNMENT> -> ";" $
     | "var" -> <IDENTIFIER> -> ";" $
     | "var" -> <PARAMETER> -> ";" $
-           ::  "var" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $
-           ::  "var" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> "=" -> *[BRACE] -> *<EXPRESSION> -> *[BRACE] -> ";" $
+    | "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> ";" $
+           ::  "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> "=" -> *[BRACE] -> *<EXPRESSION> -> *[BRACE] -> ";" $
            ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $_
            ::  "const" $_
 

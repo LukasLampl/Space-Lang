@@ -39,6 +39,10 @@ void enter_panic_mode(TOKEN **tokens, size_t currentTokenPosition);
 
 int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock);
 SyntaxReport is_variable(TOKEN **tokens, size_t startPos);
+SyntaxReport is_normal_var(TOKEN **tokens, size_t startPos);
+SyntaxReport is_parametered_var(TOKEN **tokens, size_t startPos);
+SyntaxReport is_array_var(TOKEN **tokens, size_t startPos);
+SyntaxReport is_var_array(TOKEN **tokens, size_t start);
 SyntaxReport is_array_element(TOKEN **tokens, size_t startPos);
 SyntaxReport is_expression(TOKEN **tokens, size_t startPos);
 SyntaxReport is_export(TOKEN **tokens, size_t startPos);
@@ -137,39 +141,130 @@ SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
         if (is_identifier(&(*tokens)[startPos + skipper + 1]).errorType == _NONE_
             || is_pointer(&(*tokens)[startPos + skipper + 1]).errorType == _NONE_) {
 
-            //Here: "var IDEN = IDEN;"
-            SyntaxReport assignmentReport = is_assignment(tokens, startPos + skipper + 2);
+            SyntaxReport normalVar = is_normal_var(tokens, startPos + skipper + 1);
+            SyntaxReport parameteredVar = is_parametered_var(tokens, startPos + skipper + 1);
+            SyntaxReport arrayVar = is_array_var(tokens, startPos + skipper + 1);
 
-            if (assignmentReport.errorType == _NONE_
-                && (*tokens)[startPos + skipper + assignmentReport.tokensToSkip + 2].type == _OP_SEMICOLON_) {
-                return create_syntax_report(NULL, skipper + assignmentReport.tokensToSkip + 3, _NONE_);
-
-            //Here: "var IDEN;"
-            } else if ((*tokens)[startPos + skipper + 2].type == _OP_SEMICOLON_) {
-                return create_syntax_report(NULL, skipper + 3, _NONE_);
-            }
-
-            SyntaxReport paramReport = is_parameter(tokens, startPos + skipper + 1, _PARAM_VARIABLE_, _OP_EQUALS_);
-
-            //Here: var IDEN, IDEN, ... = IDEN;
-            if (paramReport.errorType == _NONE_) {
-                SyntaxReport paramAssignReport = is_assignment(tokens, startPos + skipper + paramReport.tokensToSkip + 1);
-                if (paramAssignReport.errorType == _NONE_
-                    && (*tokens)[startPos + skipper + paramAssignReport.tokensToSkip + paramReport.tokensToSkip].type == _OP_SEMICOLON_) {
-                    return create_syntax_report(NULL, skipper + paramAssignReport.tokensToSkip + paramReport.tokensToSkip + 1, _NONE_);
-                }
-            }
-
-            paramReport = is_parameter(tokens, startPos + skipper + 1, _PARAM_VARIABLE_, _OP_SEMICOLON_);
-
-            //Here: var IDEN, IDEN, IDEN, ...;
-            if ((*tokens)[startPos + skipper + paramReport.tokensToSkip + 1].type == _OP_SEMICOLON_) {
-                return create_syntax_report(NULL, skipper + paramReport.tokensToSkip + 2, _NONE_);
+            if (normalVar.errorType == _NONE_) {
+                return create_syntax_report(NULL, normalVar.tokensToSkip + skipper + 1, _NONE_);
+            } else if (parameteredVar.errorType == _NONE_) {
+                return create_syntax_report(NULL, parameteredVar.tokensToSkip + skipper + 1, _NONE_);
+            } else if (arrayVar.errorType == _NONE_) {
+                return create_syntax_report(NULL, arrayVar.tokensToSkip + skipper + 1, _NONE_);
             }
         }
     }
 
     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_VARIABLE_);
+}
+
+/*
+Purpose: Check if a given token array matches the array VARIABLE definition
+Return Type: SyntaxReport => ErrorType = _NONE_ on arrayVar
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start
+Layout: "var IDEN[][...] = IDEN;" OR "var IDEN[][...];"
+*/
+SyntaxReport is_array_var(TOKEN **tokens, size_t startPos) {
+    SyntaxReport varArrayReport = is_var_array(tokens, startPos + 1);
+
+    //Here: var IDEN[][...] = IDEN;
+    if (varArrayReport.errorType == _NONE_) {
+        SyntaxReport assignmentReport = is_assignment(tokens, startPos + varArrayReport.tokensToSkip + 1);
+
+        if (assignmentReport.errorType == _NONE_
+            && (*tokens)[startPos + varArrayReport.tokensToSkip + assignmentReport.tokensToSkip].type == _OP_SEMICOLON_) {
+            return create_syntax_report(NULL, varArrayReport.tokensToSkip + assignmentReport.tokensToSkip + 1, _NONE_);
+        
+        //Here: var IDEN[][...];
+        } else if ((*tokens)[startPos + varArrayReport.tokensToSkip + 1].type == _OP_SEMICOLON_) {
+            return create_syntax_report(NULL, varArrayReport.tokensToSkip + 2, _NONE_);
+        }
+    }
+
+    return create_syntax_report(NULL, 0, _NOT_AN_ARRAY_VAR_);
+}
+
+/*
+Purpose: Check if a given token array matches the parametered VARIABLE definition
+Return Type: SyntaxReport => ErrorType = _NONE_ on parameteredVar
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start
+Layout: "var IDEN, IDEN, ... = IDEN;" OR "var IDEN, IDEN, ...;"
+*/
+SyntaxReport is_parametered_var(TOKEN **tokens, size_t startPos) {
+    SyntaxReport paramReport = is_parameter(tokens, startPos, _PARAM_VARIABLE_, _OP_EQUALS_);
+    
+    //Here: var IDEN, IDEN, ... = IDEN;
+    if (paramReport.errorType == _NONE_) {
+        SyntaxReport paramAssignReport = is_assignment(tokens, startPos + paramReport.tokensToSkip);
+        if (paramAssignReport.errorType == _NONE_
+            && (*tokens)[startPos + paramAssignReport.tokensToSkip + paramReport.tokensToSkip - 1].type == _OP_SEMICOLON_) {
+            return create_syntax_report(NULL, paramAssignReport.tokensToSkip + paramReport.tokensToSkip, _NONE_);
+        }
+    }
+
+    paramReport = is_parameter(tokens, startPos, _PARAM_VARIABLE_, _OP_SEMICOLON_);
+
+    //Here: var IDEN, IDEN, ...;
+    if ((*tokens)[startPos + paramReport.tokensToSkip].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, paramReport.tokensToSkip + 1, _NONE_);
+    }
+
+    return create_syntax_report(NULL, 0, _NOT_A_PARAMETERED_VAR_);
+}
+
+/*
+Purpose: Check if a given token array matches the normal VARIABLE definition
+Return Type: SyntaxReport => ErrorType = _NONE_ on normalVar
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start
+Layout: "var IDEN = IDEN;" OR "var IDEN;"
+*/
+SyntaxReport is_normal_var(TOKEN **tokens, size_t startPos) {
+    SyntaxReport assignmentReport = is_assignment(tokens, startPos + 2);
+
+    //Here: var IDEN = IDEN;
+    if (assignmentReport.errorType == _NONE_
+        && (*tokens)[startPos + assignmentReport.tokensToSkip + 2].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, assignmentReport.tokensToSkip + 3, _NONE_);
+
+    //Here: "var IDEN;"
+    } else if ((*tokens)[startPos + 2].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, 3, _NONE_);
+    }
+
+    return create_syntax_report(NULL, 0, _NOT_A_NORMAL_VAR_);
+}
+
+/*
+Purpose: Check if a given token array match the ARRAY_ELEMENT rule
+Return Type: SyntaxReport => ErrorType = _NONE_ on success
+Params: TOKEN **tokens => Token array to be scanned;
+        size_t start => Position from where to start scanning
+*/
+SyntaxReport is_var_array(TOKEN **tokens, size_t start) {
+    int jumper = 0;
+
+    while ((*tokens)[start + jumper].type != __EOF__
+        || (*tokens)[start + jumper].type != _OP_EQUALS_
+        || (*tokens)[start + jumper].type != _OP_SEMICOLON_) {
+        SyntaxReport rep = is_array_element(tokens, start + jumper);
+
+        if (rep.errorType == _NONE_) {
+            jumper += rep.tokensToSkip;
+        } else {
+            break;
+        }
+    }
+    
+    if ((*tokens)[start + jumper].type == _OP_EQUALS_
+        || (*tokens)[start + jumper].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, jumper, _NONE_);
+    } else {
+        return create_syntax_report(&(*tokens)[start], 0, _NOT_AN_ARRAY_VAR_);
+    }
+
 }
 
 /*
@@ -186,6 +281,8 @@ SyntaxReport is_array_element(TOKEN **tokens, size_t startPos) {
             if ((*tokens)[startPos + expressionReport.tokensToSkip + 1].type == _OP_LEFT_EDGE_BRACKET_) {
                 return create_syntax_report(NULL, 2 + expressionReport.tokensToSkip, _NONE_);
             }
+        } else if ((*tokens)[startPos + 1].type == _OP_LEFT_EDGE_BRACKET_) {
+            return create_syntax_report(NULL, 2, _NONE_);
         }
     }
 
