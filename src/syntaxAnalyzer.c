@@ -96,7 +96,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     clock_t start, end;
     start = clock();
 
-    printf("is_func_call: %i\n", is_function_call(tokens, 0, _PARAM_FUNCTION_CALL_).tokensToSkip);
+    printf("is_var: %i\n", is_variable(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -239,23 +239,18 @@ SyntaxReport is_var_block_assignment(TOKEN **tokens, size_t startPos) {
                     }
 
                     SyntaxReport termReport = is_term(tokens, startPos + jumper);
-                    printf("termentry: %s\n", (*tokens)[startPos + jumper].value);
+                    
                     if (termReport.errorType == _NONE_) {
-                        printf("success");
-                        jumper += termReport.tokensToSkip - 1;
-                        printf("term: %s\n", (*tokens)[startPos + jumper].value);
+                        jumper += termReport.tokensToSkip;
                         continue;
                     }
-                    printf("NAT");
-                    printf("tok: %s, %s\n", (*tokens)[startPos + jumper - 1].value, (*tokens)[startPos + jumper].value);
+                    
                     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_VAR_BLOCK_ASSIGNMENT_);
                 }
 
                 break;
             case 1:
                 if ((*tokens)[startPos + jumper].type != _OP_COMMA_) {
-                    printf("comerr");
-                    printf("tokc: %s; %s\n", (*tokens)[startPos + jumper - 1].value, (*tokens)[startPos + jumper].value);
                     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_VAR_BLOCK_ASSIGNMENT_);
                 }
                 
@@ -267,12 +262,10 @@ SyntaxReport is_var_block_assignment(TOKEN **tokens, size_t startPos) {
         }
 
         if ((*tokens)[startPos + jumper].type == _OP_SEMICOLON_) {
-            printf("semierr");
             return create_syntax_report(NULL, jumper, _NONE_);
         }
     }
-    printf("bag: ");
-    printf("%s\n", (*tokens)[startPos].value);
+    
     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_VAR_BLOCK_ASSIGNMENT_);
 }
 
@@ -573,7 +566,8 @@ SyntaxReport is_assignment(TOKEN **tokens, size_t currentTokenPosition) {
             || is_identifier(&(*tokens)[currentTokenPosition + 1]).errorType == _NONE_
             || (int)is_bool((*tokens)[currentTokenPosition + 1].value) == 1
             || (*tokens)[currentTokenPosition + 1].type == _KW_NULL_
-            || is_function_call(tokens, currentTokenPosition + 1, _PARAM_FUNCTION_CALL_).errorType == _NONE_)
+            || is_function_call(tokens, currentTokenPosition + 1, _PARAM_FUNCTION_CALL_).errorType == _NONE_
+            || is_term(tokens, currentTokenPosition).errorType == _NONE_)
             && (int)is_end_indicator(&(*tokens)[currentTokenPosition + 2]) == 1) {
             return create_syntax_report(NULL, 2, _NONE_);
         } else {
