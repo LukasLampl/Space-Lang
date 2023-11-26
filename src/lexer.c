@@ -20,22 +20,22 @@ int token_clearance_check(TOKEN *token, size_t lineNumber);
 void set_line_number(TOKEN *token, size_t lineNumber);
 int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
-int skip_comment(const char *input, const size_t currentIndex, size_t *lineNumber);
-int write_string_in_token(TOKEN *token, const char *input, const size_t currentInputIndex, const char *crucial_character);
-int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
+int skip_comment(char *input, const size_t currentIndex, size_t *lineNumber);
+int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIndex, const char *crucial_character);
+int skip_whitespaces(char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar);
 int write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffer, size_t currentBufferCharPos);
 void write_reference_in_token(TOKEN *token);
-int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex);
-int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex, size_t lineNumber);
+int write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar);
+int write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber);
 void set_keyword_type_to_token(TOKEN *token);
 TOKENTYPES set_keyword_type(const char *value);
 int check_for_number(TOKEN *token);
 void set_EOF_token(TOKEN *token);
 
 int check_for_operator(char input);
-int check_for_double_operator(const char *input, const size_t currentSymbolIndex);
+int check_for_double_operator(char currentChar, char nextChar);
 void print_result(TOKEN *tokens, size_t currenTokenIndex);
 void print_cpu_time(float cpu_time_used);
 
@@ -210,8 +210,8 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 }
 
             // Figure out whether the input is a double operator like "++" or "--" or not
-            } else if ((int)check_for_double_operator(input, i)) {
-                i += (int)write_double_operator_in_token(&tokens[storagePointer], input, i);
+            } else if ((int)check_for_double_operator(input[i], input[i + 1])) {
+                i += (int)write_double_operator_in_token(&tokens[storagePointer], input[i], input[i + 1]);
                 (void)set_line_number(&tokens[storagePointer], lineNumber);
                 storagePointer++;
                 storageIndex = 0;
@@ -219,7 +219,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             }
 
             //If non if the above is approved, the input gets processed as a 'normal' Operator
-            storagePointer += (int)write_default_operator_in_token(&tokens[storagePointer], input, i, lineNumber);
+            storagePointer += (int)write_default_operator_in_token(&tokens[storagePointer], input[i], lineNumber);
             storageIndex = 0;
             continue;
         } else {
@@ -441,11 +441,11 @@ int token_clearance_check(TOKEN *token, size_t lineNumber) {
 /*
 Purpose: Skip the input until a second '#' appears
 Return Type: int => How many characters got skipped
-Params: const char *input => The whole input;
+Params: char *input => The whole input;
         const size_t currentIndex => Position from where to start to search for another '#';
         size_t *lineNumber => The current line number of the file
 */
-int skip_comment(const char *input, const size_t currentIndex, size_t *lineNumber) {
+int skip_comment(char *input, const size_t currentIndex, size_t *lineNumber) {
     // The index of how much characters has to be skipped
     int jumpForward = 1;
 
@@ -466,10 +466,11 @@ int skip_comment(const char *input, const size_t currentIndex, size_t *lineNumbe
 Purpose: Put a string into the current token
 Return Type: int => How many chars to skip
 Params: TOKEN *token => Current Token to write in; const char *input => Source code;
+        char *input => Content of the source file;
         const size_t currentInputIndex => Index at where to start writing the string;
         const char *crucial_character => Character: ' or "
 */
-int write_string_in_token(TOKEN *token, const char *input, const size_t currentInputIndex, const char *crucial_character) {
+int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIndex, const char *crucial_character) {
     int jumpForward = 1;
 
     if (input != NULL && token != NULL && token->value != NULL) {
@@ -534,11 +535,11 @@ int write_string_in_token(TOKEN *token, const char *input, const size_t currentI
 /*
 Purpose: Skip all whitespaces to the next possible token
 Return Type: int => Characters to skip over
-Params: const char *input => Input to be processed; int maxLength => Length of the buffer;
+Params: char *input => Input to be processed; int maxLength => Length of the buffer;
         size_t currentInputIndex => Current character position;
         size_t *lineNumber => Current line number to be increased if nesseccarry
 */
-int skip_whitespaces(const char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
+int skip_whitespaces(char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
     int jumpForward = 0;
 
     while (((currentInputIndex + jumpForward) + 1) < maxLength
@@ -612,12 +613,14 @@ void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar) {
 /*
 Purpose: Write the double operator into the current token
 Return Type: int
-Params: TOKEN *token => Current token; const char *input => whole input; const size_t currentSymbolIndex => position of the input
+Params: TOKEN *token => Current token;
+        const char currentChar => Current input char;
+        const char nextChar => Next char in the input
 */
-int write_double_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex) {
+int write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar) {
     if (token != NULL && token->value != NULL) {
-        token->value[0] = input[currentSymbolIndex];
-        token->value[1] = input[currentSymbolIndex + 1];
+        token->value[0] = currentChar;
+        token->value[1] = nextChar;
         token->value[2] = '\0';
 
         token->type = (TOKENTYPES)fill_condition_type(token->value);
@@ -629,13 +632,13 @@ int write_double_operator_in_token(TOKEN *token, const char *input, const size_t
 /*
 Purpose: Write the operator into the current token
 Return Type: int
-Params: TOKEN *token => Current token; const char *input => whole input;
-    	const size_t currentSymbolIndex => position of the input;
+Params: TOKEN *token => Current token; 
+        char currentChar => Operator character;
         size_t lineNumber => Line number of the current token;
 */
-int write_default_operator_in_token(TOKEN *token, const char *input, const size_t currentSymbolIndex, size_t lineNumber) {
-    if (token != NULL && token->value != NULL && input != NULL) {
-        token->value[0] = input[currentSymbolIndex];
+int write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber) {
+    if (token != NULL && token->value != NULL) {
+        token->value[0] = currentChar;
         token->value[1] = '\0';
         (void)set_line_number(token, lineNumber);
 
@@ -790,19 +793,18 @@ int FREE_TOKENS(TOKEN *tokens) {
 /*
 Purpose: Check if the input at the position currentSymbolIndex is a double operator or not
 Return Type: int => 1 = true; 0 = false;
-Params: const char *input => Source; const size_t currentSymbolIndex => position of the current character
+Params: char currentChar => Current input char;
+        char nextChar => Following char after currentChar
 */
-int check_for_double_operator(const char *input, const size_t currentSymbolIndex) {
-    if ((input[currentSymbolIndex] == '+' && input[currentSymbolIndex + 1] == '+')
-        || (input[currentSymbolIndex] == '-' && input[currentSymbolIndex + 1] == '-')) {
-
+int check_for_double_operator(char currentChar, char nextChar) {
+    if ((currentChar == '+' && nextChar == '+')
+        || (currentChar == '-' && nextChar == '-')) {
         return 1;
-    } else if (((input[currentSymbolIndex] == '-' || input[currentSymbolIndex] == '+'
-        || input[currentSymbolIndex] == '*' || input[currentSymbolIndex] == '/')
-        && input[currentSymbolIndex + 1] == '=')) {
-
+    } else if ((currentChar == '-' || currentChar == '+'
+        || currentChar == '*' || currentChar == '/')
+        && nextChar == '=') {
         return 1;
-    } else if (input[currentSymbolIndex] == '=' && input[currentSymbolIndex + 1] == '=') {
+    } else if (currentChar == '=' && nextChar == '=') {
         return 1;
     } else {
         return 0;

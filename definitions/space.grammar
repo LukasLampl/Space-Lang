@@ -81,7 +81,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "var" -> <IDENTIFIER> -> ";" $
     | "var" -> <PARAMETER> -> ";" $
     | "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> ";" $
-           ::  "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> "=" -> *[BRACE] -> *<EXPRESSION> -> *[BRACE] -> ";" $
+    | "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> "=" -> *[BRACE] -> *<EXPRESSION> -> *[BRACE] -> ";" $
            ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $_
            ::  "const" $_
 

@@ -51,7 +51,7 @@ int main() {
     // Read the contents of the file into the buffer
     (void)fread(buffer, sizeof(char), fileLength, filePointer);
     int requiredTokenLength = (int)get_minimum_token_number(&buffer, &arrayOfIndividualTokenSizes, &fileLength);
-    
+
     (void)Tokenize(&buffer, &arrayOfIndividualTokenSizes, &fileLength, requiredTokenLength);
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", pathToInputFile);
