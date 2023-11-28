@@ -74,7 +74,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "[" -> <EXPRESSION> -> "]" $
     | "[" -> "]" $_
 
-### SUMMON ###
+### VARIABLE ###
 <VARIABLE>:
     | "var" -> <IDENTIFIER> -> <ASSIGNMENT> -> ";" $
     | "var" -> <PARAMETER> -> <ASSIGNMENT> -> ";" $
