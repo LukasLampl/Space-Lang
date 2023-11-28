@@ -20,9 +20,9 @@ int token_clearance_check(TOKEN *token, size_t lineNumber);
 void set_line_number(TOKEN *token, size_t lineNumber);
 int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
-int skip_comment(char *input, const size_t currentIndex, size_t *lineNumber);
-int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIndex, const char *crucial_character);
-int skip_whitespaces(char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
+int skip_comment(char **input, const size_t currentIndex, size_t *lineNumber);
+int write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character);
+int skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar);
 int write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffer, size_t currentBufferCharPos);
@@ -30,7 +30,7 @@ void write_reference_in_token(TOKEN *token);
 int write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar);
 int write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber);
 void set_keyword_type_to_token(TOKEN *token);
-TOKENTYPES set_keyword_type(const char *value);
+TOKENTYPES get_keyword_type(const char *value);
 int check_for_number(TOKEN *token);
 void set_EOF_token(TOKEN *token);
 
@@ -107,8 +107,9 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     
     for (size_t i = 0; i < *fileLength; i++) {
         // When the input character at index i is a hashtag, then skip the input till the next hashtag
-        if (input[i] == '#') {
-            i += (int)skip_comment(input, i, &lineNumber);
+        if (input[i] == '/'
+            && (input[i + 1] == '/' || input[i + 1] == '*')) {
+            i += (int)skip_comment(&input, i, &lineNumber);
             continue;
         } else if (input[i] == '\n') {
             lineNumber++;
@@ -132,7 +133,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         // Check if the input character at index i is the beginning of an string or character array
         if (input[i] == '"' || input[i] == '\'') {
             storagePointer += (int)token_clearance_check(&(tokens[storagePointer]), lineNumber);
-            i += (int)write_string_in_token(&tokens[storagePointer], input, i, &input[i]);
+            i += (int)write_string_in_token(&tokens[storagePointer], &input, i, &input[i]);
             (void)set_line_number(&tokens[storagePointer], lineNumber);
             storagePointer++;
             storageIndex = 0;
@@ -145,7 +146,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         // If the input character at index i is a whitespace, then filter the whitespace character
         if (isWhiteSpace) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
-            i += (int)skip_whitespaces(input, *fileLength, i, &lineNumber);
+            i += (int)skip_whitespaces(&input, *fileLength, i, &lineNumber);
 
             // If the current token is already filled or not, if then add "\0" to close the string  
             if ((int)token_clearance_check(&tokens[storagePointer], lineNumber)) { 
@@ -441,18 +442,27 @@ int token_clearance_check(TOKEN *token, size_t lineNumber) {
 /*
 Purpose: Skip the input until a second '#' appears
 Return Type: int => How many characters got skipped
-Params: char *input => The whole input;
+Params: char **input => The whole input;
         const size_t currentIndex => Position from where to start to search for another '#';
         size_t *lineNumber => The current line number of the file
 */
-int skip_comment(char *input, const size_t currentIndex, size_t *lineNumber) {
+int skip_comment(char **input, const size_t currentIndex, size_t *lineNumber) {
+    char crucialChar = (*input)[currentIndex + 1];
     // The index of how much characters has to be skipped
     int jumpForward = 1;
-
     // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
-    while ((input[currentIndex + jumpForward] != '#')
-            && (jumpForward + currentIndex) < maxlength) {
-        if (input[currentIndex + jumpForward] == '\n') {
+    while ((jumpForward + currentIndex) < maxlength) {
+        if (crucialChar == '*'
+            && (*input)[currentIndex + jumpForward] == '*'
+            && (*input)[currentIndex + jumpForward + 1] == '/') {
+            jumpForward++;
+            break;
+        } else if (crucialChar == '/'
+            && (*input)[currentIndex + jumpForward] == '\n') {
+            break;
+        }
+
+        if ((*input)[currentIndex + jumpForward] == '\n') {
             (*lineNumber)++;
         }
 
@@ -466,11 +476,11 @@ int skip_comment(char *input, const size_t currentIndex, size_t *lineNumber) {
 Purpose: Put a string into the current token
 Return Type: int => How many chars to skip
 Params: TOKEN *token => Current Token to write in; const char *input => Source code;
-        char *input => Content of the source file;
+        char **input => Content of the source file;
         const size_t currentInputIndex => Index at where to start writing the string;
         const char *crucial_character => Character: ' or "
 */
-int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIndex, const char *crucial_character) {
+int write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character) {
     int jumpForward = 1;
 
     if (input != NULL && token != NULL && token->value != NULL) {
@@ -478,8 +488,8 @@ int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIn
 
         // write the current character into the current token value
         // while the input is not the crucial character again the input gets set into the current token value
-        while ((input[currentInputIndex + jumpForward] != *crucial_character
-            || input[currentInputIndex + jumpForward - 1] == '\\')
+        while (((*input)[currentInputIndex + jumpForward] != *crucial_character
+            || (*input)[currentInputIndex + jumpForward - 1] == '\\')
             && (currentInputIndex + jumpForward) < maxlength) {
             // If the string size is bigger than size, resize the token
             if (jumpForward + 1 >= (((token->size * currentIncremental) - 1))) {
@@ -488,13 +498,13 @@ int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIn
             }
 
             if (token->size > jumpForward) {
-                token->value[jumpForward] = input[currentInputIndex + jumpForward];
+                token->value[jumpForward] = (*input)[currentInputIndex + jumpForward];
             }
 
             jumpForward++;
         }
 
-        if (input[currentInputIndex + jumpForward] != '"') {
+        if ((*input)[currentInputIndex + jumpForward] != '"') {
             (void)LEXER_UNFINISHED_STRING_EXCEPTION();
         }
 
@@ -535,16 +545,16 @@ int write_string_in_token(TOKEN *token, char *input, const size_t currentInputIn
 /*
 Purpose: Skip all whitespaces to the next possible token
 Return Type: int => Characters to skip over
-Params: char *input => Input to be processed; int maxLength => Length of the buffer;
+Params: char **input => Input to be processed; int maxLength => Length of the buffer;
         size_t currentInputIndex => Current character position;
         size_t *lineNumber => Current line number to be increased if nesseccarry
 */
-int skip_whitespaces(char *input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
+int skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
     int jumpForward = 0;
 
     while (((currentInputIndex + jumpForward) + 1) < maxLength
-        && isspace(input[(currentInputIndex + jumpForward) + 1]) != 0) {
-        if (input[currentInputIndex + jumpForward] == '\n') {
+        && isspace((*input)[(currentInputIndex + jumpForward) + 1]) != 0) {
+        if ((*input)[currentInputIndex + jumpForward] == '\n') {
             (*lineNumber)++;
         }
 
@@ -678,7 +688,7 @@ void set_keyword_type_to_token(TOKEN *token) {
             return;
         }
 
-        TOKENTYPES type = (TOKENTYPES)set_keyword_type(token->value);
+        TOKENTYPES type = (TOKENTYPES)get_keyword_type(token->value);
         token->type = type;
     }
 }
@@ -833,7 +843,7 @@ Purpose: Returns the keyword type based on the passed value
 Return Type: TOKENTYPES => Keyword in TOKENTYPES enum
 Params: char *value => Value to be scanned for keyword
 */
-TOKENTYPES set_keyword_type(const char *value) {
+TOKENTYPES get_keyword_type(const char *value) {
     for (int i = 0; i < (sizeof(KeywordTable) / sizeof(KeywordTable[0])); i++) {
         if (strcmp(value, KeywordTable[i].kwName) == 0) {
             return KeywordTable[i].kwValue;

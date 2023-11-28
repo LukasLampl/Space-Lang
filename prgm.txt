@@ -1,1 +1,8 @@
-var num[3][] = {{10 + 4 * add(5, 8), 4}};
+/*
+This is a multiline
+comment
+*/
+
+//This is a single line comment
+
+var string = "Test";

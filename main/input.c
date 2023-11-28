@@ -19,6 +19,7 @@ int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacte
 void reserve_token_lengths(const size_t *fileLength, int **arrayOfIndividualTokenSizes);
 int check_double_operator(char currentInputChar, char NextInputChar);
 int is_correct_pointer(char **buffer, size_t currentBufferCharPos, const size_t maxSize);
+int skip_buffer_comment(char **buffer, size_t currentPos, size_t bufferLength, char crucialChar);
 
 /*
 Purpose: Read in the source files to compile, then read in the grammar file and tokenize the whole input
@@ -137,15 +138,10 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
     if (*buffer != NULL && *arrayOfIndividualTokenSizes != NULL) {
         for (size_t i = 0; i < *bufferLength; i++) {
             // If input is a comment
-            if ((*buffer)[i] == '#') {
-                int jumpForward = 0;
-                
-                while (i + jumpForward < *bufferLength && (*buffer)[i + jumpForward] != '#') {
-                    jumpForward++;
-                }
-
-                comment++;
-                i += jumpForward;
+            if ((*buffer)[i] == '/'
+                && ((*buffer)[i + 1] == '/'
+                || (*buffer)[i + 1] == '*')) {
+                i += (int)skip_buffer_comment(buffer, i, *bufferLength, (*buffer)[i + 1]);
                 continue;
             }
 
@@ -186,6 +182,38 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
 
     printf("Num: %i\n", tokenNumber - comment);
     return tokenNumber - comment;
+}
+
+/*
+Purpose: Gives back the number of chars to skip as they are in a comment
+Return Type: int => Number of chars to skip
+Params: char **buffer => Buffer to be checked;
+        size_t currentPos => Position from where to start skipping;
+        size_t bufferLength => Maximum length of the input file;
+        char crucialChar => Character that determines the type of comment
+*/
+int skip_buffer_comment(char **buffer, size_t currentPos, size_t bufferLength, char crucialChar) {
+    int skip = 1;
+
+    while (currentPos + skip < bufferLength) {
+        if (crucialChar == '/') {
+            if ((*buffer)[currentPos + skip] == '\n') {
+                break;
+            }
+        } else if (crucialChar == '*') {
+            if ((*buffer)[currentPos + skip] == '*'
+                && (*buffer)[currentPos + skip + 1] == '/') {
+                skip++;
+                break;
+            }
+        } else {
+            printf("Something went wrong in the comment definition.");
+        }
+
+        skip++;
+    }
+
+    return skip;
 }
 
 /*
