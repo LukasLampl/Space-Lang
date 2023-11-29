@@ -39,6 +39,8 @@ void enter_panic_mode(TOKEN **tokens, size_t currentTokenPosition);
 
 int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock);
 SyntaxReport is_variable(TOKEN **tokens, size_t startPos);
+SyntaxReport is_conditional_assignment(TOKEN **tokens, size_t startPos);
+SyntaxReport is_condition(TOKEN **tokens, size_t startPos);
 SyntaxReport is_normal_var(TOKEN **tokens, size_t startPos);
 SyntaxReport is_parametered_var(TOKEN **tokens, size_t startPos);
 SyntaxReport is_array_var(TOKEN **tokens, size_t startPos);
@@ -96,7 +98,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     clock_t start, end;
     start = clock();
 
-    printf("is_var: %i\n", is_variable(tokens, 0).tokensToSkip);
+    printf("is_con_var: %i\n", is_variable(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -128,6 +130,12 @@ int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock) {
     return 2;
 }
 
+/*
+Purpose: Check if a given TOKEN array match the variable rule
+Return Type: SyntaxReport => _NOT_A_VARIABLE_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking
+*/
 SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
     int skipper = 0;
 
@@ -146,6 +154,7 @@ SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
             SyntaxReport normalVar = is_normal_var(tokens, startPos + skipper + 1);
             SyntaxReport parameteredVar = is_parametered_var(tokens, startPos + skipper + 1);
             SyntaxReport arrayVar = is_array_var(tokens, startPos + skipper + 1);
+            SyntaxReport conditionalVar = is_conditional_assignment(tokens, startPos + skipper + 2);
 
             if (normalVar.errorType == _NONE_) {
                 return create_syntax_report(NULL, normalVar.tokensToSkip + skipper + 1, _NONE_);
@@ -153,11 +162,63 @@ SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
                 return create_syntax_report(NULL, parameteredVar.tokensToSkip + skipper + 1, _NONE_);
             } else if (arrayVar.errorType == _NONE_) {
                 return create_syntax_report(NULL, arrayVar.tokensToSkip + skipper + 1, _NONE_);
+            } else if (conditionalVar.errorType == _NONE_) {
+                return create_syntax_report(NULL, conditionalVar.tokensToSkip + skipper + 2, _NONE_);
             }
         }
     }
 
     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_VARIABLE_);
+}
+
+/*
+Purpose: Check if a given TOKEN array is a conditional assignment
+Return Type: SyntaxReport => _NOT_A_CONDITIONAL_ASSIGNMENT_ on error
+Params: TOKEN **tokens => Tokens to be scanned;
+        size_t startPos => Position from where to start checking
+*/
+SyntaxReport is_conditional_assignment(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type != _OP_EQUALS_) {
+        return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CONDITIONAL_ASSIGNMENT_);
+    }
+    
+    SyntaxReport conditionReport = is_condition(tokens, startPos + 1);
+    
+    if (conditionReport.errorType == _NONE_) {
+        if ((*tokens)[startPos + conditionReport.tokensToSkip + 1].type == _OP_QUESTION_MARK_) {
+            SyntaxReport leftTerm = is_term(tokens, startPos + conditionReport.tokensToSkip + 2);
+            SyntaxReport rightTerm = is_term(tokens, startPos + conditionReport.tokensToSkip + leftTerm.tokensToSkip + 3);
+            TOKEN colonToken = (*tokens)[startPos + conditionReport.tokensToSkip + leftTerm.tokensToSkip + 2];
+
+            if (leftTerm.errorType == _NONE_
+                && rightTerm.errorType == _NONE_
+                && colonToken.type == _OP_COLON_) {
+                //+4, because 1 equals, 1 Questionmark, 1 Colon, 1 end indicator
+                return create_syntax_report(NULL, conditionReport.tokensToSkip + leftTerm.tokensToSkip + rightTerm.tokensToSkip + 4, _NONE_);
+            }
+        }
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CONDITIONAL_ASSIGNMENT_);
+}
+
+/*
+Purpose: Check if a given TOKEN array matches a condition
+Return Type: SyntaxReport => _NONE_ on condition; _NOT_A_CONDITION_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking
+*/
+SyntaxReport is_condition(TOKEN **tokens, size_t startPos) {
+    SyntaxReport leftTermReport = is_term(tokens, startPos);
+    SyntaxReport rightTermReport = is_term(tokens, startPos + leftTermReport.tokensToSkip + 1);
+
+    if (leftTermReport.errorType == _NONE_
+        && (int)is_rational_operator((*tokens)[startPos + leftTermReport.tokensToSkip].value) == 1
+        && rightTermReport.errorType == _NONE_) {
+        return create_syntax_report(NULL, leftTermReport.tokensToSkip + rightTermReport.tokensToSkip + 1, _NONE_);
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CONDITION_);
 }
 
 /*
@@ -585,6 +646,10 @@ Params: TOKEN **tokens => Tokens to check;
         size_t currentTokenPosition => Position from here to start checking
 */
 SyntaxReport is_term(TOKEN **tokens, size_t currentTokenPosition) {
+    if ((*tokens)[currentTokenPosition].type == __EOF__) {
+        return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_TERM_);
+    }
+
     if ((is_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_
         || is_numeral_identifier(&(*tokens)[currentTokenPosition]).errorType == _NONE_)) {
         if ((int)is_end_indicator(&(*tokens)[currentTokenPosition + 1]) == 1) {
@@ -678,7 +743,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPosition, int inFunction
 }
 
 /*
-Purpose: Check if a given TOKEN matches an "end of statement" indicator ("=", ";", "]", "}", "?", ")", ",")
+Purpose: Check if a given TOKEN matches an "end of statement" indicator ("=", ";", "]", "}", "?", ")", "," ...)
 Return Type: int => 1 = is end indicator; 0 = is not an end indicator
 Params: const TOKEN *token -> Token to be checked
 */
@@ -687,7 +752,8 @@ int is_end_indicator(const TOKEN *token) {
         return 0;
     }
     
-    char endIndicators[][2] = {"=", ";", "]", "}", ")", "?", ","};
+    char endIndicators[][3] = {"=", ";", "]", "}", ")", "?", ",",
+                                "<", ">", "<=", ">=", "!=", "==", ":"};
 
     for (int i = 0; i < (sizeof(endIndicators) / sizeof(endIndicators[0])); i++) {
         if (strcmp(token->value, endIndicators[i]) == 0) {
