@@ -1,1 +1,1 @@
-var num = a < 1 ? t * g : h * w + (3 * x);
+while (t == 2 and f == 3) {}

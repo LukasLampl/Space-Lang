@@ -82,17 +82,18 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "var" -> <PARAMETER> -> ";" $
     | "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> ";" $
     | "var" -> <IDENTIFIER> -> *<ARRAY_ELEMENT> -> "=" -> *"{" -> *<EXPRESSION> -> *"}" -> ";" $
-           ::  "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $_
-           ::  "const" $_
+    | "var" -> <IDENTIFIER> -> "=" -> *<EXPRESSION> -> "?" -> <IDENTIFIER> -> ":" -> <IDENTIFIER> -> ";" $
+    | "const" -> <IDENTIFIER> -> <ASSIGNMENT> -> ";" $_
 
 ### CLASS INSTANCE ###
-<CLASS_INSTANCE> ::= <IDENTIFIER> -> <IDENTIFIER> "=" -> "new" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
-             ::  <IDENTIFIER> -> <IDENTIFIER> -> "=" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $_
+<CLASS_INSTANCE>:
+    | <IDENTIFIER> -> <IDENTIFIER> "=" -> "new" -> <FUNCTION_CALL> -> ";" $
+    | <IDENTIFIER> -> <IDENTIFIER> -> "=" -> "new" -> <IDENTIFIER> -> <ARRAY_ELEMENT> -> ";" $_
 
 ### FUNCTION ###
 <FUNCTION>:
-    | "function" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $
-    | [MODIFIER] -> "function" -> <FUNCTION_CALL> -> "{" -> <RUNABLE -> "}" $_
+    | "function" -> <FUNCTION_CALL> -> "{" -> <RUNNABLE -> "}" $
+    | [MODIFIER] -> "function" -> <FUNCTION_CALL> -> "{" -> <RUNNABLE -> "}" $_
 
 ### FUNCTION CALL ###
 <FUNCTION_CALL>:
@@ -108,24 +109,28 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | *((<REFERENCE> / <IDENTIFIER>) -> ",") $_
 
 ### IF ###
-<IF> ::= "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] -> *("else" -> "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) -> *("else" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE]) $_
+<IF> ::= "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNNABLE> -> [BRACE] -> *("else" -> "if" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNNABLE> -> [BRACE]) -> *("else" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNNABLE> -> [BRACE]) $_
 
 ### WHILE ###
-<WHILE> ::= "while" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+<WHILE> ::= <WHILE_CONDITION> -> <RUNNABLE> $_
 
 ### DO ###
-<DO> ::= "do" -> [BRACE] -> <RUNABLE> -> [BRACE] -> "while" -> [BRACKET] -> *<EXPRESSION> -> [BRACKET] $_
+<DO> ::= "do" -> <RUNNABLE> -> <WHILE_CONDITION> $_
+
+### WHILE CONDITION ###
+<WHILE_CONDITION>:
+    | "while" -> "(" -> <CONDITION> -> ")" $_
 
 ### TRY ###
 <TRY>:
-    | "try" -> <RUNABLE> -> <CATCH> $_
+    | "try" -> <RUNNABLE> -> <CATCH> $_
 
 ### CATCH ###
 <CATCH>:
-    | "catch" -> "(" -> *<IDENTIFIER> -> ")" -> <RUNABLE> $_
+    | "catch" -> "(" -> *<IDENTIFIER> -> ")" -> <RUNNABLE> $_
 
 ### FOR ###
-<FOR> ::= "for" -> [BRACKET] -> <TERM> -> ";" -> <EXPRESSION> -> ";" -> <EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNABLE> -> [BRACE] $_
+<FOR> ::= "for" -> [BRACKET] -> <TERM> -> ";" -> <EXPRESSION> -> ";" -> <EXPRESSION> -> [BRACKET] -> [BRACE] -> <RUNNABLE> -> [BRACE] $_
 
 ### CHECK ###
 <CHECK>:
@@ -133,7 +138,7 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### IS ###
 <IS>:
-    | "is" -> (<IDENTIFIER> / <DIGIT>) -> ":" -> <RUNABLE> $_
+    | "is" -> (<IDENTIFIER> / <DIGIT>) -> ":" -> <RUNNABLE> $_
 
 ### INCLUDE ###
 <INCLUDE>:
@@ -141,8 +146,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### CLASS ###
 <CLASS>:
-    | "class" -> <FUNCTION_CALL> -> "=>" -> "{" -> <RUNABLE> -> "}" $
-    | "class" -> <FUNCTION_CALL> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNABLE> -> "}" $_
+    | "class" -> <FUNCTION_CALL> -> "=>" -> "{" -> <RUNNABLE> -> "}" $
+    | "class" -> <FUNCTION_CALL> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNNABLE> -> "}" $_
 
 ### WITH STATEMENT ###
 <WITH_STATEMENT>:
@@ -161,8 +166,8 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 <BREAK>:
     | "break" -> ";" $_
 
-### RUNABLE ###
-<RUNABLE> ::= *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> $_
+### RUNNABLE ###
+<RUNNABLE> ::= *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> $_
 
 ### EXPORT ###
 <EXPORT>:

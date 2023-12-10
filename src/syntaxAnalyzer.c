@@ -38,8 +38,12 @@ struct lookup KeywordLookupTable[] = {
 void enter_panic_mode(TOKEN **tokens, size_t currentTokenPosition);
 
 int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock);
+SyntaxReport is_while_statement(TOKEN **tokens, size_t startPos);
+SyntaxReport is_while_condition(TOKEN **tokens, size_t startPos);
+SyntaxReport is_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport is_variable(TOKEN **tokens, size_t startPos);
 SyntaxReport is_conditional_assignment(TOKEN **tokens, size_t startPos);
+SyntaxReport is_chained_condition(TOKEN **tokens, size_t startPos);
 SyntaxReport is_condition(TOKEN **tokens, size_t startPos);
 SyntaxReport is_normal_var(TOKEN **tokens, size_t startPos);
 SyntaxReport is_parametered_var(TOKEN **tokens, size_t startPos);
@@ -78,7 +82,7 @@ int is_keyword(char *value);
 int is_letter(const char character);
 int is_number(const char character);
 int is_rational_operator(const char *sequence);
-int is_arithmetic_operator(const char character);
+int is_arithmetic_operator(TOKEN *token);
 int is_assignment_operator(const char *sequence);
 int is_increment_operator(const char *sequence);
 int is_decrement_operator(const char *sequence);
@@ -98,7 +102,7 @@ void check(TOKEN **tokens, size_t tokenArrayLength) {
     clock_t start, end;
     start = clock();
 
-    printf("is_con_var: %i\n", is_variable(tokens, 0).tokensToSkip);
+    printf("is_while: %i\n", is_while_statement(tokens, 0).tokensToSkip);
 
     end = clock();
     printf("Time used at syntax analysis: %f\n", ((double) (end - start)) / CLOCKS_PER_SEC);
@@ -131,39 +135,113 @@ int is_runnable(TOKEN **tokens, size_t blockStartPosition, int withBlock) {
 }
 
 /*
+Purpose: Check if an TOKEN array is writte accordingly to the WHILE rule
+Return Type: SyntaxReport => ErrorType = _NONE_ on success, _NOT_A_WHILE_STATEMENT_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking the array
+*/
+SyntaxReport is_while_statement(TOKEN **tokens, size_t startPos) {
+    SyntaxReport whileConditionReport = is_while_condition(tokens, startPos);
+
+    if (whileConditionReport.errorType == _NONE_) {
+        int ret = is_runnable(tokens, startPos + whileConditionReport.tokensToSkip, 1);
+
+        return create_syntax_report(NULL, ret + whileConditionReport.tokensToSkip, _NONE_);
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_WHILE_STATEMENT_);
+}
+
+/*
+Purpose: Check if an TOKEN array is writte accordingly to the WHILE_CONDITION rule
+Return Type: SyntaxReport => ErrorType = _NONE_ on success, _NOT_A_WHILE_CONDITION_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking the array
+*/
+SyntaxReport is_while_condition(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type == _KW_WHILE_) {
+        if ((*tokens)[startPos + 1].type == _OP_RIGHT_BRACKET_) {
+            SyntaxReport chainedConditionReport = is_chained_condition(tokens, startPos + 2);
+            
+            if (chainedConditionReport.errorType == _NONE_
+                && (*tokens)[startPos + chainedConditionReport.tokensToSkip + 2].type == _OP_LEFT_BRACKET_) {
+                return create_syntax_report(NULL, chainedConditionReport.tokensToSkip + 3, _NONE_);
+            }
+        }
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_WHILE_CONDITION_);
+}
+
+/*
+Purpose: Check if a given TOKEN array match the class instance rule
+Return Type: SyntaxReport => _NOT_A_CLASS_INSTANCE_ on error
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking
+*/
+SyntaxReport is_class_instance(TOKEN **tokens, size_t startPos) {
+    if (is_identifier(&(*tokens)[startPos]).errorType == _NONE_
+        && is_identifier(&(*tokens)[startPos + 1]).errorType == _NONE_
+        && (*tokens)[startPos + 2].type == _OP_EQUALS_
+        && (*tokens)[startPos + 3].type == _KW_NEW_) {
+
+            SyntaxReport functionCallReport = is_function_call(tokens, startPos + 4, _PARAM_FUNCTION_CALL_);
+            int endIndicator = (int)is_end_indicator(&(*tokens)[startPos + functionCallReport.tokensToSkip + 3]);
+
+            if (functionCallReport.errorType == _NONE_ && endIndicator == 1) {
+                return create_syntax_report(NULL, functionCallReport.tokensToSkip + 4, _NONE_);
+            }
+ 
+            if (is_identifier(&(*tokens)[startPos + 4]).errorType == _NONE_) {
+                SyntaxReport arrayElementReport = is_array_element(tokens, startPos + 5);
+                endIndicator = (int)is_end_indicator(&(*tokens)[startPos + arrayElementReport.tokensToSkip + 4]);
+
+                if (arrayElementReport.errorType == _NONE_ && endIndicator == 1) {
+                    return create_syntax_report(NULL, arrayElementReport.tokensToSkip + 6, _NONE_);
+                }
+            }
+    }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CLASS_INSTANCE_);
+}
+
+/*
 Purpose: Check if a given TOKEN array match the variable rule
 Return Type: SyntaxReport => _NOT_A_VARIABLE_ on error
 Params: TOKEN **tokens => Token array to be checked;
         size_t startPos => Position from where to start checking
 */
 SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
-    int skipper = 0;
+    if ((*tokens)[startPos].type == _KW_VAR_) {
+        if (is_identifier(&(*tokens)[startPos + 1]).errorType == _NONE_
+            || is_pointer(&(*tokens)[startPos + 1]).errorType == _NONE_) {
 
-    switch ((*tokens)[startPos].type) {
-    case _KW_CONST_:
-        skipper = 1;
-        break;
-    default:
-        break;
-    }
-
-    if ((*tokens)[startPos + skipper].type == _KW_VAR_) {
-        if (is_identifier(&(*tokens)[startPos + skipper + 1]).errorType == _NONE_
-            || is_pointer(&(*tokens)[startPos + skipper + 1]).errorType == _NONE_) {
-
-            SyntaxReport normalVar = is_normal_var(tokens, startPos + skipper + 1);
-            SyntaxReport parameteredVar = is_parametered_var(tokens, startPos + skipper + 1);
-            SyntaxReport arrayVar = is_array_var(tokens, startPos + skipper + 1);
-            SyntaxReport conditionalVar = is_conditional_assignment(tokens, startPos + skipper + 2);
+            SyntaxReport normalVar = is_normal_var(tokens, startPos + 1);
+            SyntaxReport parameteredVar = is_parametered_var(tokens, startPos + 1);
+            SyntaxReport arrayVar = is_array_var(tokens, startPos + 1);
+            SyntaxReport conditionalVar = is_conditional_assignment(tokens, startPos + 2);
 
             if (normalVar.errorType == _NONE_) {
-                return create_syntax_report(NULL, normalVar.tokensToSkip + skipper + 1, _NONE_);
+                return create_syntax_report(NULL, normalVar.tokensToSkip + 1, _NONE_);
             } else if (parameteredVar.errorType == _NONE_) {
-                return create_syntax_report(NULL, parameteredVar.tokensToSkip + skipper + 1, _NONE_);
+                return create_syntax_report(NULL, parameteredVar.tokensToSkip + 1, _NONE_);
             } else if (arrayVar.errorType == _NONE_) {
-                return create_syntax_report(NULL, arrayVar.tokensToSkip + skipper + 1, _NONE_);
+                return create_syntax_report(NULL, arrayVar.tokensToSkip + 1, _NONE_);
             } else if (conditionalVar.errorType == _NONE_) {
-                return create_syntax_report(NULL, conditionalVar.tokensToSkip + skipper + 2, _NONE_);
+                return create_syntax_report(NULL, conditionalVar.tokensToSkip + 2, _NONE_);
+            }
+        }
+    }
+
+    //Constant coverage
+    if ((*tokens)[startPos].type == _KW_CONST_) {
+        if (is_identifier(&(*tokens)[startPos + 1]).errorType == _NONE_) {
+            SyntaxReport assignmentReport = is_assignment(tokens, startPos + 2);
+
+            if (assignmentReport.errorType == _NONE_) {
+                if ((*tokens)[startPos + assignmentReport.tokensToSkip + 1].type == _OP_SEMICOLON_) {
+                    return create_syntax_report(NULL, assignmentReport.tokensToSkip + 2, _NONE_);
+                }
             }
         }
     }
@@ -203,6 +281,49 @@ SyntaxReport is_conditional_assignment(TOKEN **tokens, size_t startPos) {
 }
 
 /*
+Purpose: Check if a TOKEN array is a chained condition, meaning: <condition> "or"/"and" <condition>
+Return Type: SyntaxReport => ErrorType = _NONE_ on success else ErrorType = _NOT_A_CHAINED_CONDITION_
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Postion from where to start checking
+*/
+SyntaxReport is_chained_condition(TOKEN **tokens, size_t startPos) {
+    int jumper = 0;
+    int hasToBeLogicOperator = 0;
+
+    while ((*tokens)[startPos + jumper].type != _OP_LEFT_BRACKET_
+        && (*tokens)[startPos + jumper].type != __EOF__) {
+        switch (hasToBeLogicOperator) {
+        case 0: {
+            SyntaxReport conditionReport = is_condition(tokens, startPos + jumper);
+
+            if (conditionReport.errorType == _NONE_) {
+                jumper += conditionReport.tokensToSkip;
+                hasToBeLogicOperator = 1;
+                break;
+            }
+
+            return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CHAINED_CONDITION_);
+        }
+        case 1:
+            if ((*tokens)[startPos + jumper].type == _KW_AND_
+                || (*tokens)[startPos + jumper].type == _KW_OR_) {
+                hasToBeLogicOperator = 0;
+                jumper++;
+                break;
+            }
+            
+            return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CHAINED_CONDITION_);
+        }
+    }
+
+    if (hasToBeLogicOperator == 0) {
+        return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CHAINED_CONDITION_);
+    }
+
+    return create_syntax_report(NULL, jumper, _NONE_);
+}
+
+/*
 Purpose: Check if a given TOKEN array matches a condition
 Return Type: SyntaxReport => _NONE_ on condition; _NOT_A_CONDITION_ on error
 Params: TOKEN **tokens => Token array to be checked;
@@ -218,6 +339,7 @@ SyntaxReport is_condition(TOKEN **tokens, size_t startPos) {
         return create_syntax_report(NULL, leftTermReport.tokensToSkip + rightTermReport.tokensToSkip + 1, _NONE_);
     }
 
+    printf("Term: l: %i, r: %i\n", leftTermReport.tokensToSkip, rightTermReport.tokensToSkip);
     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_CONDITION_);
 }
 
@@ -289,7 +411,7 @@ SyntaxReport is_var_block_assignment(TOKEN **tokens, size_t startPos) {
                 if (is_identifier(&(*tokens)[startPos + jumper]).errorType != _NONE_) {
 
                     if (is_numeral_identifier(&(*tokens)[startPos + jumper]).errorType == _NONE_
-                        && (int)is_arithmetic_operator((*tokens)[startPos + jumper + 1].value[0]) == 0) {
+                        && (int)is_arithmetic_operator(&(*tokens)[startPos + jumper + 1]) == 0) {
                         break;
                     }
                     
@@ -409,7 +531,6 @@ SyntaxReport is_var_array(TOKEN **tokens, size_t start) {
     } else {
         return create_syntax_report(&(*tokens)[start], 0, _NOT_AN_ARRAY_VAR_);
     }
-
 }
 
 /*
@@ -725,7 +846,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPosition, int inFunction
             }
         }
         case 1:
-            if ((int)is_arithmetic_operator(currentToken.value[0]) == 0) {
+            if ((int)is_arithmetic_operator(&currentToken) == 0) {
                 return create_syntax_report(&currentToken, 0, _NOT_A_SIMPLE_TERM_);
             } else {
                 jumpTokensForward++;
@@ -752,8 +873,9 @@ int is_end_indicator(const TOKEN *token) {
         return 0;
     }
     
-    char endIndicators[][3] = {"=", ";", "]", "}", ")", "?", ",",
-                                "<", ">", "<=", ">=", "!=", "==", ":"};
+    char endIndicators[][4] = {"=", ";", "]", "}", ")", "?", ",",
+                                "<", ">", "<=", ">=", "!=", "==", ":",
+                                "and", "or"};
 
     for (int i = 0; i < (sizeof(endIndicators) / sizeof(endIndicators[0])); i++) {
         if (strcmp(token->value, endIndicators[i]) == 0) {
@@ -1242,15 +1364,16 @@ SyntaxReport is_identifier(TOKEN *token) {
     for (size_t i = 0; i < token->size; i++) {
         char currentCharacter = (*token).value[i];
 
-        if ((int)is_letter(currentCharacter) == 1) {
+        if (currentCharacter == '\0') {
+            break;
+        } else if ((int)is_letter(currentCharacter) == 1) {
             continue;
         } else if ((int)is_number(currentCharacter) == 1 && i > 0) {
             continue;
         } else if ((int)is_underscore(currentCharacter) == 1) {
             continue;
-        } else if (currentCharacter == '\0') {
-            break;
         }
+
         return create_syntax_report(token, 0, _NOT_AN_IDENTIFIER_);
     }
 
@@ -1263,7 +1386,9 @@ Return Type: int => 1 = is keyword; 0 = not a keyword
 Params: char *value => Value to be checked
 */
 int is_keyword(char *value) {
-    for (int i = 0; i < (sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0])); i++) {
+    int keywordLookupTableSize = (sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0]));
+
+    for (int i = 0; i < keywordLookupTableSize; i++) {
         if (strcmp(value, KeywordLookupTable[i].kwName) == 0) {
             return 1;
         }
@@ -1320,8 +1445,9 @@ Params: const char *sequence => Sequence to be checked
 */
 int is_rational_operator(const char *sequence) {
     char rationalOperators[][3] = {"==", "<=", ">=", "!=", "<", ">"};
+    int lengthOfRationalOperators = (sizeof(rationalOperators) / sizeof(rationalOperators[0]));
 
-    for (int i = 0; i < (sizeof(rationalOperators) / sizeof(rationalOperators[0])); i++) {
+    for (int i = 0; i < lengthOfRationalOperators; i++) {
         if (strcmp(sequence, rationalOperators[i]) == 0) {
             return 1;
         }
@@ -1333,10 +1459,15 @@ int is_rational_operator(const char *sequence) {
 /*
 Purpose: Check whether a given character is an arithmetic operator or not
 Return Type: int => 1 = is an arithmetic operator; 0 = not an arithmetic operator
-Params: const char character => Character to be checked
+Params: TOKEN *token => Token to be checked
 */
-int is_arithmetic_operator(const char character) {
-    switch (character) {
+int is_arithmetic_operator(TOKEN *token) {
+    //Could be double operators like += or -= or *= ect.
+    if (strlen(token->value) != 1) {
+        return 0;
+    }
+
+    switch (token->value[0]) {
     case '+':   case '-':   case '/':   case '*':   case '%':
         return 1;
     default:
@@ -1351,8 +1482,9 @@ Params: const char *sequence => Sequence to be checked
 */
 int is_assignment_operator(const char *sequence) {
     char assignmentOperator[][3] = {"+=", "-=", "*=", "/="};
+    int lengthOfAssignmentOperators = (sizeof(assignmentOperator) / sizeof(assignmentOperator[0]));
 
-    for (int i = 0; i < (sizeof(assignmentOperator) / sizeof(assignmentOperator[0])); i++) {
+    for (int i = 0; i < lengthOfAssignmentOperators; i++) {
         if (strcmp(sequence, assignmentOperator[i]) == 0) {
             return 1;
         }

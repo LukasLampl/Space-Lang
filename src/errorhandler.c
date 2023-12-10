@@ -35,6 +35,7 @@ Params: char *source -> Which part of the compiler has Problems; char *file -> F
 */
 void IO_FILE_EXCEPTION(char *Source, char *file) {
     printf("\nIOException at %s file: %s\n", file, Source);
+    printf("File: NULL => Can't processes NULL!");
 
     if (FREE_MEMORY() == 1) {
         exit(EXIT_SUCCESS);

@@ -33,12 +33,12 @@ int main() {
     FILE *filePointer = (FILE *)fopen((char *)pathToInputFile, "r");
 
     (void)check_file_pointer(filePointer, (char *)pathToInputFile);
-
+    
     (void)fseek(filePointer, 0L, SEEK_END);
     const size_t fileLength = (size_t)ftell(filePointer);
-
+    
     (void)check_file_length(&fileLength, (char *)pathToInputFile);
-
+    
     // Character buffer for all input symbols
     char *buffer = NULL;
     int *arrayOfIndividualTokenSizes = NULL;
@@ -86,9 +86,7 @@ Params: const long *length => Length of the file;
 */
 void check_file_length(const size_t *length, char *pathToSourceFile) {
     if (*length == 0) {
-        char sourceFile[64] = {'\0'};
-        (void)strncpy(pathToSourceFile, sourceFile, 63);
-        (void)IO_FILE_EXCEPTION((char *)sourceFile, "input");
+        (void)IO_FILE_EXCEPTION(pathToSourceFile, "input");
     }
 }
 

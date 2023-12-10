@@ -176,11 +176,14 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                     && (int)is_digit(input[i + 1]) == 0) {
                     
                     int ptrRet = (int)write_pointer_in_token(&tokens[storagePointer], storageIndex, &input, i);
-                    i += ptrRet - 1;
-                    storageIndex = ptrRet - 1;
-                    (void)set_line_number(&tokens[storagePointer], lineNumber);
-                    storageIndex++;
-                    continue;
+                    
+                    if (ptrRet > 0) {
+                        i += ptrRet - 1;
+                        storageIndex = ptrRet - 1;
+                        (void)set_line_number(&tokens[storagePointer], lineNumber);
+                        storageIndex++;
+                        continue;
+                    }
                 }
             }
 
@@ -329,13 +332,15 @@ int write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffe
         for (size_t i = 0; i < maxlength - currentBufferCharPos; i++) {
             if ((*buffer)[currentBufferCharPos + i] == '*') {
                 pointers++;
+            }
+
+            if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
+                || (int)is_digit((*buffer)[currentBufferCharPos + i]) == 1) {
+                LEXER_UNFINISHED_POINTER_EXCEPTION();
+            } else if ((int)check_for_operator((*buffer)[currentBufferCharPos + i]) == 1) {
+                return 0;
             } else {
-                if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
-                    || (int)is_digit((*buffer)[currentBufferCharPos + i] == 1)) {
-                    LEXER_UNFINISHED_POINTER_EXCEPTION();
-                } else {
-                    break;
-                }
+                break;
             }
         }
 
