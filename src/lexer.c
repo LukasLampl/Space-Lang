@@ -62,7 +62,8 @@ struct kwLookup KeywordTable[] = {
     {"continue", _KW_CONTINUE_,},  {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
     {"and", _KW_AND_,},            {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
     {"secure", _KW_SECURE_,},      {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
-    {"for", _KW_FOR_,},            {"this", _KW_THIS_},       {"this", _KW_THIS_}
+    {"for", _KW_FOR_,},            {"this", _KW_THIS_},       {"this", _KW_THIS_},
+    {"else", _KW_ELSE_}
 };
 
 
@@ -722,7 +723,7 @@ TOKENTYPES fill_operator_type(char *value) {
         char symbol;
         TOKENTYPES rep;
     };
-
+    
     struct symbol lookup[] = {
         {'%', _OP_MODULU_},             {'!', _OP_NOT_},                {'(', _OP_RIGHT_BRACKET_},
         {')', _OP_LEFT_BRACKET_},       {'{', _OP_RIGHT_BRACE_},        {'}', _OP_LEFT_BRACE_},
@@ -818,6 +819,9 @@ int check_for_double_operator(char currentChar, char nextChar) {
         return 1;
     } else if ((currentChar == '-' || currentChar == '+'
         || currentChar == '*' || currentChar == '/')
+        && nextChar == '=') {
+        return 1;
+    } else if ((currentChar = '<' || currentChar == '>')
         && nextChar == '=') {
         return 1;
     } else if (currentChar == '=' && nextChar == '=') {

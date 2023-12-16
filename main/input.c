@@ -379,6 +379,11 @@ int check_double_operator(char currentInputChar, char NextInputChar) {
         return 1;
     }
 
+    if ((currentInputChar == '<' || currentInputChar == '>')
+        && NextInputChar == '=') {
+        return 1;
+    }
+
     if (currentInputChar == '-' && NextInputChar == '>') {
         return 1;
     } else if (currentInputChar == '=' && NextInputChar == '>') {

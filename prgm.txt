@@ -1,1 +1,1 @@
-while (t == 2 and f == 3) {}
+for (var a = 1; a < 3; a++) {}
