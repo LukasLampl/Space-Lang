@@ -163,6 +163,11 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
     | "class" -> <FUNCTION_CALL> -> "=>" -> "{" -> <RUNNABLE> -> "}"
     | "class" -> <FUNCTION_CALL> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNNABLE> -> "}"
 
+### CLASS OBJECT ACCESS ###
+<CLASS_OBJECT_ACCESS>:
+    | <IDENTIFIER> -> "->" -> <FUNCTION_CALL>
+    | *(<IDENTIFIER> -> ".") -> "->" -> <IDENTIFIER>
+
 ### WITH STATEMENT ###
 <WITH_STATEMENT>:
     | "with" -> <PARAMETER>
@@ -180,8 +185,13 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 <BREAK>:
     | "break" -> ";"
 
+### RETURN ###
+<RETURN>:
+    | "return" -> (<TERM> / <IDENTIFIER>) -> ";"
+
 ### RUNNABLE ###
-<RUNNABLE> ::= *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS>
+<RUNNABLE>:
+    | *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> / <RETURN> / *<CLASS_OBJECT_ACCESS>
 
 ### EXPORT ###
 <EXPORT>:

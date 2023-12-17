@@ -30,7 +30,7 @@ typedef enum TOKENTYPES {
     _OP_GREATER_CONDITION_,          _OP_SMALLER_CONDITION_,          _OP_NOT_,
     _OP_NOT_CONDITION_,              _OP_NOT_EQUALS_CONDITION_,       _OP_EQUALS_,
     _OP_EQUALS_CONDITION_,           _OP_GREATER_OR_EQUAL_CONDITION_, _OP_SMALLER_OR_EQUAL_CONDITION_,
-    _OP_CLASS_ACCESSOR,              _OP_OVERWRITE_,                  _OP_SEMICOLON_,
+    _OP_CLASS_ACCESSOR_,              _OP_OVERWRITE_,                  _OP_SEMICOLON_,
     _OP_PLUS_EQUALS_,                _OP_MINUS_EQUALS_,               _OP_DIVIDE_EQUALS_,
     _OP_MULTIPLY_EQUALS_,            _OP_ADD_ONE_,                    _OP_SUBTRACT_ONE_,
     _OP_COLON_,                      _OP_CLASS_CREATOR_,              _OP_QUESTION_MARK_,

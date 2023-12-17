@@ -44,7 +44,7 @@ class obj(param1, param2) => {}
 
 class Obj with Object => {}
 
-constructor::obj(param1) {}
+//constructor::obj(param1) {}
 
 ### ENUM ###
 enum Test {

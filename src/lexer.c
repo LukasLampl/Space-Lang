@@ -80,7 +80,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     // TOKEN defined in modules.h
     tokens = (struct TOKEN*)malloc((requiredTokenLength + 2) * sizeof(struct TOKEN));
     maxlength = *fileLength;
-    maxTokensLength = requiredTokenLength + 1;
+    maxTokensLength = requiredTokenLength;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
     if (tokens == NULL) {
@@ -175,16 +175,16 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             } else if (input[i] == '*') {
                 if ((int)is_space(input[i + 1]) == 0
                     && (int)is_digit(input[i + 1]) == 0) {
-                    
                     int ptrRet = (int)write_pointer_in_token(&tokens[storagePointer], storageIndex, &input, i);
-                    
+
                     if (ptrRet > 0) {
                         i += ptrRet - 1;
                         storageIndex = ptrRet - 1;
                         (void)set_line_number(&tokens[storagePointer], lineNumber);
                         storageIndex++;
-                        continue;
                     }
+                    
+                    continue;
                 }
             }
 
@@ -330,9 +330,10 @@ int write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffe
     if (token != NULL) {
         int pointers = 0;
 
-        for (size_t i = 0; i < maxlength - currentBufferCharPos; i++) {
+        for (size_t i = 0; i + currentBufferCharPos < maxlength; i++) {
             if ((*buffer)[currentBufferCharPos + i] == '*') {
                 pointers++;
+                continue;
             }
 
             if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
@@ -396,6 +397,7 @@ void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray) {
     if (*tokens != NULL) {
         for (int i = 0; i < maxTokensLength; i++) {
             // Calloc as much space as predicted; Tokens at i has the value length of tokenLengths at i
+            printf("AWAITEDSIZE: %i\n", (*tokenLengthsArray)[i]);
             (*tokens)[i].value = (char *)calloc((*tokenLengthsArray)[i], sizeof(char));
             (*tokens)[i].size = (*tokenLengthsArray)[i];
 
@@ -617,7 +619,7 @@ void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar) {
 
         switch (crucialChar) {
         case '-':
-            token->type = _OP_CLASS_ACCESSOR;
+            token->type = _OP_CLASS_ACCESSOR_;
             break;
         case '=':
             token->type = _OP_CLASS_CREATOR_;

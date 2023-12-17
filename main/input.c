@@ -276,6 +276,8 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
                     && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 1) {
                     identifierLength++;
                     continue;
+                } else {
+                    break;
                 }
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '*') {
                 /*if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
