@@ -1,2 +1,7 @@
-
-test.calc().toNumber();
+for (var i = 0; i < 100; i++) {
+        if (i == 50) {
+            break;
+        } else {
+            couner += 3;
+        }
+    }

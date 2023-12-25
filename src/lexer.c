@@ -16,6 +16,7 @@
 // Functions
 void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray);
 void resize_tokens_value(TOKEN *token, size_t oldSize);
+int eof_token_clearance_check(TOKEN *token, size_t lineNumber);
 int token_clearance_check(TOKEN *token, size_t lineNumber);
 void set_line_number(TOKEN *token, size_t lineNumber);
 int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
@@ -116,7 +117,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             lineNumber++;
             continue;
         }
-        
+
         if (storagePointer > requiredTokenLength) {
             (void)LEXER_NULL_TOKEN_EXCEPTION();
         }
@@ -124,13 +125,12 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         // Check if the Size is bigger than the expected, if true, then increase the size of the token value
         if (storageIndex > tokens[storagePointer].size) {
             (void)resize_tokens_value(&tokens[storagePointer], tokens[storagePointer].size);
-        }
-        
+        } 
+
          // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
         int isWhiteSpace = (int)is_space((*buffer)[i]);
 
         int isOperator = isWhiteSpace != 1 ? (int)check_for_operator(input[i]) : 0; //Checks if input at i is an operator from above
-
         // Check if the input character at index i is the beginning of an string or character array
         if (input[i] == '"' || input[i] == '\'') {
             storagePointer += (int)token_clearance_check(&(tokens[storagePointer]), lineNumber);
@@ -140,8 +140,10 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             storageIndex = 0;
             continue;
         }
+
         if (i + 1 == *fileLength) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
+            (void)set_line_number(&tokens[storagePointer], lineNumber);
         }
         
         // If the input character at index i is a whitespace, then filter the whitespace character
@@ -183,7 +185,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                         (void)set_line_number(&tokens[storagePointer], lineNumber);
                         storageIndex++;
                     }
-                    
+
                     continue;
                 }
             }
@@ -191,7 +193,6 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             // Check if the current token is used or not, and if it increases storagePointer by 1
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
             storagePointer += (int)token_clearance_check(&tokens[storagePointer], lineNumber); 
-
             // Check whether the input could be an ELEMENT ACCESSOR or not
             if ((input[i] == '-' || input[i] == '=') && input[i + 1] == '>') {
                 (void)write_class_accessor_or_creator_in_token(&tokens[storagePointer], input[i]);
@@ -222,7 +223,6 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 storageIndex = 0;
                 continue;
             }
-
             //If non if the above is approved, the input gets processed as a 'normal' Operator
             storagePointer += (int)write_default_operator_in_token(&tokens[storagePointer], input[i], lineNumber);
             storageIndex = 0;
@@ -242,11 +242,11 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             }
         }
     }
-
+    
     /////////////////////////
     ///     EOF TOKEN     ///
     /////////////////////////
-    storagePointer += (int)token_clearance_check(&(tokens[storagePointer]), lineNumber);
+    storagePointer += (int)eof_token_clearance_check(&(tokens[storagePointer]), lineNumber);
     (void)set_EOF_token(&tokens[storagePointer]);
     storagePointer--;
 
@@ -274,6 +274,26 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
     // Free the tokens
     (void)FREE_TOKENS(tokens);
 
+}
+
+/*
+Purpose: Check if the last token is used or not
+Return Type: int => 1 = true; 0 = false;
+Params: TOKEN *token => Token to check its value;
+        size_t *lineNumber => The line number of the token;
+*/
+int eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
+    if (token != NULL && token->value != NULL) {
+        if (token->size > _LII_) {
+            return 0;
+        } else {
+            if (token->value[0] != 0) {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
 }
 
 /*
@@ -397,7 +417,6 @@ void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray) {
     if (*tokens != NULL) {
         for (int i = 0; i < maxTokensLength; i++) {
             // Calloc as much space as predicted; Tokens at i has the value length of tokenLengths at i
-            printf("AWAITEDSIZE: %i\n", (*tokenLengthsArray)[i]);
             (*tokens)[i].value = (char *)calloc((*tokenLengthsArray)[i], sizeof(char));
             (*tokens)[i].size = (*tokenLengthsArray)[i];
 
@@ -674,10 +693,14 @@ Params: TOKEN *token => Current token which should be the EOF token
 void set_EOF_token(TOKEN *token) {
     if (token != NULL) {
         char *src = "$EOF$\0";
+        token->value = (char*)malloc(sizeof(char) * 6);
 
-        token->value = (char*)realloc(token->value, sizeof(char) * (strlen(src) + 1));    
-        strncpy(token->value, src, sizeof(char) * strlen(src));
+        if (token->value == NULL) {
+            printf("ERROR ON ALLOCATIONG MEMORY FOR EOF TOKEN!\n");
+        }
 
+        strncpy(token->value, src, 6 * sizeof(char));
+        
         token->value[6] = '\0';
         token->type = __EOF__;
         token->size = 6;
@@ -691,6 +714,10 @@ Return Type: void
 Params: TOKEN *token => Token to set its token type
 */
 void set_keyword_type_to_token(TOKEN *token) {
+    if (token == NULL) {
+        (void)LEXER_TOKEN_ERROR_EXCEPTION();
+    }
+
     if (token != NULL && token->value != NULL) {
         if (token->type == _NUMBER_ || token->type == _FLOAT_ || token->type == _REFERENCE_ || token->type == _POINTER_) {
             return;
@@ -707,6 +734,10 @@ Return Type: int => 1 = true; 0 = false;
 Params: TOKEN *token => Token to check its value
 */
 int check_for_number(TOKEN *token) {
+    if (token == NULL) {
+        (void)LEXER_TOKEN_ERROR_EXCEPTION();
+    }
+
     if ((int)is_digit(token->value[0]) && token->type != _FLOAT_) {
         token->type = _NUMBER_;
         return 1;
@@ -755,7 +786,13 @@ TOKENTYPES fill_operator_type(char *value) {
     }
 
     // When none of the above character could be detected, then the fill_condition_type() is called
-    return fill_condition_type(value);
+    TOKENTYPES alternativeReturnType = fill_condition_type(value);
+
+    if (alternativeReturnType == _UNDEF_) {
+        (void)LEXER_NULL_TOKEN_VALUE_EXCEPTION();
+    }
+
+    return alternativeReturnType;
 }
 
 /*
@@ -764,6 +801,10 @@ Return Type: TOKENTYPES => Type of the double operator (f.e. _OP_EQUALS_CONDITIO
 Params: char *value => Character array to check for double operators
 */
 TOKENTYPES fill_condition_type(char *value) {
+    if (value == NULL) {
+        return _UNDEF_;
+    }
+    
     struct sequence {
         char seq[3];
         TOKENTYPES rep;
@@ -780,7 +821,7 @@ TOKENTYPES fill_condition_type(char *value) {
 
     for (int i = 0; i < (sizeof(lookup) / sizeof(lookup[0])); i++) {
         // Compare the input with the lookup
-        if ((char *)strstr(value, lookup[i].seq) != NULL) {
+        if ((char*)strstr(value, lookup[i].seq) != NULL) {
             return lookup[i].rep;
         }
     }
@@ -843,6 +884,11 @@ void print_result(TOKEN *tokens, size_t currenTokenIndex) {
         (void)printf("\n>>>>>>>>>>>>>>>>>>>>\tLEXER\t<<<<<<<<<<<<<<<<<<<<\n\n");
 
         for (size_t i = 0; i < currenTokenIndex + 2; i++) {
+            if (tokens[i].value == NULL) {
+                printf("Token: (NULL)\n");
+                continue;
+            }
+
             (void)printf("Token: %3u | Type: %-2d | Size: %3i | Line: %3i -> Token: %s\n", i, (int)tokens[i].type, tokens[i].size, tokens[i].line, tokens[i].value);
         }
 
@@ -856,6 +902,10 @@ Return Type: TOKENTYPES => Keyword in TOKENTYPES enum
 Params: char *value => Value to be scanned for keyword
 */
 TOKENTYPES get_keyword_type(const char *value) {
+    if (value == NULL) {
+        return _UNDEF_;
+    }
+
     for (int i = 0; i < (sizeof(KeywordTable) / sizeof(KeywordTable[0])); i++) {
         if (strcmp(value, KeywordTable[i].kwName) == 0) {
             return KeywordTable[i].kwValue;

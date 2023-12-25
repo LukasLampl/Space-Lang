@@ -36,7 +36,7 @@ typedef enum TOKENTYPES {
     _OP_COLON_,                      _OP_CLASS_CREATOR_,              _OP_QUESTION_MARK_,
     _NUMBER_,                        _STRING_,                        _FLOAT_,
     _POINTER_,                       _REFERENCE_,                     _REFERENCE_ON_POINTER_,
-    _UNDEF_
+    _UNDEF_,                         _LII_
 } TOKENTYPES;
 
 ///////////////////

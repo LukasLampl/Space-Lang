@@ -27,6 +27,10 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
         | *[DIGIT]
         | *[UNDERSCORE]
 
+### POINTER IDENTIFIER ###
+<POINTER_IDENTIFIER>:
+    | <IDENTIFIER> -> *("." -> <IDENTIFIER> / <FUNCTION_CALL>)
+
 ### EXPRESSION ###
 <EXPRESSION>:
     | <TERM>
@@ -45,10 +49,6 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 <REFERENCE>:
     | "&" -> <IDENTIFIER> 
     | "&" -> "(" -> "*" -> <IDENTIFIER> -> ")"
-
-### ATOM ###
-<ATOM>:
-    | *<STRING> / *<IDENTIFIER> / *"(" / *")"
 
 ### TERM ###
 <TERM>:
@@ -195,4 +195,4 @@ THIS IS THE GRAMMAR DEFINITION OF THE SPACE LANGUAGE.
 
 ### EXPORT ###
 <EXPORT>:
-    | "export" -> <IDENTIFIER> -> ";"
+    | "export" -> <STRING> -> ";"

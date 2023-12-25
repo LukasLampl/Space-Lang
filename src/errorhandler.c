@@ -208,6 +208,32 @@ void LEXER_UNFINISHED_POINTER_EXCEPTION() {
 }
 
 /*
+Purpose: Throw an error, when a token vlaue has a NULL pointer
+Returny Type: void
+Params: void
+*/
+void LEXER_NULL_TOKEN_VALUE_EXCEPTION() {
+    printf("Token with value NULL detected => Cannot process NULL.\n");
+
+    if (FREE_MEMORY() == 1) {
+        exit(EXIT_SUCCESS);
+    }
+}
+
+/*
+Purpose: Throw an error, when a passed token is a NULL pointer reference
+Returny Type: void
+Params: void
+*/
+void LEXER_TOKEN_ERROR_EXCEPTION() {
+    printf("NULL token found => Cannot process NULL Token.");
+
+    if (FREE_MEMORY() == 1) {
+        exit(EXIT_SUCCESS);
+    }
+}
+
+/*
 Purpose: Throw an error, if the tokens couldn't be transmitted to the parse section
 Return Type: void
 Params: void
