@@ -1,3 +1,24 @@
+<h1>SPACE - Language</h1><br>
+This project is a compiler for my own programming language.<br>
+The program basically reads in an input file and converts it into tokens, then a parsetree and finally in an intermediate language.<br>
+
+<h1>Table of contents</h1><br>
+<ol>
+  <li>Requiresments</li>
+  <li>Running the compiler on Windows</li>
+  <li>Running the compiler on Linux</li>
+  <li>Notes</li>
+</ol>
+
+<br>
+
+<h1>Requirements</h1><br>
+To compile the source code into an useable format you'll have to use a C compiler.
+I used the gcc compiler throughout the whole project.<br>
+If you want to run the program with the Batchfile, you'll need a Terminal and the gcc compiler or else the Batchfile won't work.
+
+<br><br>
+
 <h1>To run on Windows:</h1>
 <b>1.</b> Download the code and put it into the desired directory<br>
 <b>2.</b> Now you have two options:<br><br>
