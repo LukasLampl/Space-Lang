@@ -263,17 +263,17 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         (void)print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
     
-    (void)check(&(tokens), maxTokensLength);
-
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
     ////////////////////////////////////////
-    (void)FREE_TOKEN_LENGTHS(*arrayOfIndividualTokenSizes);
-    (void)Generate_Parsetree(&tokens, (size_t)storagePointer + 1);
+
+    if ((int)Check_syntax(&(tokens), maxTokensLength) == 1) {
+        (void)FREE_TOKEN_LENGTHS(*arrayOfIndividualTokenSizes);
+        (void)Generate_Parsetree(&tokens, (size_t)storagePointer + 1);
+    }
 
     // Free the tokens
     (void)FREE_TOKENS(tokens);
-
 }
 
 /*
@@ -881,7 +881,7 @@ Params: TOKEN *tokens => Token array to be printed; int currentTokenIndex => siz
 */
 void print_result(TOKEN *tokens, size_t currenTokenIndex) {
     if (tokens != NULL) {
-        (void)printf("\n>>>>>>>>>>>>>>>>>>>>\tLEXER\t<<<<<<<<<<<<<<<<<<<<\n\n");
+        (void)printf("\n>>>>>>>>>>>>>>>>>>>>    LEXER    <<<<<<<<<<<<<<<<<<<<\n\n");
 
         for (size_t i = 0; i < currenTokenIndex + 2; i++) {
             if (tokens[i].value == NULL) {
@@ -892,7 +892,7 @@ void print_result(TOKEN *tokens, size_t currenTokenIndex) {
             (void)printf("Token: %3u | Type: %-2d | Size: %3i | Line: %3i -> Token: %s\n", i, (int)tokens[i].type, tokens[i].size, tokens[i].line, tokens[i].value);
         }
 
-        (void)printf("\n>>>>>\tBuffer successfully lexed\t<<<<<\n");
+        (void)printf("\n>>>>>    Buffer successfully lexed    <<<<<\n");
     }
 }
 

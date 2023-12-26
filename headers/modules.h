@@ -8,8 +8,7 @@
 #define LEXER_DEBUG_MODE 1
 #define LEXER_DISPLAY_USED_TIME 1
 
-#define PARSER_DEBUG_MODE 0
-#define PARSER_DISPLAY_GRAMMAR_PROCESSING 0
+#define PARSER_DEBUG_MODE 1
 #define PARSER_DISPLAY_USED_TIME 1
 
 #define GRAMMAR_LEXER_DISPLAY_GRAMMAR_PROCESSING 0
@@ -30,7 +29,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
 // Parse
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);
 
-void check(TOKEN **tokens, size_t tokenArrayLength);
+int Check_syntax(TOKEN **tokens, size_t tokenArrayLength);
 
 //////////////////////////////////////
 //////////   SYNTAX REPORT   /////////

@@ -356,7 +356,7 @@ int FREE_MEMORY() {
     free += (int)FREE_TOKENS(TokenCache);
 
     if (free == 2) {
-        printf("\nProgram exited successful\n");
+        printf("\n\n\nProgram exited successful\n");
         return 1;
     }
 
