@@ -12,7 +12,7 @@
 <b>3.2.1</b> Open the Explorer and head to the repository dircetory<br>
 <b>3.2.2</b> In the directory you'll find a file named <code>compile.bat</code><br>
 <b>3.2.3</b> Run the <code>compile.bat</code> file<br>
-<b>3.2.4</b> After executing the <code>compile.bat</code> file you'll find a file named <code>space.exe</code>
+<b>3.2.4</b> After executing the <code>compile.bat</code> file you'll find a file named <code>space.exe</code><br>
 <b>3.2.5</b> Run the <code>space.exe</code> file
 
 <br><br>
