@@ -1,6 +1,5 @@
-check (e) {
-is 1:
-    return 1;
-is 2:
-    break;
-}
+enum Ampel {
+    rot : 1,
+    gelb : 2,
+    gruen : 3
+};

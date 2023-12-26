@@ -127,18 +127,18 @@ int Check_syntax(TOKEN **tokens, size_t tokenArrayLength) {
         (void)printf("\n\n\n>>>>>>>>>>>>>>>>>>>>    SYNTAX ANALYZER    <<<<<<<<<<<<<<<<<<<<\n\n");
     }
 
-    /*for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 1; i++) {
         SyntaxReport isProgramValid = is_runnable(tokens, 0, 0);
 
-        if (isProgramValid.errorType != _NONE_) {
-            printf("There's something wrong with the input!\n");
-            return 0;
-        } else {
-            printf("Syntaxanalysis has been executed successfully! (Toks: %i)\n", isProgramValid.tokensToSkip);
+        if (PARSER_DEBUG_MODE == 1) {
+            if (isProgramValid.errorType != _NONE_) {
+                printf("There's something wrong with the input!\n");
+                return 0;
+            } else {
+                printf("Syntaxanalysis has been executed successfully! (Toks: %i)\n", isProgramValid.tokensToSkip);
+            }
         }
-    }*/
-
-    printf("is_check: %i", is_check_statement(tokens, 0).tokensToSkip);
+    }
 
     if (PARSER_DEBUG_MODE == 1) {
         (void)printf("\n>>>>>    Tokens successfully analyzed    <<<<<\n");
@@ -146,7 +146,7 @@ int Check_syntax(TOKEN **tokens, size_t tokenArrayLength) {
 
     if (PARSER_DISPLAY_USED_TIME == 1) {
         end = clock();
-        printf("\nCPU time used for syntax analysis: %f seconds\n", ((double) (end - start)) / CLOCKS_PER_SEC);
+        printf("\nCPU time used for SYNTAX ANALYSIS: %f seconds\n", ((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
     return 1;
@@ -198,23 +198,27 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
         reports[16] = is_break_statement(tokens, startPos + jumper);
         reports[17] = is_class_object_access(tokens, startPos + jumper);
         reports[18] = is_assignable_instruction(tokens, startPos + jumper);
-        int foundMatch = 0;
 
-        for (int i = 0; i < (sizeof(reports) / sizeof(reports[0])); i++) {
+        int foundMatch = 0;
+        int reportsArraySize = (sizeof(reports) / sizeof(reports[0]));
+        
+        for (int i = 0; i < reportsArraySize; i++) {
             if (reports[i].errorType == _NONE_) {
                 jumper += reports[i].tokensToSkip;
                 foundMatch = 1;
+                i = reportsArraySize;
                 continue;
             }
         }
 
         if (foundMatch == 0) {
-            printf("-RUNNABLE ERROR: %s%s\n", (*tokens)[startPos + jumper - 1].value, (*tokens)[startPos + jumper].value);
+            printf("-RUNNABLE ERROR:");
+            printf(" %s%s\n", (*tokens)[startPos + jumper - 1].value, (*tokens)[startPos + jumper].value);
             jumper++;
             break;
         }
     }
-
+    
     if (withBlock == 1) {
         if ((*tokens)[startPos + jumper].type != _OP_LEFT_BRACE_) {
             return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_RUNNABLE_);
@@ -313,23 +317,29 @@ SyntaxReport is_return_statement(TOKEN **tokens, size_t startPos) {
         return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_RETURN_STATEMENT_);
     }
 
-    SyntaxReport termReport = is_term(tokens, startPos + 1, 0);
-    SyntaxReport functionCallReport = is_function_call(tokens, startPos + 1, _PARAM_FUNCTION_CALL_);
-    SyntaxReport condAssignmentReport = is_conditional_assignment(tokens, startPos + 1);
+    SyntaxReport isTerm = is_term(tokens, startPos + 1, 0);
+    SyntaxReport isFunctionCall = is_function_call(tokens, startPos + 1, _PARAM_FUNCTION_CALL_);
+    SyntaxReport isConditionalAssignment = is_conditional_assignment(tokens, startPos + 1);
+    SyntaxReport isIdentifier = is_identifier(tokens, startPos + 1, 0);
 
-    if (termReport.errorType == _NONE_ || functionCallReport.errorType == _NONE_
-        || condAssignmentReport.errorType == _NONE_) {
-        if ((*tokens)[startPos + termReport.tokensToSkip + 1].type == _OP_SEMICOLON_) {
-            return create_syntax_report(NULL, termReport.tokensToSkip + 2, _NONE_);
-        }
+    if (isTerm.errorType == _NONE_
+        && (*tokens)[startPos + isTerm.tokensToSkip + 1].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, isTerm.tokensToSkip + 2, _NONE_);
+    }
 
-        if ((*tokens)[startPos + functionCallReport.tokensToSkip].type == _OP_SEMICOLON_) {
-            return create_syntax_report(NULL, functionCallReport.tokensToSkip + 1, _NONE_);
-        }
+    if (isFunctionCall.errorType == _NONE_
+        && (*tokens)[startPos + isFunctionCall.tokensToSkip].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, isFunctionCall.tokensToSkip + 1, _NONE_);
+    }
 
-        if ((*tokens)[startPos + condAssignmentReport.tokensToSkip].type == _OP_SEMICOLON_) {
-            return create_syntax_report(NULL, condAssignmentReport.tokensToSkip + 1, _NONE_);
-        }
+    if (isConditionalAssignment.errorType == _NONE_
+        && (*tokens)[startPos + isConditionalAssignment.tokensToSkip].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, isConditionalAssignment.tokensToSkip + 1, _NONE_);
+    }
+
+    if (isIdentifier.errorType == _NONE_
+        && (*tokens)[startPos + isIdentifier.tokensToSkip].type == _OP_SEMICOLON_) {
+        return create_syntax_report(NULL, isIdentifier.tokensToSkip, _NONE_);
     }
 
     if ((int)is_string(&(*tokens)[startPos + 1]) == 1
@@ -538,8 +548,10 @@ SyntaxReport is_while_statement(TOKEN **tokens, size_t startPos) {
 
     if (whileConditionReport.errorType == _NONE_) {
         SyntaxReport runnableReport = is_runnable(tokens, startPos + whileConditionReport.tokensToSkip, 1);
-
-        return create_syntax_report(NULL, runnableReport.tokensToSkip + whileConditionReport.tokensToSkip, _NONE_);
+        
+        if (runnableReport.errorType == _NONE_) {
+            return create_syntax_report(NULL, runnableReport.tokensToSkip + whileConditionReport.tokensToSkip, _NONE_);
+        }
     }
 
     return create_syntax_report(&(*tokens)[startPos], 0, _NOT_A_WHILE_STATEMENT_);
@@ -966,11 +978,8 @@ Params: TOKEN **tokens => Token array to be checked;
         size_t startPos => Position from where to start checking
 */
 SyntaxReport is_expression(TOKEN **tokens, size_t startPos) {
-    printf("H");
     SyntaxReport isIdentifier = is_identifier(tokens, startPos, 0);
-    printf("a");
     SyntaxReport isAssignment = is_assignment(tokens, startPos + isIdentifier.tokensToSkip);
-    printf("s");
 
     if (isIdentifier.errorType == _NONE_) {
         if (isAssignment.errorType == _NONE_) {
@@ -1517,12 +1526,10 @@ SyntaxReport is_function(TOKEN **tokens, size_t currentTokenPosition) {
         }
 
         SyntaxReport isRunnable = is_runnable(tokens, index + skipTokens, 1);
-        printf("eun\n");
+
         if (isRunnable.errorType != _NONE_) {
-            printf("error\n");
             return create_syntax_report(&(*tokens)[currentTokenPosition], 0, _NOT_A_FUNCTION_);
         } else {
-            printf("lenght_of_func: %i\n", skipTokens + isRunnable.tokensToSkip + modifier);
             return create_syntax_report(NULL, skipTokens + isRunnable.tokensToSkip + modifier, _NONE_);
         }
     }
@@ -1916,9 +1923,7 @@ Return Type: int => 1 = is keyword; 0 = not a keyword
 Params: char *value => Value to be checked
 */
 int is_keyword(char *value) {
-    int keywordLookupTableSize = (sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0]));
-
-    for (int i = 0; i < keywordLookupTableSize; i++) {
+    for (int i = 0; i < sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0]); i++) {
         if (strcmp(value, KeywordLookupTable[i].kwName) == 0) {
             return 1;
         }
@@ -1973,11 +1978,10 @@ Purpose: Check whether a given sequence is a rational operator or not
 Return Type: int => 1 = is a rational operator; 0 = not a rational operator
 Params: const char *sequence => Sequence to be checked
 */
-int is_rational_operator(const char *sequence) {
-    char rationalOperators[][3] = {"==", "<=", ">=", "!=", "<", ">"};
-    int lengthOfRationalOperators = (sizeof(rationalOperators) / sizeof(rationalOperators[0]));
+const char rationalOperators[][3] = {"==", "<=", ">=", "!=", "<", ">"};
 
-    for (int i = 0; i < lengthOfRationalOperators; i++) {
+int is_rational_operator(const char *sequence) {
+    for (int i = 0; i < (sizeof(rationalOperators) / sizeof(rationalOperators[0])); i++) {
         if (strcmp(sequence, rationalOperators[i]) == 0) {
             return 1;
         }
