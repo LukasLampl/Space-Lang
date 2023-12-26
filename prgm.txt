@@ -1,0 +1,6 @@
+check (e) {
+is 1:
+    return 1;
+is 2:
+    break;
+}
