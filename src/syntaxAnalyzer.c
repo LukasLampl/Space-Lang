@@ -208,6 +208,7 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
     if (withBlock == true) {
         if ((*tokens)[startPos].type != _OP_RIGHT_BRACE_) {
             return create_syntax_report(tokens, startPos, 0, _NOT_A_RUNNABLE_);
+            return create_syntax_report(tokens, startPos, 0, _NOT_A_RUNNABLE_);
         }
         
         jumper++;
