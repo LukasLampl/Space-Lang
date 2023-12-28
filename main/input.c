@@ -49,7 +49,9 @@ Params: NULL
 */
 int main() {
     const char *pathToInputFile = "../SPACE/prgm.txt";
-    printf("SPACE-Language compiler\nCopyright (C) 2023  Lukas Nian En Lampl\n\n");
+    (void)printf("SPACE-Language compiler [Version 0.0.1 - Alpha]\n");
+    (void)printf("Copyright (C) 2023 Lukas Nian En Lampl\n");
+    (void)printf("_________________________________________________\n\n");
 
     // File to read
     FILE *filePointer = (FILE *)fopen((char *)pathToInputFile, "r");
