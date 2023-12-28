@@ -30,7 +30,7 @@ If you want to run the program with the Batchfile, you'll need a Terminal and th
 
 <br><br>
 
-<b><h3>Running the compiler on Linux</h3></b><br>
+<b><h3>Option 2:</h3></b><br>
 <b>2.2.1</b> Open the Explorer and head to the repository dircetory<br>
 <b>2.2.2</b> In the directory you'll find a file named <code>compile.bat</code><br>
 <b>2.2.3</b> Run the <code>compile.bat</code> file<br>
@@ -39,7 +39,7 @@ If you want to run the program with the Batchfile, you'll need a Terminal and th
 
 <br><br>
 
-<h1>To run on Linux:</h1>
+<h1>Running the compiler on Linux</h1>
 <b>1.</b> Download the code and put it into the desired directory<br>
 <b>2.</b> Open a terminal and head into the directory in which you have saved the repository<br>
 <b>3.</b> Now compile the code with a C compiler (Here: gcc) type: <code>gcc main/input.c src/lexer.c src/stack.c src/syntaxAnalyzer.c src/parsetreeGenerator.c src/errorHandler.c src/modules.c -o space.exe</code><br>

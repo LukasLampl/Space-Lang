@@ -305,7 +305,7 @@ Params: TOKEN *token => Token to check its value;
 */
 int eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
     if (token != NULL && token->value != NULL) {
-        if (token->size > _LII_) {
+        if (token->size > _LII_ || token->size == 0 || token->type == __EOF__) {
             return 0;
         } else {
             if (token->value[0] != 0) {
