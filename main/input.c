@@ -26,6 +26,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/modules.h"
 #include "../headers/errors.h"
 
+#define true 1
+#define false 0
+
 ////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////     Input     ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -168,15 +171,15 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
             }
 
             int isWhitespace = (int)is_space((*buffer)[i]);
-            int isOperator = 0;
+            int isOperator = false;
             
-            if (isWhitespace == 0) {
-                if ((int)check_for_operator((*buffer)[i]) == 1) {
+            if (isWhitespace == false) {
+                if ((int)check_for_operator((*buffer)[i]) == true) {
                     if ((*buffer)[i] == '&'
-                        || (int)is_correct_pointer(buffer, i, *bufferLength) == 1) {
-                        isOperator = 0;
+                        || (int)is_correct_pointer(buffer, i, *bufferLength) == true) {
+                        isOperator = false;
                     } else {
-                        isOperator = 1;
+                        isOperator = true;
                     }
                 }
             }
@@ -240,7 +243,7 @@ int skip_buffer_comment(char **buffer, size_t currentPos, size_t bufferLength, c
 
 /*
 Purpose: Check if a pointer is defined correctly
-Return Type: int => 1 = is correct defined pointer; 0 = not correct defined pointer;
+Return Type: int => true = is correct defined pointer; false = not correct defined pointer;
 Params: char **buffer => Buffer to be checked;
         size_T currentBufferCharPos => Position of the current character in the buffer;
         const size_t maxSize => File size
@@ -257,16 +260,16 @@ int is_correct_pointer(char **buffer, size_t currentBufferCharPos, const size_t 
             }
         }
         
-        if ((int)is_space((*buffer)[currentBufferCharPos + skips]) == 1
-            || (int)is_digit((*buffer)[currentBufferCharPos + skips]) == 1
-            || (int)check_for_operator((*buffer)[currentBufferCharPos + skips]) == 1) {
-            return 0;
+        if ((int)is_space((*buffer)[currentBufferCharPos + skips]) == true
+            || (int)is_digit((*buffer)[currentBufferCharPos + skips]) == true
+            || (int)check_for_operator((*buffer)[currentBufferCharPos + skips]) == true) {
+            return false;
         }
 
-        return 1;
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 /*
@@ -280,42 +283,38 @@ Params: size_t currentBufferCharacterPosition => Position of the current charact
 */
 int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, char **buffer, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber) {
     int identifierLength = 0;
-    int isInReferenceToPointer = 0;
+    int isInReferenceToPointer = false;
 
     while (currentBufferCharacterPosition + identifierLength < bufferLength) {
-        if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength]) == 1) {
+        if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength]) == true) {
             break;
         }
 
-        if ((int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength]) == 1) {
+        if ((int)check_for_operator((*buffer)[currentBufferCharacterPosition + identifierLength]) == true) {
             if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '&') {
                 if ((*buffer)[currentBufferCharacterPosition + identifierLength + 1] == '(') {
-                    isInReferenceToPointer = 1;
+                    isInReferenceToPointer = true;
                 }
                 
                 identifierLength++;
                 continue;
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '.') {
-                if ((int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) == 1
-                    && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 1) {
+                if ((int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength - 1]) == true
+                    && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == true) {
                     identifierLength++;
                     continue;
                 } else {
                     break;
                 }
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '*') {
-                /*if ((int)is_space((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0
-                    && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == 0) {
-                    identifierLength++;
-                    continue;
-                } else*/ if (isInReferenceToPointer == 1) {
+                if (isInReferenceToPointer == true) {
                     identifierLength++;
                     continue;
                 }
             } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == ')'
                 || (*buffer)[currentBufferCharacterPosition + identifierLength] == '(') {
-                if (isInReferenceToPointer == 1) {
-                    isInReferenceToPointer = 0;
+                if (isInReferenceToPointer == true) {
+                    isInReferenceToPointer = false;
                     identifierLength++;
                     continue;
                 } else {
@@ -388,45 +387,44 @@ int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacte
 
 /*
 Purpose: Check if the input is a double operator like "==" or "+="
-Return Type: int => 1 = true; 0 = false;
+Return Type: int => true = true; false = false;
 Params: char currentInput => The current character of the input;
         char NextChar => Following character of the input
 */
 int check_double_operator(char currentInputChar, char NextInputChar) {
-
     if ((currentInputChar == '+' || currentInputChar == '-' || currentInputChar == '/'
-        || currentInputChar == '*') && NextInputChar == '=') {
-        return 1;
+        || currentInputChar == '*' || currentInputChar == '!') && NextInputChar == '=') {
+        return true;
     }
 
     if ((currentInputChar == '+' && NextInputChar == '+')
         || (currentInputChar == '-' && NextInputChar == '-')
         || (currentInputChar == '=' && NextInputChar == '=')) {
-        return 1;
+        return true;
     }
 
     if ((currentInputChar == '<' || currentInputChar == '>')
         && NextInputChar == '=') {
-        return 1;
+        return true;
     }
 
     if (currentInputChar == '-' && NextInputChar == '>') {
-        return 1;
+        return true;
     } else if (currentInputChar == '=' && NextInputChar == '>') {
-        return 1;
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 /*
 Purpose: Free the buffer
-Return Type: int => 1 = freed the buffer
+Return Type: int => true = freed the buffer
 Params: char *buffer => Buffer to be freed
 */
 int FREE_BUFFER(char *buffer) {
     (void)free(buffer);
-    return 1;
+    return true;
 }
 
 /*

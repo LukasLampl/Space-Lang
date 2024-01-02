@@ -1,1 +1,1 @@
-var book.page = 20;
+var number = 10;

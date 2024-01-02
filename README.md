@@ -1,58 +1,92 @@
-<h1>SPACE - Language</h1><br>
-This project is a compiler for my own programming language.<br>
-The program basically reads in an input file and converts it into tokens, then a parsetree and finally in an intermediate language.<br>
+# SPACE - Language #
+This project is a compiler for my own programming language.
+The program basically reads in an input file and converts it into tokens, then a parsetree and finally in an intermediate language.
 
-<h1>Table of contents</h1><br>
-<ol>
-  <li>Requiresments</li>
-  <li>Running the compiler on Windows</li>
-  <li>Running the compiler on Linux</li>
-  <li>Notes</li>
-  <li>Contact</li>
+# Table of contents #
+1. Requirements
+2. Installation & running the compiler
+   - Running the compiler on Windows
+   - Running the compiler on Linux
+3. Commands
+4. Program examples
+5. Contact
 </ol>
 
-<br>
+# 1. Requirements #
+To compile the source code into an useable format, you'll have to use a C compiler.
+I used the `gcc` compiler throughout the whole project.
+If you want to run the program with the Batch file, you'll need a Terminal and the gcc compiler, or else the Batchfile won't work.
 
-<h1>Requirements</h1><br>
-To compile the source code into an useable format you'll have to use a C compiler.
-I used the gcc compiler throughout the whole project.<br>
-If you want to run the program with the Batchfile, you'll need a Terminal and the gcc compiler or else the Batchfile won't work.
+# 2. Installation & running the compiler #
+## Running the compiler on Windows ##
+**1.** Download the code and put it into the desired directory
+**2.** Now you have two options:
 
-<br><br>
+### Option 1: ###
+**2.1.1.** Open the terminal and head into the directory at which you have saved the repository.
+**2.1.2.** Now compile the code with a C compiler (Here: gcc) type: `gcc main/input.c src/lexer.c src/stack.c src/syntaxAnalyzer.c src/parsetreeGenerator.c src/errorHandler.c src/modules.c -o space.exe`
+**2.1.3.** Now run the compiled `space.exe` file with `space.exe` or `./space.exe`
 
-<h1>Running the compiler on Windows</h1>
-<b>1.</b> Download the code and put it into the desired directory<br>
-<b>2.</b> Now you have two options:<br><br>
-<b><h3>Option 1:</h3></b><br>
-<b>2.1.1.</b> Open the terminal and head into the directory at which you have saved the repository.<br>
-<b>2.1.2.</b> Now compile the code with a C compiler (Here: gcc) type: <code>gcc main/input.c src/lexer.c src/stack.c src/syntaxAnalyzer.c src/parsetreeGenerator.c src/errorHandler.c src/modules.c -o space.exe</code><br>
-<b>2.1.3.</b> Now run the compiled <code>space.exe</code> file with <code>space.exe</code> or <code>./space.exe</code>
+### Option 2: ###
+**2.2.1** Open the Explorer and head to the repository directory
+**2.2.2** In the directory, you'll find a file named `compile.bat`
+**2.2.3** Run the `compile.bat` file
+**2.2.4** After executing the `compile.bat` file, you'll find a file named `space.exe`
+**2.2.5** Run the `space.exe` file in the terminal
 
-<br><br>
+## Running the compiler on Linux ##
+**1.** Download the code and put it into the desired directory
+**2.** Open a terminal and head into the directory in which you have saved the repository
+**3.** Now compile the code with a C compiler (Here: gcc) type: `gcc main/input.c src/lexer.c src/stack.c src/syntaxAnalyzer.c src/parsetreeGenerator.c src/errorHandler.c src/modules.c -o space.bin`
+**4.** Now run the executable by typing `space.bin`
 
-<b><h3>Option 2:</h3></b><br>
-<b>2.2.1</b> Open the Explorer and head to the repository dircetory<br>
-<b>2.2.2</b> In the directory you'll find a file named <code>compile.bat</code><br>
-<b>2.2.3</b> Run the <code>compile.bat</code> file<br>
-<b>2.2.4</b> After executing the <code>compile.bat</code> file you'll find a file named <code>space.exe</code><br>
-<b>2.2.5</b> Run the <code>space.exe</code> file
+> [!NOTE]
+> To change the input, head into the `prgm.txt` file and change the code to the desired
+> code (It has to follow the grammar rules)
+>
+> This repository is still in it's early stage, so it may be that you encounter issues or > unexpected errors.
+>
+> If rules are applied correctly everything works as intended!
+>
+> All files may be changed based on bugs, errors and notations.
 
-<br><br>
+# 3. Commands #
+[!]
 
-<h1>Running the compiler on Linux</h1>
-<b>1.</b> Download the code and put it into the desired directory<br>
-<b>2.</b> Open a terminal and head into the directory in which you have saved the repository<br>
-<b>3.</b> Now compile the code with a C compiler (Here: gcc) type: <code>gcc main/input.c src/lexer.c src/stack.c src/syntaxAnalyzer.c src/parsetreeGenerator.c src/errorHandler.c src/modules.c -o space.exe</code><br>
-<b>4.</b> Now run the executable by typing <code>./space</code>
+# 4. Program examples #
+If you don't want to stick to the initialized input, head into the `prgm.txt` file. In the `prgm.txt` file, you'll find a sample program. Now you can change the sample to whatever you want and try it!
 
-<br><br>
+> [!CAUTION]
+> If you modify the `prgm.txt` file, please follow the defined grammar rules from the
+> `space.grammar` file, which you'll find in the directory `../definitions`. If you don't
+> follow the rules, you'll might get incorrect results.
+>
+> More examples in form of an example can be found in the `GrammarExamples.txt`!
 
-<h1>Note:</h1>
-To change the input head into the <code>prgm.txt</code> file and change the code to the desired code (It has to follow the grammar rules)<br>
-This repository is still in it's early stage, so it may be that you encounter issues or unexpected errors.<br>
-If rules are applied correctly everything works as intended!<br><br>
-All files may be changed based on bugs, errors and notations.
+<details>
+<summary>How to change the input (Example)</summary>
+## Modifying the input ##
+If I'd like to change the input to a class named "Calculator" for example, I can edit the content of the `prgm.txt` file to the following code:
+```
+class Calculator() => {}
+```
 
+To add a function `add(number1, number2)`, I'll just add the function with its visibility or modificator (default: `global`):
 
-<h1>Contact:</h1><br>
-<b>E-Mail:</b> lampl.lukas@outlook.com
+```
+global function add(number1, number2) {}
+```
+
+And the last step is to merge both together:
+
+```
+class Calculator() => {
+  global function add(number1, number2) {
+    return number1 + number2;
+  }
+}
+```
+</details>
+
+# 5. Contact: #
+**E-Mail:** lampl.lukas@outlook.com

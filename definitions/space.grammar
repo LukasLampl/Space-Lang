@@ -209,9 +209,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 <RETURN>:
     | "return" -> (<TERM> / <IDENTIFIER>) -> ";"
 
+### CLASS CONSTRUCTOR ###
+<CLASS_CONSTRUCTOR>:
+    | "this" -> ":" -> ":" -> "constructor" -> <RUNNABLE>
+
 ### RUNNABLE ###
 <RUNNABLE>:
-    | *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> / <RETURN> / *<CLASS_OBJECT_ACCESS>
+    | *<FOR> / *<WHILE> / *<FUNCTION_CALL> / *<CHECK> / *<TRY> / *<DO> / *<IF> / *<FUNCTION> / *<VARIABLE> / *<CLASS_CALL> / *<CLASS> / <RETURN> / *<CLASS_OBJECT_ACCESS> / <CLASS_CONSTRUCTOR>
 
 ### EXPORT ###
 <EXPORT>:

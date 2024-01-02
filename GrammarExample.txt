@@ -63,9 +63,9 @@ include "myTest.lib";
 ### CLASS ###
 class obj(param1, param2) => {}
 
-class Obj with Object => {}
+class Obj() with Object => {}
 
-//constructor::obj(param1) {}
+this::constructor {}
 
 ### ENUM ###
 enum Test {

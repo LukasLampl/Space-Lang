@@ -42,7 +42,7 @@ typedef enum TOKENTYPES {
     _KW_AND_,                        _KW_OR_,                         _KW_GLOBAL_,
     _KW_SECURE_,                     _KW_PRIVATE_,                    _KW_EXPORT_,
     _KW_FOR_,                        _KW_THIS_,                       _KW_ELSE_,
-    _INTEGER_,
+    _KW_CONSTRUCTOR_,                _INTEGER_,
     _CHARACTER_ARRAY_,               _OPERATOR_,                      _OP_PLUS_,
     _OP_MINUS_,                      _OP_MULTIPLY_,                   _OP_DIVIDE_,
     _OP_MODULU_,                     _OP_DOT_,                        _OP_COMMA_,
@@ -69,6 +69,7 @@ typedef struct TOKEN {
     char *value;
     size_t size;
     size_t line;
+    size_t tokenStart;
 } TOKEN;
 
 #endif  // SPACE_TOKEN_H_
