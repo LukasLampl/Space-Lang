@@ -7,9 +7,10 @@ The program basically reads in an input file and converts it into tokens, then a
 2. Installation & running the compiler
    - Running the compiler on Windows
    - Running the compiler on Linux
-3. Commands
-4. Program examples
-5. Contact
+3. Error messages
+4. Commands
+5. Program examples
+6. Contact
 </ol>
 
 # 1. Requirements #
@@ -43,17 +44,53 @@ If you want to run the program with the Batch file, you'll need a Terminal and t
 > [!NOTE]
 > To change the input, head into the `prgm.txt` file and change the code to the desired code (It has to follow the grammar rules)  
 >
-> This repository is still in it's early stage, so it may be that you encounter issues or > unexpected errors.  
+> This repository is still in it's early stage, so it may be that you encounter issues or unexpected errors.  
 >
 > If rules are applied correctly everything works as intended!  
 >
 > All files may be changed based on bugs, errors and notations.  
 
-# 3. Commands #
+# 3. Error messages #
+When you run the compiler on an invalid input you'll get an error message like this:
+```
+An error occured on line 1.
+----------------------------------
+1 : 19 | for (var i = 0; i = 10; i++) {
+                           ^
+
+Unexpected token "=", maybe replace with "==" or "<=" or ">=" or "!=" or "<" or ">".
+----------------------------------
+```
+
+> [!TIP]
+> All error messages start with the line (here: `line 1`) on which the error occured, followed by the exact position (here: `1 : 19` => Error at line 1 and position 19) and a replacement suggestion.
+
+<details>
+<summary>List of confusing error messages</summary>
+ 
+In the following list you'll find suggestions that might be unclear like `<IDENTIFIER>`
+
+| Error message  | meaning |
+| -------------  | ------- |
+| `<ARRAY_ASSIGNMENT>` | replace with assignment to array, like: `= {2, 1}` |
+| `<ARRAY_ELEMENT>` | replace with array indicator, like: `[]` or `[5]` |
+| `<CHAINED_CONDITION>` | replace with condition or condition with `and` or `or` |
+| `<CLASS_OBJECT_ACCESS>` | replace with a accessor to a class, like: `MyClass->myVar;` |
+| `<DIGIT>` | replace with a single digit, like: `1` or `0` |
+| `<FUNCTION_CALL>` | replace with a function call, like: `test(param1, param2)` |
+| `<IDENTIFIER>` | replace with an valid IDENTIFIER |
+| `<MULTIPLE_DEFINITION>` | replace with multiple var definition, like: var `a,b` |
+| `<NUMBER>` | replace with a valid number, like: `3` or `3.141` |
+| `<POINTER>` | replace with valid pointer, like: `*ptr` |
+| `<REFERENCE` | replace with valid reference, like `&ref` or `&(*ptr)` |
+| `<STRING>` | replace with a string, like: `"String"` |
+</details>
+
+# 4. Commands #
 > [!IMPORTANT]
 > This section appears later in the project.
 
-# 4. Program examples #
+# 5. Program examples #
 If you don't want to stick to the initialized input, head into the `prgm.txt` file. In the `prgm.txt` file, you'll find a sample program. Now you can change the sample to whatever you want and try it!
 
 > [!CAUTION]
@@ -88,5 +125,5 @@ class Calculator() => {
 ```
 </details>
 
-# 5. Contact: #  
+# 6. Contact: #  
 **E-Mail:** lampl.lukas@outlook.com

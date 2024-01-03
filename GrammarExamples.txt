@@ -46,7 +46,7 @@ while (a < 10 and b == 20) {}
 do {} while (a < 10 and b == 20)
 
 ### TRY ###
-try {} catch (Exception) {}
+try {} catch (Exception e) {}
 
 ### FOR ###
 for (i = 0; i < 5; i++) {}
