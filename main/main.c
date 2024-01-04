@@ -33,21 +33,21 @@ int main() {
     char *path = "../SPACE/prgm.txt";
 
     struct InputReaderResults inputReaderResults = processInput(path);
-    int **arrayOfIndividualTokenSizes = inputReaderResults.arrayOfIndividualTokenSizes;
-    char **buffer = inputReaderResults.buffer;
+    int *arrayOfIndividualTokenSizes = inputReaderResults.arrayOfIndividualTokenSizes;
+    char *buffer = inputReaderResults.buffer;
     size_t fileLength = inputReaderResults.fileLength;
     size_t requiredTokenNumber = inputReaderResults.requiredTokenNumber;
 
     //////////////////////////////////
     //////////     LEXER    //////////
     //////////////////////////////////
-    TOKEN **tokens = Tokenize(buffer, arrayOfIndividualTokenSizes, fileLength, requiredTokenNumber);
-    (void)FREE_TOKEN_LENGTHS(*inputReaderResults.arrayOfIndividualTokenSizes);
+    TOKEN *tokens = Tokenize(&buffer, &arrayOfIndividualTokenSizes, fileLength, requiredTokenNumber);
+    (void)FREE_TOKEN_LENGTHS(inputReaderResults.arrayOfIndividualTokenSizes);
 
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
     ////////////////////////////////////////
-    (int)CheckInput(tokens, requiredTokenNumber, buffer, fileLength);
+    (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength);
 
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", path);

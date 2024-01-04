@@ -44,8 +44,8 @@ int is_digit(char character);
 
 //Input reader
 struct InputReaderResults {
-    char **buffer;
-    int **arrayOfIndividualTokenSizes;
+    char *buffer;
+    int *arrayOfIndividualTokenSizes;
     int requiredTokenNumber;
     size_t fileLength;
 };
@@ -54,7 +54,7 @@ struct InputReaderResults processInput(char *path);
 
 //Lexing the input
 int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
-TOKEN **Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength);
+TOKEN *Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength);
 
 //Parse
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);

@@ -50,9 +50,6 @@ Purpose: Read in the source files to compile, then read in the grammar file and 
 Return Type: int
 Params: NULL
 */
-char *buffer = NULL;
-int *arrayOfIndividualTokenSizes = NULL;
-
 struct InputReaderResults processInput(char *path) {
     //File to read
     FILE *filePointer = (FILE *)fopen(path, "r");
@@ -64,6 +61,8 @@ struct InputReaderResults processInput(char *path) {
     
     (void)check_file_length(fileLength, path);
     
+    char *buffer = NULL;
+    int *arrayOfIndividualTokenSizes = NULL;
     //Character buffer for all input symbols
     (void)reserve_buffer(fileLength, &buffer);
     (void)reserve_token_lengths(fileLength, &arrayOfIndividualTokenSizes);
@@ -83,8 +82,8 @@ struct InputReaderResults processInput(char *path) {
 
     //Create and return the results
     struct InputReaderResults result;
-    result.buffer = &buffer;
-    result.arrayOfIndividualTokenSizes = &arrayOfIndividualTokenSizes;
+    result.buffer = buffer;
+    result.arrayOfIndividualTokenSizes = arrayOfIndividualTokenSizes;
     result.requiredTokenNumber = requiredTokenLength;
     result.fileLength = fileLength;
 

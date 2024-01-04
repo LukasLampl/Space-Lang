@@ -96,9 +96,9 @@ Return Type: TOKEN ** => Lexed tokens
 Params: char **buffer => Input to tokenize; int **tokenLengths => Length of the individual tokens; const long *length => input length;
         const int *tokenLength => Required tokens to tokenize the whole input
 */
-TOKEN *tokens = NULL;
 
-TOKEN** Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength) {
+TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength) {
+    TOKEN *tokens = NULL;
     char *input = *buffer;
     
     // TOKEN defined in modules.h
@@ -290,7 +290,7 @@ TOKEN** Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t 
         (void)print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
-    return &tokens;
+    return tokens;
 }
 
 /*
