@@ -80,28 +80,30 @@ struct kwLookup KeywordTable[] = {
     {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
     {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
     {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
-    {"is", _KW_IS_,},              {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
-    {"continue", _KW_CONTINUE_,},  {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
-    {"and", _KW_AND_,},            {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
-    {"secure", _KW_SECURE_,},      {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
-    {"for", _KW_FOR_,},            {"this", _KW_THIS_},       {"this", _KW_THIS_},
-    {"else", _KW_ELSE_},           {"constructor", _KW_CONSTRUCTOR_}
+    {"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
+    {"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
+    {"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
+    {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
+    {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
+    {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
+    {"char", _KW_CHAR_},           {"String", _KW_STRING_},   {"short", _KW_SHORT_},
+    {"long", _KW_LONG_},           {"constructor", _KW_CONSTRUCTOR_}
 };
-
 
 /*
 Purpose: Tokenize the passed input
-Return Type: void
+Return Type: TOKEN ** => Lexed tokens
 Params: char **buffer => Input to tokenize; int **tokenLengths => Length of the individual tokens; const long *length => input length;
         const int *tokenLength => Required tokens to tokenize the whole input
 */
-void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fileLength, const size_t requiredTokenLength) {
-    TOKEN *tokens = NULL;
-    char *input = *buffer;
+TOKEN *tokens = NULL;
 
+TOKEN** Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength) {
+    char *input = *buffer;
+    
     // TOKEN defined in modules.h
     tokens = (struct TOKEN*)malloc((requiredTokenLength + 2) * sizeof(struct TOKEN));
-    maxlength = *fileLength;
+    maxlength = fileLength;
     maxTokensLength = requiredTokenLength;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
@@ -111,10 +113,9 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
 
     (void)set_token_value_to_awaited_size(&tokens, arrayOfIndividualTokenSizes);
     tokensreserved = 1;
-
+    
     // Set a pointer on the token array to free it, when the program crashes or ends
     (void)_init_error_token_cache_(&tokens);
-
     // Set StoragePointer and Index to 0 for new counting
     size_t storageIndex = 0;
     size_t storagePointer = 0;
@@ -128,7 +129,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
 
     size_t lineNumber = 0;
 
-    for (size_t i = 0; i < *fileLength; i++) {
+    for (size_t i = 0; i < fileLength; i++) {
         // When the input character at index i is a hashtag, then skip the input till the next hashtag
         if (input[i] == '/'
             && (input[i + 1] == '/' || input[i + 1] == '*')) {
@@ -151,7 +152,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         }
 
          // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
-        int isWhiteSpace = (int)is_space((*buffer)[i]);
+        int isWhiteSpace = (int)is_space(input[i]);
 
         int isOperator = isWhiteSpace != 1 ? (int)check_for_operator(input[i]) : 0; //Checks if input at i is an operator from above
         // Check if the input character at index i is the beginning of an string or character array
@@ -164,7 +165,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             continue;
         }
 
-        if (i + 1 == *fileLength) {
+        if (i + 1 == fileLength) {
             (void)set_keyword_type_to_token(&tokens[storagePointer]);
             (void)set_line_number(&tokens[storagePointer], lineNumber);
         }
@@ -184,7 +185,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 storagePointer++;
             }
 
-            i += (int)skip_whitespaces(&input, *fileLength, i, &lineNumber);
+            i += (int)skip_whitespaces(&input, fileLength, i, &lineNumber);
             storageIndex = 0;
             continue;
 
@@ -238,18 +239,18 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
                 }
 
             // Figure out whether the input is a double operator like "++" or "--" or not
-            } else if ((int)check_for_double_operator(input[i], input[i + 1])) {  // NOLINT
+            } else if ((int)check_for_double_operator(input[i], input[i + 1])) {   
                 tokens[storagePointer].tokenStart = i;
-                i += (int)write_double_operator_in_token(&tokens[storagePointer], input[i], input[i + 1]);  // NOLINT
+                i += (int)write_double_operator_in_token(&tokens[storagePointer], input[i], input[i + 1]);   
                 (void)set_line_number(&tokens[storagePointer], lineNumber);
                 tokens[storagePointer].tokenStart = i;
                 storagePointer++;
                 storageIndex = 0;
                 continue;
             }
-            //If non if the above is approved, the input gets processed as a 'normal' Operator  // NOLINT
+            //If non if the above is approved, the input gets processed as a 'normal' Operator
             tokens[storagePointer].tokenStart = i;
-            storagePointer += (int)write_default_operator_in_token(&tokens[storagePointer], input[i], lineNumber);  // NOLINT
+            storagePointer += (int)write_default_operator_in_token(&tokens[storagePointer], input[i], lineNumber);
             storageIndex = 0;
             continue;
         } else {
@@ -268,7 +269,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
             }
         }
     }
-
+    
     /////////////////////////
     ///     EOF TOKEN     ///
     /////////////////////////
@@ -289,17 +290,7 @@ void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fi
         (void)print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
-    ////////////////////////////////////////
-    /////     CHECK SYNTAX FUNCTION     ////
-    ////////////////////////////////////////
-
-    if ((int)CheckInput(&(tokens), maxTokensLength, buffer, *fileLength) == 1) {
-        (void)FREE_TOKEN_LENGTHS(*arrayOfIndividualTokenSizes);
-        (void)Generate_Parsetree(&tokens, (size_t)storagePointer + 1);
-    }
-
-    // Free the tokens
-    (void)FREE_TOKENS(tokens);
+    return &tokens;
 }
 
 /*
@@ -440,7 +431,7 @@ Return Type: void
 Params: TOKEN **tokens => Pointer to the clear token array; int **tokenLengths => Length of the individual tokens
 */
 void set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray) {
-    if (*tokens != NULL) {
+    if (*tokens != NULL && tokenLengthsArray != NULL) {
         for (int i = 0; i < maxTokensLength; i++) {
             // Calloc as much space as predicted; Tokens at i has the value length of tokenLengths at i
             (*tokens)[i].value = (char*)calloc((*tokenLengthsArray)[i], sizeof(char));

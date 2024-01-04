@@ -34,13 +34,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ////////////////////////////////////////////////////////////////////////////////////////
 
 void check_file_pointer(const FILE *fptr, char *pathToSourceFile);
-void check_file_length(const size_t *length, char *pathToSourceFile);
-void reserve_buffer(const size_t *fileLength, char **buffer);
-int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *bufferLength);
+void check_file_length(const size_t length, char *pathToSourceFile);
+void reserve_buffer(const size_t fileLength, char **buffer);
+int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, const size_t bufferLength);
 int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, char **buffer, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
 int set_operator_size(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
 int skip_string(char **buffer, size_t bufferLength, size_t currentBufferCharacterPosition, int **arrayOfIndividualTokenSizes, size_t currentTokenNumber);
-void reserve_token_lengths(const size_t *fileLength, int **arrayOfIndividualTokenSizes);
+void reserve_token_lengths(const size_t fileLength, int **arrayOfIndividualTokenSizes);
 int check_double_operator(char currentInputChar, char NextInputChar);
 int is_correct_pointer(char **buffer, size_t currentBufferCharPos, const size_t maxSize);
 int skip_buffer_comment(char **buffer, size_t currentPos, size_t bufferLength, char crucialChar);
@@ -50,45 +50,45 @@ Purpose: Read in the source files to compile, then read in the grammar file and 
 Return Type: int
 Params: NULL
 */
-int main() {
-    const char *pathToInputFile = "../SPACE/prgm.txt";
-    (void)printf("SPACE-Language compiler [Version 0.0.1 - Alpha]\n");
-    (void)printf("Copyright (C) 2023 Lukas Nian En Lampl\n");
-    (void)printf("_________________________________________________\n\n");
+char *buffer = NULL;
+int *arrayOfIndividualTokenSizes = NULL;
 
-    // File to read
-    FILE *filePointer = (FILE *)fopen((char *)pathToInputFile, "r");
+struct InputReaderResults processInput(char *path) {
+    //File to read
+    FILE *filePointer = (FILE *)fopen(path, "r");
 
-    (void)check_file_pointer(filePointer, (char *)pathToInputFile);
+    (void)check_file_pointer(filePointer, path);
     
     (void)fseek(filePointer, 0L, SEEK_END);
     const size_t fileLength = (size_t)ftell(filePointer);
     
-    (void)check_file_length(&fileLength, (char*)pathToInputFile);
+    (void)check_file_length(fileLength, path);
     
-    // Character buffer for all input symbols
-    char *buffer = NULL;
-    int *arrayOfIndividualTokenSizes = NULL;
-    (void)reserve_buffer(&fileLength, &buffer);
-    (void)reserve_token_lengths(&fileLength, &arrayOfIndividualTokenSizes);
+    //Character buffer for all input symbols
+    (void)reserve_buffer(fileLength, &buffer);
+    (void)reserve_token_lengths(fileLength, &arrayOfIndividualTokenSizes);
     (void)_init_error_buffer_cache_(&buffer);
+    (void)_init_error_token_size_cache_(&arrayOfIndividualTokenSizes);
 
-    // Go back to the start of the file
+    //Go back to the start of the file
     (void)rewind(filePointer);
 
-    // Read the contents of the file into the buffer
+    //Read the contents of the file into the buffer
     (void)fread(buffer, sizeof(char), fileLength, filePointer);
-    int requiredTokenLength = (int)get_minimum_token_number(&buffer, &arrayOfIndividualTokenSizes, &fileLength);
+    int requiredTokenLength = (int)get_minimum_token_number(&buffer, &arrayOfIndividualTokenSizes, fileLength);
 
-    (void)Tokenize(&buffer, &arrayOfIndividualTokenSizes, &fileLength, requiredTokenLength);
-    (void)FREE_MEMORY();
-    (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", pathToInputFile);
-    
     if (fclose(filePointer) == EOF) {
         (void)IO_FILE_CLOSING_EXCEPTION();
     }
 
-    return 0;
+    //Create and return the results
+    struct InputReaderResults result;
+    result.buffer = &buffer;
+    result.arrayOfIndividualTokenSizes = &arrayOfIndividualTokenSizes;
+    result.requiredTokenNumber = requiredTokenLength;
+    result.fileLength = fileLength;
+
+    return result;
 }
 
 /*
@@ -108,11 +108,11 @@ void check_file_pointer(const FILE *fptr, char *pathToSourceFile) {
 /*
 Purpos: Checks if the file contains something or not
 Return Type: void
-Params: const long *length => Length of the file; 
+Params: const long length => Length of the file; 
         char *pathToSourceFile => Absolute or relative path to the file
 */
-void check_file_length(const size_t *length, char *pathToSourceFile) {
-    if (*length == 0) {
+void check_file_length(const size_t length, char *pathToSourceFile) {
+    if (length == 0) {
         (void)IO_FILE_EXCEPTION(pathToSourceFile, "input");
     }
 }
@@ -120,12 +120,12 @@ void check_file_length(const size_t *length, char *pathToSourceFile) {
 /*
 Purpose: Reserves a part of the memory based on the file size for the buffer
 Return Type: void
-Params: const long *fileLength => Length of the file; 
+Params: const long fileLength => Length of the file; 
         char **buffer => The buffer to which the memory should be allocated
 */
-void reserve_buffer(const size_t *fileLength, char **buffer) {
-    if (*fileLength > 0) {
-        *buffer = (char*)calloc(*fileLength, sizeof(char));
+void reserve_buffer(const size_t fileLength, char **buffer) {
+    if (fileLength > 0) {
+        *buffer = (char*)calloc(fileLength, sizeof(char));
 
         if (*buffer == NULL) {
             (void)IO_BUFFER_RESERVATION_EXCEPTION();
@@ -136,12 +136,12 @@ void reserve_buffer(const size_t *fileLength, char **buffer) {
 /*
 Purpose: Reserves a part of the memory for the individual token lengths
 Return Type: void
-Params: const long *fileLength => Length of the file;
+Params: const long fileLength => Length of the file;
         int **arrayOfIndividualTokenSizes => Array to store the predicted token size
 */
-void reserve_token_lengths(const size_t *fileLength, int **arrayOfIndividualTokenSizes) {
-    if (*fileLength > 0) {
-        *arrayOfIndividualTokenSizes = (int*)calloc(*fileLength, sizeof(int));
+void reserve_token_lengths(const size_t fileLength, int **arrayOfIndividualTokenSizes) {
+    if (fileLength > 0) {
+        *arrayOfIndividualTokenSizes = (int*)calloc(fileLength, sizeof(int));
 
         if (*arrayOfIndividualTokenSizes == NULL) {
             (void)IO_BUFFER_RESERVATION_EXCEPTION();
@@ -154,19 +154,19 @@ Purpose: Determine how much Tokens are required for the file to be processed
 Return Type: int => how much tokens
 Params: char **buffer => Pointer to the buffer, which holds the source files content;
         int **arrayOfIndividualTokenSizes => Array for the individual token lengths;
-        const size_t *bufferLength => Length of the buffer
+        const size_t bufferLength => Length of the buffer
 */
-int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *bufferLength) {
+int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, const size_t bufferLength) {
     int tokenNumber = 0;
     int comment = 0;
 
     if (*buffer != NULL && *arrayOfIndividualTokenSizes != NULL) {
-        for (size_t i = 0; i < *bufferLength; i++) {
+        for (size_t i = 0; i < bufferLength; i++) {
             // If input is a comment
             if ((*buffer)[i] == '/'
                 && ((*buffer)[i + 1] == '/'
                 || (*buffer)[i + 1] == '*')) {
-                i += (int)skip_buffer_comment(buffer, i, *bufferLength, (*buffer)[i + 1]);
+                i += (int)skip_buffer_comment(buffer, i, bufferLength, (*buffer)[i + 1]);
                 continue;
             }
 
@@ -176,7 +176,7 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
             if (isWhitespace == false) {
                 if ((int)check_for_operator((*buffer)[i]) == true) {
                     if ((*buffer)[i] == '&'
-                        || (int)is_correct_pointer(buffer, i, *bufferLength) == true) {
+                        || (int)is_correct_pointer(buffer, i, bufferLength) == true) {
                         isOperator = false;
                     } else {
                         isOperator = true;
@@ -186,19 +186,19 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
             
             // If input is start of a string
             if ((*buffer)[i] == '\"') {
-                i += (int)skip_string(buffer, *bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
+                i += (int)skip_string(buffer, bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber++;
                 continue;
             }
             
             if (isOperator) {
-                i += (int)set_operator_size(buffer, *bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
+                i += (int)set_operator_size(buffer, bufferLength, i, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber ++;
                 continue;
             }
             
             if (!isWhitespace && !isOperator) {
-                i += (int)add_identifiers(i, *bufferLength, buffer, arrayOfIndividualTokenSizes, tokenNumber);
+                i += (int)add_identifiers(i, bufferLength, buffer, arrayOfIndividualTokenSizes, tokenNumber);
                 tokenNumber ++;
                 continue;
             }
@@ -333,7 +333,6 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
     }
 
     (*arrayOfIndividualTokenSizes)[currentTokenNumber] = identifierLength + 1;
-    
     return identifierLength - 1;
 }
 
@@ -422,8 +421,14 @@ Purpose: Free the buffer
 Return Type: int => true = freed the buffer
 Params: char *buffer => Buffer to be freed
 */
+int alreadyFreedBuffer = false;
+
 int FREE_BUFFER(char *buffer) {
-    (void)free(buffer);
+    if (alreadyFreedBuffer == false) {
+        (void)free(buffer);
+        alreadyFreedBuffer = true;
+    }
+
     return true;
 }
 
@@ -432,7 +437,13 @@ Purpose: Free the token lengths array
 Return Type: int => 1 = freed the array
 Params: int *arrayOfIndividualTokenSizes => The array of individual token lengths to be freed
 */
+int alreadyFreedTokenSizes = false;
+
 int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes) {
-    (void)free(arrayOfIndividualTokenSizes);
+    if (alreadyFreedTokenSizes == false) {
+        (void)free(arrayOfIndividualTokenSizes);
+        alreadyFreedTokenSizes = true;
+    }
+
     return 1;
 }

@@ -30,24 +30,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define true 1
 #define false 0
 
-struct lookup {
-    char kwName[9];
-    TOKENTYPES kwValue;
-};
-
-struct lookup KeywordLookupTable[] = {
-    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
-    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
-    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
-    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
-    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
-    {"is", _KW_IS_},              {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
-    {"continue", _KW_CONTINUE_},  {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
-    {"and", _KW_AND_},            {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
-    {"secure", _KW_SECURE_},      {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
-    {"for", _KW_FOR_},            {"this", _KW_THIS_},       {"this", _KW_THIS_}
-};
-
 typedef struct SyntaxReport {
     TOKEN *token;
     int tokensToSkip;
@@ -59,12 +41,15 @@ enum ParameterType {
     _PARAM_FUNCTION_CALL_, _PARAM_FUNCTION_, _PARAM_CLASS_
 };
 
+int enter_panic_mode(TOKEN **tokens, size_t startPos, int inRunnableBlock);
 SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock);
 SyntaxReport is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos);
+SyntaxReport is_runnable_function_call(TOKEN **tokens, size_t startPos);
 int predict_expression(TOKEN **tokens, size_t startPos);
 SyntaxReport is_keyword_based_runnable(TOKEN **tokens, size_t startPos);
 SyntaxReport is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall);
 SyntaxReport is_return_statement(TOKEN **tokens, size_t startPos);
+SyntaxReport is_return_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport is_continue_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_break_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_for_statement(TOKEN **tokens, size_t startPos);
@@ -100,6 +85,7 @@ SyntaxReport is_include(TOKEN **tokens, size_t startPos);
 SyntaxReport is_enum(TOKEN **tokens, size_t startPos);
 SyntaxReport is_enumerator(TOKEN **tokens, size_t startPos);
 SyntaxReport is_function(TOKEN **tokens, size_t startPos);
+SyntaxReport is_function_return_type_specifier(TOKEN **tokens, size_t startPos);
 SyntaxReport is_function_call(TOKEN **tokens, size_t startPos, int inFunction);
 SyntaxReport is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType type);
 SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter);
@@ -113,7 +99,7 @@ int is_end_indicator(const TOKEN *token);
 int is_string(TOKEN *token);
 int is_reference(TOKEN *token);
 int is_pointer(const TOKEN *token);
-int is_keyword(char *value);
+int is_keyword(TOKEN *token);
 int is_letter(const char character);
 int is_number(const char character);
 int is_rational_operator(const char *sequence);
@@ -160,10 +146,25 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
 
     if (PARSER_DISPLAY_USED_TIME == true) {
         end = clock();
-        (void)printf("\nCPU time used for SYNTAX ANALYSIS: %f seconds\n", ((double) (end - start)) / CLOCKS_PER_SEC);  // NOLINT
+        (void)printf("\nCPU time used for SYNTAX ANALYSIS: %f seconds\n", ((double) (end - start)) / CLOCKS_PER_SEC);   
     }
 
     return 1;
+}
+
+int enter_panic_mode(TOKEN **tokens, size_t startPos, int inRunnableBlock) {
+    printf("PANIC MODE: %s\n", (*tokens)[startPos].value);
+
+    for (int i = startPos + 1; i < maxTokenLength; i++) {
+        TOKEN *currentToken = &(*tokens)[i];
+        
+        if ((int)is_keyword(currentToken) == true) {
+            printf("RETURN: %i | %s\n", i, (*tokens)[i].value);
+            return i;
+        }
+    }
+
+    return 0;
 }
 
 /*
@@ -201,7 +202,18 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
         if (isKWBasedRunnable.errorOccured == true) {
             (void)throw_error(isKWBasedRunnable.token, isKWBasedRunnable.expectedToken);
-            return create_syntax_report(isKWBasedRunnable.token, 0, true, isKWBasedRunnable.expectedToken);
+            int skip = (int)enter_panic_mode(tokens, startPos + jumper, withBlock);
+
+            if (skip > 0) {
+                jumper += skip;
+            } else {
+                if (withBlock == true) {
+                    return create_syntax_report(isKWBasedRunnable.token, 0, true, isKWBasedRunnable.expectedToken);
+                } else {
+                    jumper++;
+                    continue;
+                }
+            }
         } else if (isKWBasedRunnable.errorOccured == false
             && isKWBasedRunnable.tokensToSkip > 0) {
             jumper += isKWBasedRunnable.tokensToSkip;
@@ -212,7 +224,19 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
         if (isNKWBasedRunnable.errorOccured == true) {
             (void)throw_error(isNKWBasedRunnable.token, isNKWBasedRunnable.expectedToken);
-            return create_syntax_report(isNKWBasedRunnable.token, 0, true, isNKWBasedRunnable.expectedToken);
+            int skip = (int)enter_panic_mode(tokens, startPos + jumper, withBlock);
+
+            if (skip > 0) {
+                jumper += skip;
+                return create_syntax_report(isKWBasedRunnable.token, skip, false, isKWBasedRunnable.expectedToken);
+            } else {
+                if (withBlock == true) {
+                    return create_syntax_report(isKWBasedRunnable.token, 0, true, isKWBasedRunnable.expectedToken);
+                } else {
+                    jumper++;
+                    continue;
+                }
+            }
         } else if (isNKWBasedRunnable.errorOccured == false
             && isNKWBasedRunnable.tokensToSkip > 0) {
             jumper += isNKWBasedRunnable.tokensToSkip;
@@ -245,22 +269,39 @@ SyntaxReport is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     } else if ((int)predict_class_object_access(tokens, startPos) == true) {
         return is_class_object_access(tokens, startPos, true);
     } else {
-        SyntaxReport isIdentifier = is_identifier(tokens, startPos);
+        SyntaxReport isRunnableFunctionCall = is_runnable_function_call(tokens, startPos);
 
-        if (isIdentifier.errorOccured == true) {
-            return create_syntax_report(isIdentifier.token, 0, true, isIdentifier.expectedToken);
+        if (isRunnableFunctionCall.errorOccured == false) {
+            return isRunnableFunctionCall;
         }
-
-        if ((*tokens)[startPos + isIdentifier.tokensToSkip - 1].type != _OP_LEFT_BRACKET_) {
-            return create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip - 1], 0, true, ")");
-        }
-        
-        if ((*tokens)[startPos + isIdentifier.tokensToSkip].type != _OP_SEMICOLON_) {
-            return create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip], 0, true, ";");
-        }
-
-        return create_syntax_report(NULL, isIdentifier.tokensToSkip + 1, false, NULL);
     }
+
+    return create_syntax_report(&(*tokens)[startPos], 0, true, "<EXPRESSION>\" or \"<CLASS_OBJECT_ACCESS>");
+}
+
+/*
+Purpose: Tries if the non keyword runnable is a function call or not
+Return Type: SyntaxReport => ErrorOccured = true on error, else false
+Params: TOKEN **tokens => Tokens to be checked;
+        size_t startPos => Position from where to start checking;
+        int independentCall => Flag if the object access was called by term or indepentently
+*/
+SyntaxReport is_runnable_function_call(TOKEN **tokens, size_t startPos) {
+    SyntaxReport isIdentifier = is_identifier(tokens, startPos);
+
+    if (isIdentifier.errorOccured == true) {
+        return create_syntax_report(isIdentifier.token, 0, true, isIdentifier.expectedToken);
+    }
+
+    if ((*tokens)[startPos + isIdentifier.tokensToSkip - 1].type != _OP_LEFT_BRACKET_) {
+        return create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip - 1], 0, true, ")");
+    }
+    
+    if ((*tokens)[startPos + isIdentifier.tokensToSkip].type != _OP_SEMICOLON_) {
+        return create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip], 0, true, ";");
+    }
+
+    return create_syntax_report(NULL, isIdentifier.tokensToSkip + 1, false, NULL);
 }
 
 /*
@@ -290,6 +331,8 @@ int predict_expression(TOKEN **tokens, size_t startPos) {
 
         if (currentToken->type == _OP_SEMICOLON_) {
             facedSemicolon = true;
+        } else if (currentToken->type == _OP_RIGHT_BRACE_) {
+            return false;
         }
 
         jumper++;
@@ -318,7 +361,7 @@ SyntaxReport is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
         } else if ((*tokens)[startPos + 1].type == _KW_CLASS_) {
             return is_class(tokens, startPos);
         } else {
-            return create_syntax_report(&(*tokens)[startPos + 1], 0, true, "var\" or \"const\" or \"function");
+            return create_syntax_report(&(*tokens)[startPos + 1], 0, true, "var\", \"const\" or \"function");
         }
 
         break;
@@ -412,17 +455,51 @@ SyntaxReport is_return_statement(TOKEN **tokens, size_t startPos) {
         return create_syntax_report(&(*tokens)[startPos], 0, true, "return");
     }
 
-    SyntaxReport isSimpleTerm = is_simple_term(tokens, startPos + 1, false);
+    if ((*tokens)[startPos + 1].type != _KW_NEW_) {
+        SyntaxReport isSimpleTerm = is_simple_term(tokens, startPos + 1, false);
 
-    if (isSimpleTerm.errorOccured == true) {
-        return create_syntax_report(isSimpleTerm.token, 0, true, isSimpleTerm.expectedToken);
+        if (isSimpleTerm.errorOccured == true) {
+            return create_syntax_report(isSimpleTerm.token, 0, true, isSimpleTerm.expectedToken);
+        }
+
+        if ((*tokens)[startPos + isSimpleTerm.tokensToSkip + 1].type != _OP_SEMICOLON_) {
+            return create_syntax_report(&(*tokens)[startPos + isSimpleTerm.tokensToSkip + 1], 0, true, ";");
+        }
+
+        return create_syntax_report(NULL, isSimpleTerm.tokensToSkip + 2, false, NULL);
     }
 
-    if ((*tokens)[startPos + isSimpleTerm.tokensToSkip + 1].type != _OP_SEMICOLON_) {
-        return create_syntax_report(&(*tokens)[startPos + isSimpleTerm.tokensToSkip + 1], 0, true, ";");
+    SyntaxReport isReturnClassInstance = is_return_class_instance(tokens, startPos + 1);
+
+    if (isReturnClassInstance.errorOccured == true) {
+        return create_syntax_report(isReturnClassInstance.token, 0, true, isReturnClassInstance.expectedToken);
     }
 
-    return create_syntax_report(NULL, isSimpleTerm.tokensToSkip + 2, false, NULL);
+    return create_syntax_report(NULL, isReturnClassInstance.tokensToSkip + 1, false, NULL);
+}
+
+/*
+Purpose: Checks if the current TOKEN array is a class instance created as return value
+Return Type: SyntaxReport => ErrorOccured = true on error, else false
+Params: TOKEN **tokens => Tokens to be checked;
+        size_t startPos => Position from where to start checking
+*/
+SyntaxReport is_return_class_instance(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type != _KW_NEW_) {
+        return create_syntax_report(&(*tokens)[startPos], 0, true, "new");
+    }
+
+    SyntaxReport isFunctionCall = is_function_call(tokens, startPos + 1, false);
+
+    if (isFunctionCall.errorOccured == true) {
+        return create_syntax_report(isFunctionCall.token, 0, true, isFunctionCall.expectedToken);
+    }
+
+    if ((*tokens)[startPos + isFunctionCall.tokensToSkip + 1].type != _OP_SEMICOLON_) {
+        return create_syntax_report(&(*tokens)[startPos + isFunctionCall.tokensToSkip + 1], 0, true, ";");
+    }
+
+    return create_syntax_report(NULL, isFunctionCall.tokensToSkip + 2, false, NULL);
 }
 
 /*
@@ -530,7 +607,15 @@ SyntaxReport is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
     TOKEN *crucialToken = &(*tokens)[startPos + isIdentifier.tokensToSkip];
     int skip = 0;
 
-    if (crucialToken->type == _OP_ADD_ONE_
+    if ((int)predict_is_conditional_variable_type(tokens, startPos + isIdentifier.tokensToSkip) == true) {
+        SyntaxReport isConditionAssignment = is_conditional_assignment(tokens, startPos + isIdentifier.tokensToSkip);
+
+        if (isConditionAssignment.errorOccured == true) {
+            return create_syntax_report(isConditionAssignment.token, 0, true, isConditionAssignment.expectedToken);
+        }
+
+        skip = isConditionAssignment.tokensToSkip - 1;
+    } else if (crucialToken->type == _OP_ADD_ONE_
         || crucialToken->type == _OP_SUBTRACT_ONE_) {
         skip = 1;
     } else if ((int)is_assignment_operator(crucialToken->value) == true
@@ -543,9 +628,9 @@ SyntaxReport is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
 
         skip = isSimpleTerm.tokensToSkip + 1;
     } else {
-        return create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip], 0, true, "++\" or \"--\" or \"-=\" or \"+=\" or \"*=\" or \"/=\" or \"=");
+        return create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip], 0, true, "++\", \"--\", \"-=\", \"+=\", \"*=\", \"/=\" or \"=");
     }
-
+    
     if (inRunnable == true) {
         if ((*tokens)[startPos + isIdentifier.tokensToSkip + skip].type == _OP_SEMICOLON_) {
             return create_syntax_report(NULL, isIdentifier.tokensToSkip + skip + 1, false, NULL);
@@ -978,11 +1063,11 @@ SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
             return create_syntax_report(&(*tokens)[startPos + modifier + 1], 0, true, "<IDENTIFIER>");
         }
 
-        TOKEN *crucialToken = &(*tokens)[startPos + 2];
+        TOKEN *crucialToken = &(*tokens)[startPos + modifier + 2];
         int skip = 0;
 
         if (crucialToken->type == _OP_RIGHT_EDGE_BRACKET_) {
-            SyntaxReport isArrayVar = is_array_variable(tokens, startPos + modifier  + 2);
+            SyntaxReport isArrayVar = is_array_variable(tokens, startPos + modifier + 2);
 
             if (isArrayVar.errorOccured == true) {
                 return create_syntax_report(isArrayVar.token, 0, true, isArrayVar.expectedToken);
@@ -1019,7 +1104,7 @@ SyntaxReport is_variable(TOKEN **tokens, size_t startPos) {
                 }
             }
         } else {
-            return create_syntax_report(crucialToken, 0, true, "[\" or \";\" or \",\" or \"=\" or \"<IDENTIFIER>");
+            return create_syntax_report(crucialToken, 0, true, "[\", \";\", \",\", \"=\" or \"<IDENTIFIER>");
         }
 
         return create_syntax_report(NULL, skip + modifier + 2, false, NULL);
@@ -1198,7 +1283,7 @@ SyntaxReport is_condition(TOKEN **tokens, size_t startPos, int inParam) {
         char *sequence = (*tokens)[startPos + leftTerm.tokensToSkip].value;
 
         if ((int)is_rational_operator(sequence) == false) {
-            return create_syntax_report(&(*tokens)[startPos + leftTerm.tokensToSkip], 0, true, "==\" or \"<=\" or \">=\" or \"!=\" or \"<\" or \">");
+            return create_syntax_report(&(*tokens)[startPos + leftTerm.tokensToSkip], 0, true, "==\", \"<=\", \">=\", \"!=\", \"<\" or \">");
         }
 
         SyntaxReport rightTerm = is_simple_term(tokens, startPos + leftTerm.tokensToSkip + 1, inParam);
@@ -1806,6 +1891,16 @@ SyntaxReport is_function(TOKEN **tokens, size_t startPos) {
         return create_syntax_report(&(*tokens)[startPos + skip], 0, true, "function");
     }
 
+    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
+        SyntaxReport isReturnSpecifier = is_function_return_type_specifier(tokens, startPos + skip + 1);
+
+        if (isReturnSpecifier.errorOccured == true) {
+            return create_syntax_report(isReturnSpecifier.token, 0, true, isReturnSpecifier.expectedToken);
+        }
+
+        skip += isReturnSpecifier.tokensToSkip;
+    }
+
     SyntaxReport isFunctionCall = is_function_call(tokens, startPos + skip + 1, true);
 
     if (isFunctionCall.errorOccured == true) {
@@ -1819,6 +1914,41 @@ SyntaxReport is_function(TOKEN **tokens, size_t startPos) {
     }
 
     return create_syntax_report(NULL, skip + isFunctionCall.tokensToSkip + isRunnable.tokensToSkip + 1, false, NULL);
+}
+
+/*
+Purpose: Checks if a TOKEN array is a return type definition for a function
+Return Type: SyntaxReport => ErrorOccured = true on error, else false
+Params: TOKEN **tokens => Token array to be checked;
+        size_t startPos => Position from where to start checking;
+        int inFunctionCall => Flag if the functioncall is independent or from a function
+*/
+SyntaxReport is_function_return_type_specifier(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type != _OP_COLON_) {
+        return create_syntax_report(&(*tokens)[startPos], 0, true, ":");
+    }
+
+    if ((int)is_root_identifier(&(*tokens)[startPos + 1]) == false
+        && (*tokens)[startPos + 1].type != _KW_INT_
+        && (*tokens)[startPos + 1].type != _KW_CHAR_
+        && (*tokens)[startPos + 1].type != _KW_BOOLEAN_
+        && (*tokens)[startPos + 1].type != _KW_FLOAT_
+        && (*tokens)[startPos + 1].type != _KW_DOUBLE_
+        && (*tokens)[startPos + 1].type != _KW_STRING_
+        && (*tokens)[startPos + 1].type != _KW_SHORT_
+        && (*tokens)[startPos + 1].type != _KW_LONG_) {
+        return create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<IDENTIFIER>");
+    }
+
+    if ((*tokens)[startPos + 2].type == _OP_RIGHT_EDGE_BRACKET_) {
+        if ((*tokens)[startPos + 3].type != _OP_LEFT_EDGE_BRACKET_) {
+            return create_syntax_report(&(*tokens)[startPos + 3], 0, true, "]");
+        }
+
+        return create_syntax_report(NULL, 4, false, NULL);
+    }
+
+    return create_syntax_report(NULL, 2, false, NULL);
 }
 
 /*
@@ -2006,11 +2136,14 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
                     isIdentifier = is_class_object_access(tokens, startPos + jumper, false);
                 } else if ((*tokens)[startPos + jumper + 1].type == _OP_RIGHT_BRACKET_) {
                     isIdentifier = is_function_call(tokens, startPos + jumper, false);
-                } else if ((int)is_bool((*tokens)[startPos].value) == false) {
-                    isIdentifier = is_identifier(tokens, startPos + jumper);
-                } else {
+                } else if ((int)is_bool((*tokens)[startPos].value) == true) {
                     jumper++;
                     continue;
+                } else if (currentToken->type == _KW_NULL_) {
+                    jumper++;
+                    continue;
+                } else {
+                    isIdentifier = is_identifier(tokens, startPos + jumper);
                 }
             } else if ((int)is_digit(currentToken->value[0]) == true) {
                 isIdentifier = is_numeral_identifier(currentToken);
@@ -2025,7 +2158,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
             break;
         case true:
             if ((int)is_arithmetic_operator(currentToken) != true) {
-                return create_syntax_report(currentToken, 0, true, "+\" or \"-\" or \"*\" or \"/");
+                return create_syntax_report(currentToken, 0, true, "+\", \"-\", \"*\" or \"/");
             }
 
             jumper++;
@@ -2043,7 +2176,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
             return create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "(");
         }
     } else if (jumper == 0) {
-        return create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFER>\" or \"<FUNCTION_CALL>\" or \"<CLASS_OBJECT_ACCESS>");
+        return create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFER>\", \"<FUNCTION_CALL>\" or \"<CLASS_OBJECT_ACCESS>");
     }
 
     return create_syntax_report(NULL, jumper, false, NULL);
@@ -2188,7 +2321,7 @@ int is_root_identifier(TOKEN *token) {
         return false;
     }
 
-    if ((int)is_keyword(token->value) == true
+    if ((int)is_keyword(token) == true
         && token->type != _KW_THIS_) {
         return false;
     }
@@ -2306,13 +2439,22 @@ int is_pointer(const TOKEN *token) {
 }
 
 /*
-Purpose: Check if a given value is a keyword or not
+Purpose: Check if a given TOKEN is a keyword or not
 Return Type: int => true = is keyword; false = not a keyword
-Params: char *value => Value to be checked
+Params: TOKEN *token => TOKEN to be checked
 */
-int is_keyword(char *value) {
+TOKENTYPES KeywordLookupTable[] = {
+    _KW_WHILE_, _KW_IF_, _KW_FUNCTION_, _KW_VAR_, _KW_BREAK_, _KW_BREAK_, _KW_RETURN_,
+    _KW_DO_, _KW_CLASS_, _KW_WITH_, _KW_NEW_, _KW_TRUE_, _KW_FALSE_, _KW_NULL_, _KW_ENUM_,
+    _KW_CHECK_, _KW_IS_, _KW_TRY_, _KW_CATCH_, _KW_CONTINUE_, _KW_CONST_, _KW_INCLUDE_,
+    _KW_AND_, _KW_OR_, _KW_GLOBAL_, _KW_SECURE_, _KW_PRIVATE_, _KW_EXPORT_, _KW_FOR_,
+    _KW_THIS_, _KW_ELSE_, _KW_INT_, _KW_DOUBLE_, _KW_FLOAT_, _KW_CHAR_, _KW_STRING_,
+    _KW_SHORT_, _KW_LONG_, _KW_CONSTRUCTOR_
+};
+
+int is_keyword(TOKEN *token) {
     for (int i = 0; i < sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0]); i++) {
-        if (strcmp(value, KeywordLookupTable[i].kwName) == 0) {
+        if (token->type == KeywordLookupTable[i]) {
             return true;
         }
     }
@@ -2484,7 +2626,7 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
         return;
     }
 
-    (void)printf("An error occured on line %i.\n", (errorToken->line + 1));
+    (void)printf("SYNTAX ERROR: An error occured at line %i.\n", (errorToken->line + 1));
     (void)printf("----------------------------------\n");
 
     int printPosition = errorToken->tokenStart;
@@ -2504,6 +2646,11 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
     (void)printf("%s", buffer);
 
     for (int i = printPosition; i < sourceLength; i++) {
+        if ((*sourceCode)[i] == '\n') {
+            printPosition = i + 1;
+            continue;
+        }
+
         (void)printf("%c", (*sourceCode)[i]);
         
         if ((*sourceCode)[i + 1] == '\n' || i + 1 == sourceLength) {
@@ -2516,12 +2663,15 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
         (void)printf(" ");
     }
 
+    int counter = 0;
+
     for (int i = printPosition; i < sourceLength; i++) {
-        if (i < errorToken->tokenStart
-            || i >= errorToken->tokenStart + (errorToken->size - 1)) {
-            (void)printf(" ");
-        } else {
+        if (i >= errorToken->tokenStart
+            && counter < (errorToken->size - 1)) {
             (void)printf("^");
+            counter++;
+        } else {
+            (void)printf(" ");
         }
     }
 

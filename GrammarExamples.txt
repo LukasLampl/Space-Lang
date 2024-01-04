@@ -33,6 +33,8 @@ Obj b = new Obj[4];
 ### FUNCTION ###
 function test(param1, param2) {}
 function test(*param1, param2) {}
+function:int add(num1, num2);
+function:String greet() {}
 global function test(param1, param2) {}
 global function test(param1, *param2) {}
 

@@ -53,12 +53,12 @@ If you want to run the program with the Batch file, you'll need a Terminal and t
 # 3. Error messages #
 When you run the compiler on an invalid input you'll get an error message like this:
 ```
-An error occured on line 1.
+SYNTAX ERROR: An error occured at line 1.
 ----------------------------------
 1 : 19 | for (var i = 0; i = 10; i++) {
                            ^
 
-Unexpected token "=", maybe replace with "==" or "<=" or ">=" or "!=" or "<" or ">".
+Unexpected token "=", maybe replace with "==", "<=", ">=", "!=", "<" or ">".
 ----------------------------------
 ```
 
@@ -77,12 +77,13 @@ In the following list you'll find suggestions that might be unclear like `<IDENT
 | `<CHAINED_CONDITION>` | replace with condition or condition with `and` or `or` |
 | `<CLASS_OBJECT_ACCESS>` | replace with a accessor to a class, like: `MyClass->myVar;` |
 | `<DIGIT>` | replace with a single digit, like: `1` or `0` |
+| `<EXPRESSION>` | replace with an expression, like: `a = 10;` |
 | `<FUNCTION_CALL>` | replace with a function call, like: `test(param1, param2)` |
-| `<IDENTIFIER>` | replace with an valid IDENTIFIER |
-| `<MULTIPLE_DEFINITION>` | replace with multiple var definition, like: var `a,b` |
+| `<IDENTIFIER>` | replace with a valid IDENTIFIER |
+| `<MULTIPLE_DEFINITION>` | replace with multiple var definition, like: `var a,b` |
 | `<NUMBER>` | replace with a valid number, like: `3` or `3.141` |
 | `<POINTER>` | replace with valid pointer, like: `*ptr` |
-| `<REFERENCE` | replace with valid reference, like `&ref` or `&(*ptr)` |
+| `<REFERENCE>` | replace with valid reference, like `&ref` or `&(*ptr)` |
 | `<STRING>` | replace with a string, like: `"String"` |
 </details>
 
@@ -119,6 +120,16 @@ And the last step is to merge both together:
 ```
 class Calculator() => {
   global function add(number1, number2) {
+    return number1 + number2;
+  }
+}
+```
+
+There are also some critical applications, in which a return type is forced. Let's say I'd define the function `add(number1, number2)` again, but I want to make sure an `int` gets returned. For that I can do the following thing:
+
+```
+class Calculator() => {
+  global function:int add(number1, number2) {
     return number1 + number2;
   }
 }

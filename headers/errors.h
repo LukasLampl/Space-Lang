@@ -32,6 +32,7 @@ int FREE_MEMORY();
 
 void _init_error_token_cache_(TOKEN **tokens);
 void _init_error_buffer_cache_(char **buffer);
+void _init_error_token_size_cache_(int **arrayOfIndividualTokenSizes);
 
 void IO_FILE_EXCEPTION(char *Source, char *file);
 void IO_BUFFER_EXCEPTION(char *Step);

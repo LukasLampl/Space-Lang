@@ -32,6 +32,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // Cache
 TOKEN *TokenCache = NULL;
 char *BufferCache = NULL;
+int *arrayOfIndividualTokenSizesCache = NULL;
 
 /*
 Purpose: Initialize the token array, so it can be freed at an error
@@ -49,6 +50,15 @@ Params: char **buffer -> Pointer to the buffer
 */
 void _init_error_buffer_cache_(char **buffer) {
     BufferCache = (*buffer);
+}
+
+/*
+Purpose: Initialize the sizes of the tokens, so it can be freed at an error
+Return Type: void
+Params: int **arrayOfIndividualTokenSizes => Sizes of the individual tokens
+*/
+void _init_error_token_size_cache_(int **arrayOfIndividualTokenSizes) {
+    arrayOfIndividualTokenSizesCache = (*arrayOfIndividualTokenSizes);
 }
 
 /*
@@ -437,8 +447,9 @@ int FREE_MEMORY() {
 
     free += (int)FREE_BUFFER(BufferCache);
     free += (int)FREE_TOKENS(TokenCache);
+    free += (int)FREE_TOKEN_LENGTHS(arrayOfIndividualTokenSizesCache);
 
-    if (free == 2) {
+    if (free == 3) {
         (void)printf("\n\n\nProgram exited successful\n");
         return true;
     }

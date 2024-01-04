@@ -42,14 +42,24 @@ int check_for_operator(char input);
 int is_space(char character);
 int is_digit(char character);
 
-// Lexing the input
-int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
-void Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t *fileLength, const size_t requiredTokenLength);
+//Input reader
+struct InputReaderResults {
+    char **buffer;
+    int **arrayOfIndividualTokenSizes;
+    int requiredTokenNumber;
+    size_t fileLength;
+};
 
-// Parse
+struct InputReaderResults processInput(char *path);
+
+//Lexing the input
+int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
+TOKEN **Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength);
+
+//Parse
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);
 
 //int Check_syntax(TOKEN **tokens, size_t tokenArrayLength, char **buffer, size_t bufferSize);
 int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize);
 
-#endif  // SPACE_MODULES_H_
+#endif
