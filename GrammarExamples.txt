@@ -51,7 +51,7 @@ do {} while (a < 10 and b == 20)
 try {} catch (Exception e) {}
 
 ### FOR ###
-for (i = 0; i < 5; i++) {}
+for (var i = 0; i < 5; i++) {}
 
 ### CHECK ###
 check (a) {

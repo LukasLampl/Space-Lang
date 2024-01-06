@@ -50,7 +50,7 @@ Purpose: Read in the source files to compile, then read in the grammar file and 
 Return Type: int
 Params: NULL
 */
-struct InputReaderResults processInput(char *path) {
+struct InputReaderResults ProcessInput(char *path) {
     //File to read
     FILE *filePointer = (FILE *)fopen(path, "r");
 
@@ -204,7 +204,6 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
         }
     }
 
-    printf("Num: %i\n", tokenNumber - comment);
     return tokenNumber - comment;
 }
 

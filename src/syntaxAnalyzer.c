@@ -41,10 +41,11 @@ enum ParameterType {
     _PARAM_FUNCTION_CALL_, _PARAM_FUNCTION_, _PARAM_CLASS_
 };
 
-int enter_panic_mode(TOKEN **tokens, size_t startPos, int inRunnableBlock);
+int enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock);
 SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock);
 SyntaxReport is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos);
 SyntaxReport is_runnable_function_call(TOKEN **tokens, size_t startPos);
+int predict_class_instance(TOKEN **tokens, size_t startPos);
 int predict_expression(TOKEN **tokens, size_t startPos);
 SyntaxReport is_keyword_based_runnable(TOKEN **tokens, size_t startPos);
 SyntaxReport is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall);
@@ -54,7 +55,6 @@ SyntaxReport is_continue_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_break_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_for_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_expression(TOKEN **tokens, size_t startPos, int inRunnable);
-SyntaxReport is_if(TOKEN **tokens, size_t startPos);
 SyntaxReport is_if_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_else_if_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport is_else_statement(TOKEN **tokens, size_t startPos);
@@ -113,15 +113,26 @@ int is_logic_operator(const char *sequence);
 SyntaxReport create_syntax_report(TOKEN *token, int tokensToSkip, int errorOccured, char *expextedToken);
 void throw_error(TOKEN *errorToken, char *expectedToken);
 
-size_t maxTokenLength = 0;
-char **sourceCode = NULL;
-size_t sourceLength = 0;
 int FILE_CONTAINS_ERRORS = 0;
+size_t MAX_TOKEN_LENGTH = 0;
+char **SOURCE_CODE = NULL;
+size_t SOURCE_LENGTH = 0;
+char *FILE_NAME = NULL;
 
-int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize) {
-    maxTokenLength = tokenArrayLength;
-    sourceCode = source;
-    sourceLength = sourceSize;
+/*
+Purpose: Checks all TOKENS and returns errors
+Return Type: int => 1 = Syntax is correct; 0 = Syntax is incorrect
+Params: TOKEN **tokens => TOKEN array in which the error/s occured;
+        size_t tokenArrayLength => Size of the TOKEN array
+        char **source => Sourcec code from the user;
+        size_t sourceSize => Length of the source code;
+        char *sourceName => Filename of the source code
+*/
+int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize, char *sourceName) {
+    MAX_TOKEN_LENGTH = tokenArrayLength;
+    SOURCE_CODE = source;
+    SOURCE_LENGTH = sourceSize;
+    FILE_NAME = sourceName;
 
     if (tokens == NULL || tokenArrayLength < 1) {
         (void)PARSER_TOKEN_TRANSMISSION_EXCEPTION();
@@ -138,7 +149,8 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
         (void)printf("\n\n\n>>>>>>>>>>>>>>>>>>>>    SYNTAX ANALYZER    <<<<<<<<<<<<<<<<<<<<\n\n");
     }
 
-    printf("is_runnable: %i\n", is_runnable(tokens, 0, false).tokensToSkip);
+    //Actual check (everything is a runnable, just without or with blocks e.g. braces)
+    (void)is_runnable(tokens, 0, false);
     
     if (PARSER_DEBUG_MODE == true) {
         (void)printf("\n>>>>>    Tokens successfully analyzed    <<<<<\n");
@@ -149,18 +161,72 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
         (void)printf("\nCPU time used for SYNTAX ANALYSIS: %f seconds\n", ((double) (end - start)) / CLOCKS_PER_SEC);   
     }
 
-    return 1;
+    return FILE_CONTAINS_ERRORS == false ? 0 : 1;
 }
 
-int enter_panic_mode(TOKEN **tokens, size_t startPos, int inRunnableBlock) {
-    printf("PANIC MODE: %s\n", (*tokens)[startPos].value);
+/*
+Purpose: Enters the panic mode and skips as many TOKENS as needed to recover
+Return Type: int => How many tokens got skipped
+Params: TOKEN **tokens => TOKEN array in which the error/s occured;
+        size_t startPos => Position from where to start skipping
+        int runnableWithBlock => If the error occured in a runnable with block or not
+*/
+int panicModeOpenBraces = 0;
+int panicModeLastStartPos = 0;
 
-    for (int i = startPos + 1; i < maxTokenLength; i++) {
+int enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) {
+    switch ((*tokens)[startPos].type) {
+    case _KW_CLASS_:
+    case _KW_FUNCTION_:
+    default:
+        break;
+    }
+
+    for (int i = panicModeLastStartPos; i < startPos; i++) {
+        if ((*tokens)[i].type == _OP_LEFT_BRACE_) {
+            panicModeOpenBraces--;
+        } else if ((*tokens)[i].type == _OP_RIGHT_BRACE_) {
+            panicModeOpenBraces++;
+        }
+    }
+
+    panicModeLastStartPos = startPos;
+
+    for (int i = startPos + 1; i <  MAX_TOKEN_LENGTH; i++) {
         TOKEN *currentToken = &(*tokens)[i];
-        
-        if ((int)is_keyword(currentToken) == true) {
-            printf("RETURN: %i | %s\n", i, (*tokens)[i].value);
-            return i;
+
+        if (currentToken->type == __EOF__) {
+            if (panicModeOpenBraces != 0) {
+                if (panicModeOpenBraces > 1) {
+                    (void)printf("SYNTAX ERROR: Missing %i closing braces \"}\".\n", panicModeOpenBraces);
+                } else {
+                    (void)printf("SYNTAX ERROR: Missing 1 closing brace \"}\".\n");
+                }
+
+                (void)printf("Estimated line: %i (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
+            }
+
+            return i - startPos;
+        }
+
+        if (runnableWithBlock == true) {
+            if (currentToken->type == _OP_LEFT_BRACE_) {
+                panicModeOpenBraces --;
+
+                if (panicModeOpenBraces == 0) {
+                    return i - startPos;
+                }
+            } else if (currentToken->type == _OP_RIGHT_BRACE_) {
+                panicModeOpenBraces++;
+            }
+        } else if ((int)is_keyword(currentToken) == true) {
+            switch (currentToken->type) {
+            case _KW_NEW_:
+            case _KW_WHILE_:
+                continue;
+            default:
+                return i - startPos;
+            }
         }
     }
 
@@ -185,7 +251,7 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
         }
     }
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         if ((*tokens)[startPos + jumper].type == _OP_LEFT_BRACE_
             && withBlock == true) {
@@ -206,6 +272,7 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
             if (skip > 0) {
                 jumper += skip;
+                continue;
             } else {
                 if (withBlock == true) {
                     return create_syntax_report(isKWBasedRunnable.token, 0, true, isKWBasedRunnable.expectedToken);
@@ -264,7 +331,9 @@ Params: TOKEN **tokens => Tokens to be checked;
         int independentCall => Flag if the object access was called by term or indepentently
 */
 SyntaxReport is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
-    if ((int)predict_expression(tokens, startPos) == true) {
+    if ((int)predict_class_instance(tokens, startPos) == true) {
+        return is_class_instance(tokens, startPos);
+    } else if ((int)predict_expression(tokens, startPos) == true) {
         return is_expression(tokens, startPos, true);
     } else if ((int)predict_class_object_access(tokens, startPos) == true) {
         return is_class_object_access(tokens, startPos, true);
@@ -305,8 +374,42 @@ SyntaxReport is_runnable_function_call(TOKEN **tokens, size_t startPos) {
 }
 
 /*
+Purpose: Tries to predict if the current token array is a class instance or not
+Return Type: int => true = following array is class instance; false following array is not a class instance
+Params: TOKEN **tokens => Tokens to be checked;
+        size_t startPos => Position from where to start checking;
+*/
+int predict_class_instance(TOKEN **tokens, size_t startPos) {
+    int jumper = 0;
+    int facedSemicolon = false;
+
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
+        && (*tokens)[startPos + jumper].type != __EOF__) {
+        TOKEN *currentToken = &(*tokens)[startPos + jumper];
+
+        if (currentToken->type == _KW_NEW_) {
+            if (facedSemicolon == true) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        if (currentToken->type == _OP_SEMICOLON_) {
+            facedSemicolon = true;
+        } else if (currentToken->type == _OP_RIGHT_BRACE_) {
+            return false;
+        }
+
+        jumper++;
+    }
+
+    return false;
+}
+
+/*
 Purpose: Tries to predict if the current token array is an expression or not
-Return Type: int => true = follwing array is expression; false following array is not an expression
+Return Type: int => true = following array is expression; false following array is not an expression
 Params: TOKEN **tokens => Tokens to be checked;
         size_t startPos => Position from where to start checking;
 */
@@ -314,7 +417,7 @@ int predict_expression(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int facedSemicolon = false;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -373,7 +476,13 @@ SyntaxReport is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     case _KW_CLASS_:
         return is_class(tokens, startPos);
     case _KW_IF_:
-        return is_if(tokens, startPos);
+        return is_if_statement(tokens, startPos);
+    case _KW_ELSE_:
+        if ((*tokens)[startPos + 1].type == _KW_IF_) {
+            return is_else_if_statement(tokens, startPos);
+        } else {
+            return is_else_statement(tokens, startPos);
+        }
     case _KW_WHILE_:
         return is_while_statement(tokens, startPos);
     case _KW_DO_:
@@ -382,6 +491,8 @@ SyntaxReport is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
         return is_for_statement(tokens, startPos);
     case _KW_TRY_:
         return is_try_statement(tokens, startPos);
+    case _KW_CATCH_:
+        return is_catch_statement(tokens, startPos);
     case _KW_CHECK_:
         return is_check_statement(tokens, startPos);
     case _KW_INCLUDE_:
@@ -643,54 +754,6 @@ SyntaxReport is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
 }
 
 /*
-Purpose: Checks if the current TOKEN array matches the IF rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
-*/
-SyntaxReport is_if(TOKEN **tokens, size_t startPos) {
-    SyntaxReport isIfStatement = is_if_statement(tokens, startPos);
-
-    if (isIfStatement.errorOccured == true) {
-        return create_syntax_report(isIfStatement.token, 0, true, isIfStatement.expectedToken);
-    }
-
-    TOKEN *crucialToken = &(*tokens)[startPos + isIfStatement.tokensToSkip];
-    int skip = 0;
-
-    if (crucialToken->type == _KW_ELSE_) {
-        crucialToken = &(*tokens)[startPos + isIfStatement.tokensToSkip + 1];
-        
-        if (crucialToken->type == _KW_IF_) {
-            SyntaxReport isElseIf = is_else_if_statement(tokens, startPos + isIfStatement.tokensToSkip);
-
-            if (isElseIf.errorOccured == true) {
-                return create_syntax_report(isElseIf.token, 0, true, isElseIf.expectedToken);
-            }
-
-            skip = isElseIf.tokensToSkip;
-        }
-
-        SyntaxReport isElse;
-
-        if ((*tokens)[startPos + skip + isIfStatement.tokensToSkip].type != _KW_ELSE_) {
-            isElse = is_else_statement(tokens, startPos + isIfStatement.tokensToSkip);
-            skip--;
-        } else {
-            isElse = is_else_statement(tokens, startPos + skip + isIfStatement.tokensToSkip);
-        }
-
-        if (isElse.errorOccured == true) {
-            return create_syntax_report(isElse.token, 0, true, isElse.expectedToken);
-        }
-
-        skip += isElse.tokensToSkip;
-    }
-    
-    return create_syntax_report(NULL, skip + isIfStatement.tokensToSkip, false, NULL);
-}
-
-/*
 Purpose: Checks if the current TOKEN array matches the IF_STATEMENT rule
 Return Type: SyntaxReport => ErrorOccured = true on error, else false
 Params: TOKEN **tokens => Tokens to be checked;
@@ -731,50 +794,17 @@ Params: TOKEN **tokens => Tokens to be checked;
         size_t startPos => Position from where to start checking
 */
 SyntaxReport is_else_if_statement(TOKEN **tokens, size_t startPos) {
-    int jumper = 0;
-    int hasToBeElse = true;
-    int exitOnPurpose = false;
-
-    while (startPos + jumper < maxTokenLength
-        && (*tokens)[startPos + jumper].type != __EOF__) {
-        TOKEN *currentToken = &(*tokens)[startPos + jumper];
-
-        if (hasToBeElse == false && currentToken->type != _KW_IF_) {
-            exitOnPurpose = true;
-            jumper--;
-            break;
-        } else if (hasToBeElse == true && currentToken->type != _KW_ELSE_) {
-            break;
-        }
-
-        switch (hasToBeElse) {
-        case false: {
-            SyntaxReport isIfStatement = is_if_statement(tokens, startPos + jumper);
-
-            if (isIfStatement.errorOccured == true) {
-                return create_syntax_report(isIfStatement.token, 0, true, isIfStatement.expectedToken);
-            }
-
-            jumper += isIfStatement.tokensToSkip;
-            hasToBeElse = true;
-            break;
-        }
-        case true:
-            if (currentToken->type != _KW_ELSE_) {
-                return create_syntax_report(currentToken, 0, true, "else");
-            }
-
-            jumper++;
-            hasToBeElse = false;
-            break;
-        }
+    if ((*tokens)[startPos].type != _KW_ELSE_) {
+        return create_syntax_report(&(*tokens)[startPos], 0, true, "else");
     }
 
-    if (hasToBeElse == false && exitOnPurpose != true) {
-        return create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<ELSE_IF>");
+    SyntaxReport isIfStatement = is_if_statement(tokens, startPos + 1);
+
+    if (isIfStatement.errorOccured == true) {
+        return create_syntax_report(isIfStatement.token, 0, true, isIfStatement.expectedToken);
     }
 
-    return create_syntax_report(NULL, jumper, false, NULL);
+    return create_syntax_report(NULL, isIfStatement.tokensToSkip + 1, false, NULL);
 }
 
 /*
@@ -970,7 +1000,7 @@ SyntaxReport is_check_statement(TOKEN **tokens, size_t startPos) {
 
     int jumper = isIdentifier.tokensToSkip + 4;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         if ((*tokens)[startPos + jumper].type == _OP_LEFT_BRACE_) {
             jumper++;
@@ -1209,7 +1239,7 @@ SyntaxReport is_chained_condition(TOKEN **tokens, size_t startPos, int inParam) 
     int openBrackets = 1;
     int hasToBeLogicOperator = false;
     
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
         
@@ -1307,7 +1337,7 @@ Params: TOKEN **tokens => Tokens to be checked;
 int predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
     int facedSemicolon = false;
 
-    for (int i = startPos; i < maxTokenLength; i++) {
+    for (int i = startPos; i <  MAX_TOKEN_LENGTH; i++) {
         if ((*tokens)[i].type == _OP_QUESTION_MARK_) {
             if (facedSemicolon == false) {
                 return true;
@@ -1370,7 +1400,7 @@ SyntaxReport is_multiple_variable_definition_identifier(TOKEN **tokens, size_t s
     int hasToBeComma = false;
     int jumper = 0;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
         
@@ -1458,7 +1488,7 @@ SyntaxReport is_array_assignment(TOKEN **tokens, size_t startPos) {
     int openBraces = 0;
     int hasToBeComma = false;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -1524,7 +1554,7 @@ SyntaxReport is_array_element(TOKEN **tokens, size_t startPos) {
     int hasToBeClosingEdgeBracket = false;
     int jumper = 0;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -1647,7 +1677,7 @@ SyntaxReport is_class(TOKEN **tokens, size_t startPos) {
     int totalSkip = isFunctionCall.tokensToSkip + modifier + additionalWithSkip + 1;
 
     if ((*tokens)[startPos + totalSkip].type != _OP_CLASS_CREATOR_) {
-        return create_syntax_report(&(*tokens)[startPos + totalSkip], 0, true, "->");
+        return create_syntax_report(&(*tokens)[startPos + totalSkip], 0, true, "=>");
     }
 
     SyntaxReport isRunnable = is_runnable(tokens, startPos + totalSkip + 1, true);
@@ -1696,13 +1726,7 @@ SyntaxReport is_try_statement(TOKEN **tokens, size_t startPos) {
         return create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
     }
 
-    SyntaxReport isCatchStatement = is_catch_statement(tokens, startPos + isRunnable.tokensToSkip + 1);
-
-    if (isCatchStatement.errorOccured == true) {
-        return create_syntax_report(isCatchStatement.token, startPos + isRunnable.tokensToSkip + 1, true, isCatchStatement.expectedToken);
-    }
-
-    return create_syntax_report(NULL, isRunnable.tokensToSkip + isCatchStatement.tokensToSkip + 1, false, NULL);
+    return create_syntax_report(NULL, isRunnable.tokensToSkip + 1, false, NULL);
 }
 
 /*
@@ -1824,7 +1848,7 @@ SyntaxReport is_enumerator(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int hasToBeComma = false;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__
         && (*tokens)[startPos + jumper].type != _OP_LEFT_BRACE_) {
         switch (hasToBeComma) {
@@ -1906,7 +1930,7 @@ SyntaxReport is_function(TOKEN **tokens, size_t startPos) {
     if (isFunctionCall.errorOccured == true) {
         return create_syntax_report(isFunctionCall.token, 0, true, isFunctionCall.expectedToken);
     }
-
+    
     SyntaxReport isRunnable = is_runnable(tokens, startPos + skip + isFunctionCall.tokensToSkip + 1, true);
 
     if (isRunnable.errorOccured == true) {
@@ -1999,7 +2023,7 @@ SyntaxReport is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType ty
     int jumper = 0;
     int hasToBeComma = false;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -2094,7 +2118,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
     int jumper = 0;
     int hasToBeArithmeticOperator = false;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -2193,7 +2217,7 @@ int predict_class_object_access(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int openBrackets = 0;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -2228,7 +2252,7 @@ SyntaxReport is_identifier(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int hasToBeDot = false;
 
-    while (startPos + jumper < maxTokenLength
+    while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -2612,27 +2636,24 @@ SyntaxReport create_syntax_report(TOKEN *token, int tokensToSkip, int errorOccur
     report.tokensToSkip = tokensToSkip;
     report.errorOccured = errorOccured;
     report.expectedToken = expectedToken;
-
-    if (errorOccured == true) {
-        FILE_CONTAINS_ERRORS = 1;
-    }
-
     return report;
 }
 
 void throw_error(TOKEN *errorToken, char *expectedToken) {
-    if (sourceCode == NULL) {
+    FILE_CONTAINS_ERRORS = true;
+
+    if (SOURCE_CODE == NULL) {
         (void)printf("Source code pointer = NULL!");
         return;
     }
 
-    (void)printf("SYNTAX ERROR: An error occured at line %i.\n", (errorToken->line + 1));
-    (void)printf("----------------------------------\n");
+    (void)printf("SYNTAX ERROR: An error occured at line %i (%s).\n", (errorToken->line + 1), FILE_NAME);
+    (void)printf("-------------------------------------------------------\n");
 
     int printPosition = errorToken->tokenStart;
 
     for (int i = errorToken->tokenStart; i > 0; i--) {
-        if ((*sourceCode)[i] == '\n') {
+        if ((*SOURCE_CODE)[i] == '\n') {
             break;
         }
 
@@ -2645,15 +2666,15 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
 
     (void)printf("%s", buffer);
 
-    for (int i = printPosition; i < sourceLength; i++) {
-        if ((*sourceCode)[i] == '\n') {
+    for (int i = printPosition; i < SOURCE_LENGTH; i++) {
+        if ((*SOURCE_CODE)[i] == '\n') {
             printPosition = i + 1;
             continue;
         }
 
-        (void)printf("%c", (*sourceCode)[i]);
+        (void)printf("%c", (*SOURCE_CODE)[i]);
         
-        if ((*sourceCode)[i + 1] == '\n' || i + 1 == sourceLength) {
+        if ((*SOURCE_CODE)[i + 1] == '\n' || i + 1 == SOURCE_LENGTH) {
             (void)printf("\n");
             break;
         }
@@ -2665,7 +2686,7 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
 
     int counter = 0;
 
-    for (int i = printPosition; i < sourceLength; i++) {
+    for (int i = printPosition; i < SOURCE_LENGTH; i++) {
         if (i >= errorToken->tokenStart
             && counter < (errorToken->size - 1)) {
             (void)printf("^");
@@ -2676,5 +2697,5 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
     }
 
     (void)printf("\n\nUnexpected token \"%s\", maybe replace with \"%s\".\n", errorToken->value, expectedToken);
-    (void)printf("----------------------------------\n\n");
+    (void)printf("-------------------------------------------------------\n");
 }

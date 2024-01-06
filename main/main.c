@@ -31,8 +31,9 @@ int main() {
     //////////     INPUT READER    //////////
     /////////////////////////////////////////
     char *path = "../SPACE/prgm.txt";
+    char *fileName = "prgm.txt";
 
-    struct InputReaderResults inputReaderResults = processInput(path);
+    struct InputReaderResults inputReaderResults = ProcessInput(path);
     int *arrayOfIndividualTokenSizes = inputReaderResults.arrayOfIndividualTokenSizes;
     char *buffer = inputReaderResults.buffer;
     size_t fileLength = inputReaderResults.fileLength;
@@ -47,7 +48,16 @@ int main() {
     ////////////////////////////////////////
     /////     CHECK SYNTAX FUNCTION     ////
     ////////////////////////////////////////
-    (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength);
+
+    //0 = no errors, 1 = with errors
+    int containsSyntaxErrors = (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength, fileName);
+
+    /////////////////////////////////////////
+    ///////     GENERATE PARSETREE     //////
+    /////////////////////////////////////////
+    if (containsSyntaxErrors == 0) {
+        (int)Generate_Parsetree(&tokens, requiredTokenNumber);
+    }
 
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", path);

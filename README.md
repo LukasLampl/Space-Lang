@@ -54,12 +54,12 @@ If you want to run the program with the Batch file, you'll need a Terminal and t
 When you run the compiler on an invalid input you'll get an error message like this:
 ```
 SYNTAX ERROR: An error occured at line 1.
-----------------------------------
+-------------------------------------------------------
 1 : 19 | for (var i = 0; i = 10; i++) {
                            ^
 
 Unexpected token "=", maybe replace with "==", "<=", ">=", "!=", "<" or ">".
-----------------------------------
+-------------------------------------------------------
 ```
 
 > [!TIP]

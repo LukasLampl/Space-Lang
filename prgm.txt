@@ -1,2 +1,1 @@
-var num.ber = 10;
-const test.i = 0;
+var number = 10;

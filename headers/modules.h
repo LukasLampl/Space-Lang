@@ -50,7 +50,7 @@ struct InputReaderResults {
     size_t fileLength;
 };
 
-struct InputReaderResults processInput(char *path);
+struct InputReaderResults ProcessInput(char *path);
 
 //Lexing the input
 int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
@@ -60,6 +60,6 @@ TOKEN *Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);
 
 //int Check_syntax(TOKEN **tokens, size_t tokenArrayLength, char **buffer, size_t bufferSize);
-int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize);
+int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize, char *sourceName);
 
 #endif
