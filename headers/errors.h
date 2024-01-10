@@ -42,14 +42,13 @@ void IO_FILE_CLOSING_EXCEPTION();
 void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(char **input, int pos, int maxBackPos, int line);
 void LEXER_NULL_TOKEN_EXCEPTION();
 void LEXER_UNFINISHED_POINTER_EXCEPTION();
-void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber);
+void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber, const char **fileName);
 void LEXER_NULL_TOKEN_VALUE_EXCEPTION();
 void LEXER_TOKEN_ERROR_EXCEPTION();
 
 void PARSER_TOKEN_TRANSMISSION_EXCEPTION();
 
-void LIST_OVERFLOW_EXCEPTION();
-void LIST_UNDERFLOW_EXCEPTION();
+void PARSE_TREE_NODE_RESERVATION_EXCEPTION();
 
 void SYNTAX_MISMATCH_EXCEPTION(char *value, char *awaited);
 
@@ -57,5 +56,7 @@ void SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
 
 int FREE_BUFFER(char *buffer);
 int FREE_TOKENS(TOKEN *tokens);
+int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
+int FREE_NODES();
 
 #endif  // SPACE_ERRORS_H_

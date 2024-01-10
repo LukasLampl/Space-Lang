@@ -353,10 +353,11 @@ Purpose: Throw an error, when there is a string, that is not finished
 Return Type: void
 Params: char **input => Source code;
         size_t errorPos => Position from where the string starts;
-        size_t lineNumber => Line number of the string start
+        size_t lineNumber => Line number of the string start;
+        const char **fileName => Name of the file where the error occured
 */
-void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber) {
-    (void)printf("Unfinished string at end of file.\n");
+void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber, const char **fileName) {
+    (void)printf("Unfinished string at end of file. (%s)\n", (*fileName));
     (void)printf("-----------------------------------------------------\n");
 
     char buffer[32];
@@ -437,6 +438,14 @@ void SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION() {
     }
 }
 
+void PARSE_TREE_NODE_RESERVATION_EXCEPTION() {
+    (void)printf("Terminated parsetree generation due to memory reservation exception!\n");
+
+    if ((int)FREE_MEMORY() == true) {
+        (void)exit(EXIT_SUCCESS);
+    }
+}
+
 /*
 Purpose: Frees the reserved memory on error throw
 Return Type: int => true = successfully freed; false = error occured, terminate
@@ -448,8 +457,9 @@ int FREE_MEMORY() {
     free += (int)FREE_BUFFER(BufferCache);
     free += (int)FREE_TOKENS(TokenCache);
     free += (int)FREE_TOKEN_LENGTHS(arrayOfIndividualTokenSizesCache);
+    free += (int)FREE_NODES();
 
-    if (free == 3) {
+    if (free == 4) {
         (void)printf("\n\n\nProgram exited successful\n");
         return true;
     }

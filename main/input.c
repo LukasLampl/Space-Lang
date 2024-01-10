@@ -177,6 +177,9 @@ int get_minimum_token_number(char **buffer, int **arrayOfIndividualTokenSizes, c
                     if ((*buffer)[i] == '&'
                         || (int)is_correct_pointer(buffer, i, bufferLength) == true) {
                         isOperator = false;
+                    } else if ((*buffer)[i] == '-'
+                        && (int)is_digit((*buffer)[i + 1]) == true) {
+                        isOperator = false;
                     } else {
                         isOperator = true;
                     }
@@ -318,6 +321,10 @@ int add_identifiers(size_t currentBufferCharacterPosition, size_t bufferLength, 
                 } else {
                     break;
                 }
+            } else if ((*buffer)[currentBufferCharacterPosition + identifierLength] == '-'
+                && (int)is_digit((*buffer)[currentBufferCharacterPosition + identifierLength + 1]) == true) {
+                identifierLength++;
+                continue;
             } else {
                 break;
             }

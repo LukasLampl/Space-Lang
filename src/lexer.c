@@ -43,7 +43,7 @@ void set_line_number(TOKEN *token, size_t lineNumber);
 int is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
 int skip_comment(char **input, const size_t currentIndex, size_t *lineNumber);
-int write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character, size_t *lineNumber);
+int write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character, size_t *lineNumber, const char **fileName);
 int skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber);
@@ -93,11 +93,15 @@ struct kwLookup KeywordTable[] = {
 /*
 Purpose: Tokenize the passed input
 Return Type: TOKEN ** => Lexed tokens
-Params: char **buffer => Input to tokenize; int **tokenLengths => Length of the individual tokens; const long *length => input length;
-        const int *tokenLength => Required tokens to tokenize the whole input
+Params: char **buffer => Input to tokenize;
+        int **arrayOfIndividualTokenSizes => Length of the individual tokens;
+        const size_t fileLength => input length;
+        const size_t requiredTokenLength => Required tokens to tokenize the whole input;
+        const char *fileName => Name of the file that gets processed
+
 */
 
-TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength) {
+TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName) {
     TOKEN *tokens = NULL;
     char *input = *buffer;
     
@@ -158,7 +162,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
         // Check if the input character at index i is the beginning of an string or character array
         if (input[i] == '"' || input[i] == '\'') {
             storagePointer += (int)token_clearance_check(&(tokens[storagePointer]), lineNumber);
-            i += (int)write_string_in_token(&tokens[storagePointer], &input, i, &input[i], &lineNumber);
+            i += (int)write_string_in_token(&tokens[storagePointer], &input, i, &input[i], &lineNumber, &fileName);
             (void)set_line_number(&tokens[storagePointer], lineNumber);
             storagePointer++;
             storageIndex = 0;
@@ -211,6 +215,12 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
 
                     continue;
                 }
+            } else if (input[i] == '-' && (int)is_digit(input[i + 1]) == 1) {
+                storagePointer += (int)token_clearance_check(&tokens[storagePointer], lineNumber);
+                storageIndex = 0;
+                tokens[storagePointer].value[storageIndex++] = input[i];
+                tokens[storagePointer].type = _NUMBER_;
+                continue;
             }
 
             // Check if the current token is used or not, and if it increases storagePointer by 1
@@ -523,9 +533,10 @@ Params: TOKEN *token => Current Token to write in; const char *input => Source c
         char **input => Content of the source file;
         const size_t currentInputIndex => Index at where to start writing the string;
         const char *crucial_character => Character: ' or ";
-        size_t lineNumber = Current line number;
+        size_t lineNumber => Current line number;
+        const char **fileName => Name of the currently processed file
 */
-int write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character, size_t *lineNumber) {
+int write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character, size_t *lineNumber, const char **fileName) {
     int jumpForward = 1;
 
     if (input != NULL && token != NULL && token->value != NULL) {
@@ -554,7 +565,7 @@ int write_string_in_token(TOKEN *token, char **input, const size_t currentInputI
         }
 
         if ((*input)[currentInputIndex + jumpForward] != '"') {
-            (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber);
+            (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber, fileName);
         }
 
         // Set the current tokentype to _STRING_ and add the quotes

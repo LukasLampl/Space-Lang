@@ -25,9 +25,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/Token.h"
 
 struct Node {
-    char *value;
     TOKENTYPES type;
-    struct Node *children;
+    char *value;
+    struct Node *leftNode;
+    struct Node *rightNode;
 };
 
-#endif  // SPACE_PARSETREE_H_
+struct RootNode {
+    size_t nodeCount;
+    struct Node **nodes;
+};
+
+#endif

@@ -42,7 +42,8 @@ int main() {
     //////////////////////////////////
     //////////     LEXER    //////////
     //////////////////////////////////
-    TOKEN *tokens = Tokenize(&buffer, &arrayOfIndividualTokenSizes, fileLength, requiredTokenNumber);
+    printf("Tokenize\n");
+    TOKEN *tokens = Tokenize(&buffer, &arrayOfIndividualTokenSizes, fileLength, requiredTokenNumber, fileName);
     (void)FREE_TOKEN_LENGTHS(inputReaderResults.arrayOfIndividualTokenSizes);
 
     ////////////////////////////////////////
@@ -50,14 +51,23 @@ int main() {
     ////////////////////////////////////////
 
     //0 = no errors, 1 = with errors
-    int containsSyntaxErrors = (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength, fileName);
+    /*int containsSyntaxErrors = (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength, fileName);
 
     /////////////////////////////////////////
     ///////     GENERATE PARSETREE     //////
     /////////////////////////////////////////
     if (containsSyntaxErrors == 0) {
         (int)Generate_Parsetree(&tokens, requiredTokenNumber);
-    }
+    }*/
+
+    //////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////
+    ////////////////    FOR TESTS ONLY!!!!    ////////////////
+    //////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////
+    (int)Generate_Parsetree(&tokens, requiredTokenNumber);
 
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", path);

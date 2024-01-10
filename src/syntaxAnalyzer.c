@@ -150,8 +150,10 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
     }
 
     //Actual check (everything is a runnable, just without or with blocks e.g. braces)
-    (void)is_runnable(tokens, 0, false);
-    
+    for (int i = 0; i < 1; i++) {
+        (void)is_runnable(tokens, 0, false);
+    }
+
     if (PARSER_DEBUG_MODE == true) {
         (void)printf("\n>>>>>    Tokens successfully analyzed    <<<<<\n");
     }
@@ -175,14 +177,7 @@ int panicModeOpenBraces = 0;
 int panicModeLastStartPos = 0;
 
 int enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) {
-    switch ((*tokens)[startPos].type) {
-    case _KW_CLASS_:
-    case _KW_FUNCTION_:
-    default:
-        break;
-    }
-
-    for (int i = panicModeLastStartPos; i < startPos; i++) {
+    for (size_t i = panicModeLastStartPos; i < startPos; i++) {
         if ((*tokens)[i].type == _OP_LEFT_BRACE_) {
             panicModeOpenBraces--;
         } else if ((*tokens)[i].type == _OP_RIGHT_BRACE_) {
@@ -192,17 +187,15 @@ int enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) {
 
     panicModeLastStartPos = startPos;
 
-    for (int i = startPos + 1; i <  MAX_TOKEN_LENGTH; i++) {
+    for (size_t i = startPos + 1; i < MAX_TOKEN_LENGTH + 1; i++) {
         TOKEN *currentToken = &(*tokens)[i];
 
         if (currentToken->type == __EOF__) {
-            if (panicModeOpenBraces != 0) {
-                if (panicModeOpenBraces > 1) {
-                    (void)printf("SYNTAX ERROR: Missing %i closing braces \"}\".\n", panicModeOpenBraces);
-                } else {
-                    (void)printf("SYNTAX ERROR: Missing 1 closing brace \"}\".\n");
-                }
-
+            if (panicModeOpenBraces > 1) {
+                (void)printf("SYNTAX ERROR: Missing %i closing braces \"}\".\n", panicModeOpenBraces);
+                (void)printf("Estimated line: %i (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
+            } else if (panicModeLastStartPos == 1) {
+                (void)printf("SYNTAX ERROR: Missing 1 closing brace \"}\".\n");
                 (void)printf("Estimated line: %i (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
             }
 
@@ -230,7 +223,7 @@ int enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) {
         }
     }
 
-    return 0;
+    return -1;
 }
 
 /*
@@ -269,7 +262,7 @@ SyntaxReport is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
         if (isKWBasedRunnable.errorOccured == true) {
             (void)throw_error(isKWBasedRunnable.token, isKWBasedRunnable.expectedToken);
             int skip = (int)enter_panic_mode(tokens, startPos + jumper, withBlock);
-
+            
             if (skip > 0) {
                 jumper += skip;
                 continue;
@@ -2136,6 +2129,10 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
             openBrackets--;
             jumper++;
             continue;
+        } else if (currentToken->type == _OP_NOT_
+            && hasToBeArithmeticOperator == false) {
+            jumper++;
+            continue;
         } else if ((int)is_end_indicator(currentToken) == true) {
             break;
         }
@@ -2288,6 +2285,8 @@ SyntaxReport is_identifier(TOKEN **tokens, size_t startPos) {
                 }
 
                 jumper += isRootIdentifier;
+            } else {
+                return create_syntax_report(currentToken, 0, true, "<IDENTIFIER>");
             }
 
             continue;
@@ -2647,6 +2646,10 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
         return;
     }
 
+    if (errorToken->type == __EOF__) {
+        return;
+    }
+
     (void)printf("SYNTAX ERROR: An error occured at line %i (%s).\n", (errorToken->line + 1), FILE_NAME);
     (void)printf("-------------------------------------------------------\n");
 
@@ -2697,5 +2700,5 @@ void throw_error(TOKEN *errorToken, char *expectedToken) {
     }
 
     (void)printf("\n\nUnexpected token \"%s\", maybe replace with \"%s\".\n", errorToken->value, expectedToken);
-    (void)printf("-------------------------------------------------------\n");
+    (void)printf("-------------------------------------------------------\n\n");
 }
