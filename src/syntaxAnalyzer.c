@@ -2150,7 +2150,7 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
                 }
             }
 
-            SyntaxReport isIdentifier;
+            SyntaxReport isIdentifier = create_syntax_report(NULL, 0, true, "[LETTER]\", \"[DIGIT]\", \"[FUNCTION_CALL]\" or \"[CLASS_OBJECT_ACCESS]");
 
             if ((int)is_letter(currentToken->value[0]) == true) {
                 if ((int)predict_class_object_access(tokens, startPos + jumper) == true) {
@@ -2178,7 +2178,8 @@ SyntaxReport is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
 
             break;
         case true:
-            if ((int)is_arithmetic_operator(currentToken) != true) {
+            if ((int)is_arithmetic_operator(currentToken) != true
+                && currentToken->type != _OP_MODULU_) {
                 return create_syntax_report(currentToken, 0, true, "+\", \"-\", \"*\" or \"/");
             }
 
