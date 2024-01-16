@@ -48,9 +48,9 @@ struct storageItem {
     size_t itemEndPos;
 };
 
-struct storage {
-    struct storageItem *items;
-    size_t storageSize;
+struct identifierValueReturn {
+    size_t movedTokens;
+    char *value;
 };
 
 enum processDirection {
@@ -61,12 +61,9 @@ enum processDirection {
 
 void append_node_to_root_node(struct Node *node);
 NodeReport create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries);
-void manage_brackets(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries);
-struct Node *manage_remaining_plus_and_minus(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries);
-void manage_surrounded_plus_or_minus(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries);
-void manage_multiplication_or_division_or_modulo_in_simple_term(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries);
 struct storageItem create_null_storage_item();
-char *get_token_identifier_value_by_position(size_t position, TOKEN **tokens, enum processDirection direction);
+int is_next_operator_multiply_divide_or_modulo_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction);
+char *get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction);
 int is_operator(const TOKEN *token);
 struct Node *create_node(char *value, TOKENTYPES type);
 NodeReport create_node_report(struct Node *topNode, int tokensToSkip);
@@ -104,6 +101,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
 
     RootNode.nodeCount = 0;
     printf("TOKENLENGTH: %i\n", TokenLength);
+
     for (size_t i = 0; i < TokenLength; i++) {
         NodeReport report = create_simple_term_node(tokens, i, TokenLength);
 
@@ -171,356 +169,211 @@ PRECEDENCE of term OPERATORS:
 _______________________________
 */
 NodeReport create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries) {
-    struct Node *topNode = (struct Node*)malloc(sizeof(struct Node));
-    topNode->value = "NULL";
-    topNode->type = _UNDEF_;
+    printf("Working at: %s | %i\n", (*tokens)[startPos].value, boundaries);
 
     struct storageItem *items = (struct storageItem*)calloc(boundaries, sizeof(struct storageItem));
-    struct storage *listOfSubTrees = (struct storage*)malloc(sizeof(struct storage));
-
-    if (items == NULL || listOfSubTrees == NULL) {
-        printf("POINTER ERROR\n");
-        exit(EXIT_FAILURE);
-    }
-
-    listOfSubTrees->items = items;
-    listOfSubTrees->storageSize = 0;
-
-    (void)manage_brackets(listOfSubTrees, tokens, startPos, boundaries);
-    (void)manage_multiplication_or_division_or_modulo_in_simple_term(listOfSubTrees, tokens, startPos, boundaries);
-
-    /*
-    Manipulation of the list by surrounded pluses or minuses.
-    > If the term is: 2 * 3 + 4 / 5
-    > 1) The list would contain follwing items: (1) 2 * 3 AND (2) 4 / 5
-    > 2) The function searches for '+' and '-', which are surrounded by '/', '*' or '%'
-    > 3) The function replacec the list with following item: (1) 2 * 3 + 4 / 5
-    */
-    (void)manage_surrounded_plus_or_minus(listOfSubTrees, tokens, startPos, boundaries);
-    topNode = manage_remaining_plus_and_minus(listOfSubTrees, tokens, startPos, boundaries);
-
-    (void)free(listOfSubTrees);
-    (void)free(items);
-    return create_node_report(topNode, boundaries);
-}
-
-void manage_brackets(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries) {
-    for (size_t i = startPos; i < startPos + boundaries; i++) {
-        TOKEN *currentToken = &(*tokens)[i];
-
-        if (currentToken->type == _OP_RIGHT_BRACKET_) {
-            size_t bound = 0;
-            int openBrackets = 0;
-
-            while (i + bound < startPos + boundaries) {
-                if ((*tokens)[i + bound].type == _OP_LEFT_BRACKET_) {
-                    openBrackets--;
-
-                    if (openBrackets == 0) {
-                        break;
-                    }
-                } else if ((*tokens)[i + bound].type == _OP_RIGHT_BRACKET_) {
-                    openBrackets++;
-                }
-
-                bound++;
-            }
-            
-            NodeReport bracketReport = create_simple_term_node(tokens, i + 1, bound - 1);
-            listOfSubTrees->items[listOfSubTrees->storageSize].itemStartPos = i;
-            listOfSubTrees->items[listOfSubTrees->storageSize].itemEndPos = i + bound;
-            listOfSubTrees->items[listOfSubTrees->storageSize++].cacheNode = bracketReport.node;
-            i += bracketReport.tokensToSkip;
-        }
-    }
-}
-
-struct Node *manage_remaining_plus_and_minus(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries) {
     struct Node *cache = NULL;
+    struct Node *temp = NULL;
+    int waitingToEndPlusOrMinus = false;
 
     for (size_t i = startPos; i < startPos + boundaries; i++) {
-        if (i == startPos) {
-            for (int n = 0; n < boundaries; n++) {
-                if (listOfSubTrees->items[n].itemStartPos <= i
-                    && listOfSubTrees->items[n].itemEndPos >= i) {
-                    cache = listOfSubTrees->items[n].cacheNode;
-                    i += listOfSubTrees->items[n].itemEndPos;
-                    break;
-                }
-            }
-        }
-        
         TOKEN *currentToken = &(*tokens)[i];
-        size_t skip = 0;
 
-        if (currentToken->type == _OP_PLUS_
-            || currentToken->type == _OP_MINUS_) {
-            int isNextOpMultiplyOrDivide = UNINITIALZED;
-            int jumper = 1;
-
-            while (i + jumper < startPos + boundaries) {
-                if ((*tokens)[i + jumper].type == _OP_PLUS_
-                    || (*tokens)[i + jumper].type == _OP_MINUS_) {
-                    break;
-                } else if ((*tokens)[i + jumper].type == _OP_MULTIPLY_
-                    || (*tokens)[i + jumper].type == _OP_DIVIDE_
-                    || (*tokens)[i + jumper].type == _OP_MODULU_) {
-                    isNextOpMultiplyOrDivide = i + jumper - 1;
-                    break;
-                }
-
-                jumper++;
+        switch (currentToken->type) {
+        case _OP_PLUS_:
+        case _OP_MINUS_: {
+            if (waitingToEndPlusOrMinus == true
+                && temp != NULL) {
+                cache->rightNode = temp;
+                printf("TEMP:\n");
+                print_from_top_node(temp, 0, 0);
+                temp = NULL;
             }
 
             struct Node *node = create_node(currentToken->value, currentToken->type);
 
-            if (isNextOpMultiplyOrDivide > UNINITIALZED) {
-                struct Node *storageNode = NULL;
+            if (cache == NULL) {
+                int multOrDivOrModAtRight = (int)is_next_operator_multiply_divide_or_modulo_by_direction(tokens, i + 1, RIGHT);
+                char *lval = get_identifier_by_index(tokens, i - 1, LEFT);
+                struct Node *leftNode = create_node(lval, _IDENTIFIER_);
 
-                for (int n = 0; n < boundaries; n++) {
-                    if (listOfSubTrees->items[n].itemStartPos <= isNextOpMultiplyOrDivide
-                        && listOfSubTrees->items[n].itemEndPos >= isNextOpMultiplyOrDivide) {
-                        storageNode = listOfSubTrees->items[n].cacheNode;
-                        skip = listOfSubTrees->items[n].itemEndPos - listOfSubTrees->items[n].itemStartPos;
-                    }
-                }
-                
-                if (storageNode == NULL) {
-                    printf("NODE ERROR\n");
-                    exit(EXIT_FAILURE);
+                if (multOrDivOrModAtRight == false) {
+                    char *rval = get_identifier_by_index(tokens, i + 1, RIGHT);
+                    struct Node *rightNode = create_node(rval, _IDENTIFIER_);
+                    node->rightNode = rightNode;
+                } else {
+                    waitingToEndPlusOrMinus = true;
                 }
 
-                node->rightNode = storageNode;
+                node->leftNode = leftNode;
             } else {
-                char *rightNodeValue = get_token_identifier_value_by_position(i + 1, tokens, RIGHT);
-                node->rightNode = create_node(rightNodeValue, _IDENTIFIER_);
-            }
+                int multOrDivOrModAtRight = (int)is_next_operator_multiply_divide_or_modulo_by_direction(tokens, i + 1, RIGHT);
 
-            if (cache != NULL) {
-                node->leftNode = cache;
-            } else {
-                char *leftValue = get_token_identifier_value_by_position(i - 1, tokens, LEFT);
-                node->leftNode = create_node(leftValue, _IDENTIFIER_);
-                i += skip;
+                if (multOrDivOrModAtRight == false) {
+                    char *rval = get_identifier_by_index(tokens, i + 1, RIGHT);
+                    struct Node *rightNode = create_node(rval, _IDENTIFIER_);
+                    node->rightNode = rightNode;
+                    node->leftNode = cache;
+                } else {
+                    node->leftNode = cache;
+                    waitingToEndPlusOrMinus = true;
+                }
             }
 
             cache = node;
-            i++;
+            break;
+        }
+        case _OP_DIVIDE_:
+        case _OP_MULTIPLY_:
+        case _OP_MODULU_: {
+            struct Node *node = create_node(currentToken->value, currentToken->type);
+
+            if (cache == NULL) {
+                char *lval = get_identifier_by_index(tokens, i - 1, LEFT);
+                char *rval = get_identifier_by_index(tokens, i + 1, RIGHT);
+                struct Node *leftNode = create_node(lval, _IDENTIFIER_);
+                struct Node *rightNode = create_node(rval, _IDENTIFIER_);
+
+                node->leftNode = leftNode;
+                node->rightNode = rightNode;
+            } else {
+                char *rval = get_identifier_by_index(tokens, i + 1, RIGHT);
+                struct Node *rightNode = create_node(rval, _IDENTIFIER_);
+                node->rightNode = rightNode;
+
+                if (waitingToEndPlusOrMinus == false) {
+                    node->leftNode = cache;
+                } else {
+                    if (temp == NULL) {
+                        char *lval = get_identifier_by_index(tokens, i - 1, LEFT);
+                        struct Node *leftNode = create_node(lval, _IDENTIFIER_);
+                        node->leftNode = leftNode;
+                    } else {
+                        node->leftNode = temp;
+                    }
+                }
+            }
+
+            if (waitingToEndPlusOrMinus == false) {
+                cache = node;
+            } else {
+                temp = node;
+            }
+
+            break;
+        }
+        default:
+            break;
+        }
+
+        if (i + 1 == startPos + boundaries) {
+            if (waitingToEndPlusOrMinus == true
+                && temp != NULL) {
+                cache->rightNode = temp;
+                temp = NULL;
+            }
+        }
+    }
+
+    (void)free(items);
+    return create_node_report(cache, boundaries);
+}
+
+int is_next_operator_multiply_divide_or_modulo_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction) {
+    int jumper = 0;
+    
+    if (direction == RIGHT) {
+        while ((*tokens)[startPos + jumper].type != __EOF__) {
+            TOKEN *token = &(*tokens)[startPos + jumper];
+            if (token->type == _OP_PLUS_
+                || token->type == _OP_MINUS_) {
+                return false;
+            } else if (token->type == _OP_MULTIPLY_
+                || token->type == _OP_DIVIDE_
+                || token->type == _OP_MODULU_) {
+                return true;
+            }
+
+            jumper++;
+        }
+    } else {
+        while (startPos - jumper > 0) {
+            TOKEN *token = &(*tokens)[startPos - jumper];
+
+            if (token->type == _OP_PLUS_
+                || token->type == _OP_MINUS_) {
+                return false;
+            } else if (token->type == _OP_MULTIPLY_
+                || token->type == _OP_DIVIDE_
+                || token->type == _OP_MODULU_) {
+                return true;
+            }
+
+            jumper++;
+        }
+    }
+
+    return false;
+}
+
+char *get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction) {
+    size_t idenStartPos = startPos;
+    size_t idenEndPos = startPos;
+
+    if (direction == RIGHT) {
+        while ((*tokens)[idenEndPos].type != __EOF__) {
+            TOKEN *currentToken = &(*tokens)[idenEndPos];
+            
+            if ((int)is_operator(currentToken) == true) {
+                break;
+            }
+
+            idenEndPos++;
+        }
+    } else {
+        idenEndPos = startPos + 1;
+        
+        while (idenStartPos > 0) {
+            TOKEN *currentToken = &(*tokens)[idenStartPos];
+            if ((int)is_operator(currentToken) == true) {
+                idenStartPos++;
+                break;
+            }
+
+            idenStartPos--;
+        }
+
+        printf("L: Start: %i | End: %i\n", idenStartPos, idenEndPos);
+    }
+    
+    char *cache = NULL;
+    size_t cacheSize = 0;
+
+    for (size_t i = idenStartPos; i < idenEndPos; i++) {
+        TOKEN *currentToken = &(*tokens)[i];
+
+        if (cache == NULL) {
+            cache = (char*)malloc(sizeof(char) * currentToken->size);
+
+            if (cache == NULL) {
+                printf("ERROR!\n");
+            }
+            //currentToken->value already has '\0'
+            strncpy(cache, currentToken->value, currentToken->size);
+            cacheSize = currentToken->size;
+        } else {
+            cache = (char*)realloc(cache, sizeof(char) * (cacheSize + currentToken->size - 1));
+
+            if (cache == NULL) {
+                printf("ERROR!\n");
+            }
+
+            strncat(cache, currentToken->value, currentToken->size);
+            cacheSize += currentToken->size;
         }
     }
 
     return cache;
-}
-
-//CAREFUL THE STORAGE *LISTOFSUBTREES GETS MANIPULATED!!!!
-void manage_surrounded_plus_or_minus(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries) {
-    for (size_t i = startPos; i < startPos + boundaries; i++) {
-        if ((*tokens)[i].type == _OP_PLUS_
-            || (*tokens)[i].type == _OP_MINUS_) {
-            int skipIteration = false;
-
-            for (size_t n = 0; n < listOfSubTrees->storageSize; n++) {
-                if (listOfSubTrees->items[n].itemStartPos <= i
-                    && listOfSubTrees->items[n].itemEndPos >= i) {
-                    i = listOfSubTrees->items[n].itemEndPos;
-                    skipIteration = true;
-                }
-            }
-
-            if (skipIteration == true) {
-                continue;
-            }
-
-            int mover = 1;
-            //If value is greater than UNINITIALIZED, than the next Op is "*" or "/"
-            //The value is also the position of the Operator
-            int prevOpIsMultiplyOrDivide = UNINITIALZED;
-            int nextOpIsMultiplyOrDivide = UNINITIALZED;
-
-            while (i - mover > startPos) {
-                if ((*tokens)[i - mover].type == _OP_PLUS_
-                    || (*tokens)[i - mover].type == _OP_MINUS_) {
-                    break;
-                } else if ((*tokens)[i - mover].type == _OP_MULTIPLY_
-                    || (*tokens)[i - mover].type == _OP_DIVIDE_
-                    || (*tokens)[i - mover].type == _OP_MODULU_) {
-                    prevOpIsMultiplyOrDivide = i - mover;
-                    break;
-                }
-
-                mover++;
-            }
-
-            mover = 1;
-
-            while (mover < boundaries) {
-                if ((*tokens)[i + mover].type == _OP_PLUS_
-                    || (*tokens)[i + mover].type == _OP_MINUS_) {
-                    break;
-                } else if ((*tokens)[i + mover].type == _OP_MULTIPLY_
-                    || (*tokens)[i + mover].type == _OP_DIVIDE_
-                    || (*tokens)[i + mover].type == _OP_MODULU_) {
-                    nextOpIsMultiplyOrDivide = i + mover;
-                    break;
-                }
-
-                mover++;
-            }
-
-            if (nextOpIsMultiplyOrDivide > UNINITIALZED
-                && prevOpIsMultiplyOrDivide > UNINITIALZED) {
-                struct storageItem *itemContainingPrevNode = NULL;
-                int prevNodeStorageIndex = UNINITIALZED;
-
-                struct storageItem *itemContainingNextNode = NULL;
-                int nextNodeStorageIndex = UNINITIALZED;
-
-                for (int i = 0; i < listOfSubTrees->storageSize; i++) {
-                    if ((*listOfSubTrees).items[i].itemStartPos <= prevOpIsMultiplyOrDivide
-                        && (*listOfSubTrees).items[i].itemEndPos >= prevOpIsMultiplyOrDivide) {
-                        itemContainingPrevNode = &(*listOfSubTrees).items[i];
-                        prevNodeStorageIndex = i;
-                    }
-
-                    if ((*listOfSubTrees).items[i].itemStartPos <= nextOpIsMultiplyOrDivide
-                        && (*listOfSubTrees).items[i].itemEndPos >= nextOpIsMultiplyOrDivide) {
-                        itemContainingNextNode = &(*listOfSubTrees).items[i];
-                        nextNodeStorageIndex = i;
-                    }
-                }
-
-                if (itemContainingNextNode == NULL || itemContainingPrevNode == NULL) {
-                    printf("PREV OR NEXT NODE == NULL PTR*");
-                    exit(EXIT_FAILURE);
-                }
-
-                struct Node *newNode = create_node((*tokens)[i].value, (*tokens)[i].type);
-                newNode->leftNode = itemContainingPrevNode->cacheNode;
-                newNode->rightNode = itemContainingNextNode->cacheNode;
-                
-                struct storageItem newItem;
-                newItem.cacheNode = newNode;
-                newItem.itemStartPos = itemContainingPrevNode->itemStartPos;
-                newItem.itemEndPos = itemContainingNextNode->itemEndPos;
-
-                (*listOfSubTrees).items[prevNodeStorageIndex] = newItem;
-                (*listOfSubTrees).items[nextNodeStorageIndex] = create_null_storage_item();
-            }
-        } else {
-            continue;
-        }
-    }
-}
-
-void manage_multiplication_or_division_or_modulo_in_simple_term(struct storage *listOfSubTrees, TOKEN **tokens, size_t startPos, size_t boundaries) {
-    struct Node *cache = NULL;
-    size_t startPosOfMultiplyOrDivide = UNINITIALZED;
-    size_t endPosOfMultiplyOrDivide = UNINITIALZED;
-    int wasPlusOrMinus = true;
-
-    for (size_t i = startPos; i < startPos + boundaries; i++) {
-        TOKEN *currentToken = &(*tokens)[i];
-        
-        if (currentToken->type == _OP_MULTIPLY_
-            || currentToken->type == _OP_DIVIDE_
-            || currentToken->type == _OP_MODULU_) {
-            struct Node *cacheNode = create_node(currentToken->value, currentToken->type);
-
-            if (wasPlusOrMinus == true) {
-                startPosOfMultiplyOrDivide = i - 1;
-                endPosOfMultiplyOrDivide = i + 1;
-
-                char *leftNodeValue = get_token_identifier_value_by_position(i - 1, tokens, LEFT);
-                char *rightNodeValue = get_token_identifier_value_by_position(i + 1, tokens, RIGHT);
-                int replacedRight = false;
-                int replacedLeft = false;
-
-                for (int n = 0; n < listOfSubTrees->storageSize; n++) {
-                    if ((listOfSubTrees->items[n].itemStartPos <= i - 1
-                        && listOfSubTrees->items[n].itemEndPos >= i - 1)) {
-                        cacheNode->leftNode = listOfSubTrees->items[n].cacheNode;
-                        endPosOfMultiplyOrDivide = listOfSubTrees->items[n].itemEndPos;
-                        i = listOfSubTrees->items[n].itemEndPos;
-                        listOfSubTrees->items[n] = create_null_storage_item();
-                        replacedLeft = true;
-                    }
-                }
-
-                for (int n = 0; n < listOfSubTrees->storageSize; n++) {
-                    if ((listOfSubTrees->items[n].itemStartPos <= i + 1
-                        && listOfSubTrees->items[n].itemEndPos >= i + 1)) {
-                        cacheNode->rightNode = listOfSubTrees->items[n].cacheNode;
-                        endPosOfMultiplyOrDivide = listOfSubTrees->items[n].itemEndPos;
-                        i = listOfSubTrees->items[n].itemEndPos;
-                        listOfSubTrees->items[n] = create_null_storage_item();
-                        replacedRight = true;
-                    }
-                }
-                
-                if (replacedLeft == false) {
-                    cacheNode->leftNode = create_node(leftNodeValue, _IDENTIFIER_);
-                }
-
-                if (replacedRight == false) {
-                    cacheNode->rightNode = create_node(rightNodeValue, _IDENTIFIER_);
-                }
-            } else {
-                char *rightNodeValue = get_token_identifier_value_by_position(i + 1, tokens, RIGHT);
-                int replacedRight = false;
-
-                for (int n = 0; n < listOfSubTrees->storageSize; n++) {
-                    if ((listOfSubTrees->items[n].itemStartPos <= i + 1
-                        && listOfSubTrees->items[n].itemEndPos >= i + 1)) {
-                        cacheNode->rightNode = listOfSubTrees->items[n].cacheNode;
-                        endPosOfMultiplyOrDivide = listOfSubTrees->items[n].itemEndPos;
-                        i = listOfSubTrees->items[n].itemEndPos;
-                        listOfSubTrees->items[n] = create_null_storage_item();
-                        replacedRight = true;
-                    }
-                }
-
-                if (replacedRight == false) {
-                    cacheNode->rightNode = create_node(rightNodeValue, _IDENTIFIER_);
-                    endPosOfMultiplyOrDivide = i + 1;
-                }
-
-                cacheNode->leftNode = cache;
-            }
-
-            wasPlusOrMinus = false;
-            cache = cacheNode;
-        } else if (currentToken->type == _OP_PLUS_
-            || currentToken->type == _OP_MINUS_) {
-            if (cache != NULL) {
-                struct storageItem item;
-                item.cacheNode = cache;
-                item.itemStartPos = startPosOfMultiplyOrDivide;
-                item.itemEndPos = endPosOfMultiplyOrDivide;
-                (*listOfSubTrees).items[listOfSubTrees->storageSize++] = item;
-            }
-
-            cache = NULL;
-            wasPlusOrMinus = true;
-        }
-
-        if (i + 1 >= startPos + boundaries
-            && cache != NULL) {
-            struct storageItem item;
-            item.cacheNode = cache;
-            item.itemStartPos = startPosOfMultiplyOrDivide;
-            item.itemEndPos = endPosOfMultiplyOrDivide;
-            (*listOfSubTrees).items[listOfSubTrees->storageSize++] = item;
-        }
-    }
-}
-
-struct storageItem create_null_storage_item() {
-    struct storageItem nullItem;
-    nullItem.cacheNode = NULL;
-    nullItem.itemEndPos = -1;
-    nullItem.itemStartPos = -1;
-
-    return nullItem;
 }
 
 /*
@@ -544,93 +397,12 @@ struct Node *create_node(char *value, TOKENTYPES type) {
 }
 
 /*
-Purpose: Get the value of all tokens that are in an IDENTIFIER
-Return Type: char * => Pointer to the value
-Params: size_t position => Position from where to start adding the values;
-        TOKEN **tokens => Token array to be used;
-        enum process direction => In which direction the IDENTIFIER is estimated to be
-*/
-char *get_token_identifier_value_by_position(size_t position, TOKEN **tokens, enum processDirection direction) {
-    size_t requiredSize = 1;
-    int mover = 0;
-
-    if (direction == LEFT) {
-        do {
-            if ((int)is_operator(&(*tokens)[position - mover]) == true) {
-                break;
-            }
-            
-            requiredSize += (*tokens)[position - mover].size - 1;
-            mover++;
-        } while (mover <= position);
-    } else if (direction == RIGHT && (*tokens)[position + 1].type != __EOF__) {
-        do {
-            if ((int)is_operator(&(*tokens)[position + mover]) == true) {
-                break;
-            }
-            
-            requiredSize += (*tokens)[position + mover].size - 1;
-            mover++;
-        } while ((*tokens)[position + mover].type != __EOF__);
-    }
-    
-    if (requiredSize == 0) {
-        printf("ERROR ON SIZING!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    char *value = (char*)calloc(requiredSize + 1, sizeof(char));
-
-    if (value == NULL) {
-        printf("ERROR OCCURED\n");
-        exit(EXIT_FAILURE);
-    }
-
-    value[requiredSize] = '\0';
-    int valuePointer = 0;
-
-    if (mover == 0) {
-        strncpy(value, (*tokens)[position].value, (*tokens)[position].size);
-        return value;
-    }
-
-    if (direction == 0) {
-        for (size_t i = position - mover + 1; i < position + 1; i++) {
-            TOKEN *currentToken = &(*tokens)[i];
-            
-            for (size_t n = 0; n < currentToken->size - 1; n++) {
-                if (valuePointer + 1 >= requiredSize) {
-                    break;
-                }
-
-                value[valuePointer++] = currentToken->value[n];
-            }
-        }
-    } else {
-        for (size_t i = position; i < position + mover; i++) {
-            TOKEN *currentToken = &(*tokens)[i];
-            
-            for (size_t n = 0; n < currentToken->size - 1; n++) {
-                if (valuePointer + 1 >= requiredSize) {
-                    break;
-                }
-
-                value[valuePointer++] = currentToken->value[n];
-            }
-        }
-    }
-
-    return value;
-}
-
-/*
 Purpose: Check if a given TOKEN is an operator or not
 Return Type: int => true = is operator; false = not an operator
 Params: const TOKEN *token => Token to be checked
 */
 const TOKENTYPES operators[] = {
-_OP_EQUALS_, _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_,
-_OP_MODULU_, _OP_SEMICOLON_, _OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_};
+_OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_};
 
 int is_operator(const TOKEN *token) {
     if (token->type == __EOF__) {
