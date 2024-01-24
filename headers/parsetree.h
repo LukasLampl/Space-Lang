@@ -24,9 +24,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "../headers/Token.h"
 
+enum NodeType {
+    _IDEN_NODE_ = 0, _VAR_NODE_, _FUNCTION_CALL_NODE_, _TERM_NODE_
+};
+
 struct Node {
-    TOKENTYPES type;
+    enum NodeType type;
     char *value;
+
+    struct Node **details;
+    size_t detailsCount;
+
     struct Node *leftNode;
     struct Node *rightNode;
 };

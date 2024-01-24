@@ -42,15 +42,9 @@ typedef struct NodeReport {
     size_t tokensToSkip;
 } NodeReport;
 
-struct storageItem {
-    struct Node *cacheNode;
-    size_t itemStartPos;
-    size_t itemEndPos;
-};
-
-struct identifierValueReturn {
-    size_t movedTokens;
+struct idenValRet {
     char *value;
+    size_t movedTokens;
 };
 
 enum processDirection {
@@ -60,13 +54,19 @@ enum processDirection {
 
 
 void PG_append_node_to_root_node(struct Node *node);
+NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
+size_t PG_get_size_till_next_semicolon(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos);
+int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries);
+size_t go_backwards_till_operator(TOKEN **tokens, size_t startPos);
 int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
 int PG_is_next_operator_multiply_divide_or_modulo_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction);
-char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction);
+struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction);
 int PG_is_function_call(TOKEN **tokens, size_t startPos);
+int predict_argument_count(TOKEN **tokens, size_t startPos);
 int PG_is_operator(const TOKEN *token);
-struct Node *PG_create_node(char *value, TOKENTYPES type);
+struct Node *PG_create_node(char *value, enum NodeType type);
 NodeReport PG_create_node_report(struct Node *topNode, int tokensToSkip);
 void PG_print_from_top_node(struct Node *topNode, int depth, int pos);
 int FREE_NODES();
@@ -74,10 +74,10 @@ void FREE_NODE(struct Node *node);
 
 //TREE ROOT
 struct RootNode RootNode;
-size_t tokenLenght = 0;
+size_t TOKENLENGTH = 0;
 
 int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
-    tokenLenght = TokenLength;
+    TOKENLENGTH = TokenLength;
 
     (void)printf("\n\n\n>>>>>>>>>>>>>>>>>>>>    PARSETREE    <<<<<<<<<<<<<<<<<<<<\n\n");
 
@@ -89,16 +89,157 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     printf("TOKENLENGTH: %i\n", TokenLength);
 
     for (size_t i = 0; i < TokenLength; i++) {
-        NodeReport report = PG_create_simple_term_node(tokens, i, TokenLength);
+        /*TOKEN *currentToken = &(*tokens)[i];
+        NodeReport report = {NULL, UNINITIALZED};
 
-        printf("\nPRINT:\n");
-        PG_print_from_top_node(report.node, 0, 0);
-        i += report.tokensToSkip;
+        switch (currentToken->type) {
+        case _KW_VAR_:
+            report = PG_create_variable_tree(tokens, i);
+            break;
+        default:
+            break;
+        }
+
+        if (report.node != NULL) {
+            printf("\nPRINT:\n");
+            PG_print_from_top_node(report.node, 0, 0);
+            i += report.tokensToSkip;
+        }*/
+
+        NodeReport termRep = PG_create_function_call_tree(tokens, i);
+        PG_print_from_top_node(termRep.node, 0, 0);
+        i += termRep.tokensToSkip;
     }
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
     return 1;
+}
+
+NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *varNode = PG_create_node("var", _VAR_NODE_);
+
+    struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos + 1, RIGHT);
+    char *varName = nameRet.value;
+    struct Node *nameNode = PG_create_node(varName, _IDEN_NODE_);
+    size_t checkPosition = startPos + nameRet.movedTokens + 1;
+
+    if ((*tokens)[checkPosition].type == _OP_EQUALS_) {
+        size_t bounds = (size_t)PG_get_size_till_next_semicolon(tokens, checkPosition + 1);
+        NodeReport termReport = PG_create_simple_term_node(tokens, checkPosition + 1, bounds);
+        struct Node *valueNode = termReport.node;
+        varNode->rightNode = valueNode;
+    }
+
+    varNode->leftNode = nameNode;
+    return PG_create_node_report(varNode, 1);
+}
+
+NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos) {
+    struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos, RIGHT);
+    struct Node *functionCallNode = PG_create_node(nameRet.value, _FUNCTION_CALL_NODE_);
+
+    int argumentSize = (int)predict_argument_count(tokens, startPos);
+    functionCallNode->details = (struct Node**)malloc(sizeof(struct Node*) * argumentSize);
+    functionCallNode->detailsCount = argumentSize;
+
+    if (functionCallNode->details == NULL) {
+        printf("DETAILS ERROR!\n");
+        return PG_create_node_report(NULL, 0);
+    }
+    
+    for (int i = 0; i < functionCallNode->detailsCount; i++) {
+        functionCallNode->details[i] = NULL;
+    }
+
+    int detailsPointer = 0;
+    int skip = 0;
+
+    for (size_t i = startPos + nameRet.movedTokens; i < TOKENLENGTH; i++) {
+        TOKEN *currentToken = &(*tokens)[i];
+
+        if (currentToken->type == _OP_COMMA_
+            || currentToken->type == _OP_RIGHT_BRACKET_) {
+            if (detailsPointer == argumentSize) {
+                printf("SIZE!\n");
+                skip = i - startPos;
+                break;
+            }
+
+            int bounds = (int)PG_get_bound_of_single_param(tokens, i + 1);
+            NodeReport termReport = PG_create_simple_term_node(tokens, i + 1, bounds);
+            functionCallNode->details[detailsPointer++] = termReport.node;
+            i += termReport.tokensToSkip;
+        } else if (currentToken->type == _OP_LEFT_BRACKET_) {
+            skip = i - startPos;
+            break;
+        }
+    }
+
+    printf("FUNC CALL:\n");
+    PG_print_from_top_node(functionCallNode, 0, 0);
+
+    return PG_create_node_report(functionCallNode, skip);
+}
+
+int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos) {
+    int bound = 0;
+    int openBrackets = 0;
+
+    for (size_t i = startPos; i < TOKENLENGTH; i++) {
+        TOKEN *token = &(*tokens)[i];
+
+        if (token->type == _OP_COMMA_
+            && openBrackets == 0) {
+            break;
+        } else if (token->type == _OP_RIGHT_BRACKET_) {
+            openBrackets++;
+        } else if (token->type == _OP_LEFT_BRACKET_) {
+            openBrackets--;
+
+            if (openBrackets < 0) {
+                break;
+            }
+        }
+
+        bound++;
+    }
+
+    return bound;
+}
+
+int predict_argument_count(TOKEN **tokens, size_t startPos) {
+    int count = 1;
+    int openBrackets = 0;
+
+    for (size_t i = startPos; i < TOKENLENGTH; i++) {
+        TOKEN *token = &(*tokens)[i];
+        
+        if (token->type == _OP_COMMA_
+            && openBrackets == 1) {
+            count++;
+        } else if (token->type == _OP_RIGHT_BRACKET_) {
+            openBrackets++;
+        } else if (token->type == _OP_LEFT_BRACKET_) {
+            openBrackets--;
+
+            if (openBrackets <= 0) {
+                break;
+            }
+        }
+    }
+
+    return count;
+}
+
+size_t PG_get_size_till_next_semicolon(TOKEN **tokens, size_t startPos) {
+    size_t size = 0;
+
+    while ((*tokens)[startPos + size].type != _OP_SEMICOLON_) {
+        size++;
+    }
+
+    return size;
 }
 
 void PG_print_from_top_node(struct Node *topNode, int depth, int pos) {
@@ -116,6 +257,20 @@ void PG_print_from_top_node(struct Node *topNode, int depth, int pos) {
         printf("L: %s\n", topNode->value);
     } else {
         printf("R: %s\n", topNode->value);
+    }
+
+    for (int i = 0; i < topNode->detailsCount; i++) {
+        if (topNode->details[i] != NULL) {
+            printf("(%s) detail: %s\n", topNode->value, topNode->details[i]->value);
+            PG_print_from_top_node(topNode->details[i]->leftNode, depth + 2, 1);
+            PG_print_from_top_node(topNode->details[i]->rightNode, depth + 2, 2);
+
+            for (int n = 0; n < topNode->details[i]->detailsCount; n++) {
+                PG_print_from_top_node(topNode->details[i]->details[n], depth + 2, 0);
+            }
+        } else {
+            printf("(%s) detail: NULL\n", topNode->value);
+        }
     }
 
     PG_print_from_top_node(topNode->leftNode, depth + 1, 1);
@@ -164,22 +319,37 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
         if (currentToken->type == __EOF__) {
             break;
+        } else if (boundaries == 1) {
+            cache = PG_create_node(currentToken->value, _IDENTIFIER_);
+            break;
         }
 
         switch (currentToken->type) {
         case _OP_RIGHT_BRACKET_: {
             int isFunctionCall = (int)PG_is_function_call(tokens, i);
+            struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
 
             if (isFunctionCall > 0) {
-                i += isFunctionCall;
+                size_t tokensBack = (size_t)go_backwards_till_operator(tokens, i - 1);
+                NodeReport functionCallReport = PG_create_function_call_tree(tokens, i - tokensBack - 1);
+                i += functionCallReport.tokensToSkip - 1;
+
+                if (target != NULL) {
+                    if (target->leftNode == NULL) {
+                        target->leftNode = functionCallReport.node;
+                    } else {
+                        target->rightNode = functionCallReport.node;
+                    }
+                } else {
+                    cache = functionCallReport.node;
+                }
+
                 continue;
             }
 
-            size_t bounds = PG_determine_bounds_for_capsulated_term(tokens, i);
+            size_t bounds = (size_t)PG_determine_bounds_for_capsulated_term(tokens, i);
             NodeReport report = PG_create_simple_term_node(tokens, i + 1, bounds - 1);
             i += bounds;
-
-            struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
 
             if (target != NULL) {
                 if (target->leftNode == NULL) {
@@ -190,7 +360,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             } else {
                 cache = report.node;
             }
-
+            
             break;
         }
         case _OP_PLUS_:
@@ -205,12 +375,15 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
             if (cache == NULL) {
                 int multOrDivOrModAtRight = (int)PG_is_next_operator_multiply_divide_or_modulo_by_direction(tokens, i + 1, RIGHT);
-                char *lval = (char*)PG_get_identifier_by_index(tokens, i - 1, LEFT);
-                struct Node *leftNode = PG_create_node(lval, _IDENTIFIER_);
+                struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, i - 1, LEFT);
+                
+                char *lval = lvalRet.value;
+                struct Node *leftNode = PG_create_node(lval, _IDEN_NODE_);
 
                 if (multOrDivOrModAtRight == false) {
-                    char *rval = (char*)PG_get_identifier_by_index(tokens, i + 1, RIGHT);
-                    struct Node *rightNode = PG_create_node(rval, _IDENTIFIER_);
+                    struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, i + 1, RIGHT);
+                    char *rval = rvalRet.value;
+                    struct Node *rightNode = PG_create_node(rval, _IDEN_NODE_);
                     node->rightNode = rightNode;
                 } else {
                     waitingToEndPlusOrMinus = true;
@@ -221,8 +394,9 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                 int multOrDivOrModAtRight = (int)PG_is_next_operator_multiply_divide_or_modulo_by_direction(tokens, i + 1, RIGHT);
 
                 if (multOrDivOrModAtRight == false) {
-                    char *rval = (char*)PG_get_identifier_by_index(tokens, i + 1, RIGHT);
-                    struct Node *rightNode = PG_create_node(rval, _IDENTIFIER_);
+                    struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, i + 1, RIGHT);
+                    char *rval = rvalRet.value;
+                    struct Node *rightNode = PG_create_node(rval, _IDEN_NODE_);
                     node->rightNode = rightNode;
                     node->leftNode = cache;
                 } else {
@@ -240,24 +414,28 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             struct Node *node = PG_create_node(currentToken->value, currentToken->type);
 
             if (cache == NULL) {
-                char *lval = (char*)PG_get_identifier_by_index(tokens, i - 1, LEFT);
-                char *rval = (char*)PG_get_identifier_by_index(tokens, i + 1, RIGHT);
-                struct Node *leftNode = PG_create_node(lval, _IDENTIFIER_);
-                struct Node *rightNode = PG_create_node(rval, _IDENTIFIER_);
+                struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, i - 1, LEFT);
+                struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, i + 1, RIGHT);
+                char *lval = lvalRet.value;
+                char *rval = rvalRet.value;
+                struct Node *leftNode = PG_create_node(lval, _IDEN_NODE_);
+                struct Node *rightNode = PG_create_node(rval, _IDEN_NODE_);
 
                 node->leftNode = leftNode;
                 node->rightNode = rightNode;
             } else {
-                char *rval = (char*)PG_get_identifier_by_index(tokens, i + 1, RIGHT);
-                struct Node *rightNode = PG_create_node(rval, _IDENTIFIER_);
+                struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, i + 1, RIGHT);
+                char *rval = rvalRet.value;
+                struct Node *rightNode = PG_create_node(rval, _IDEN_NODE_);
                 node->rightNode = rightNode;
 
                 if (waitingToEndPlusOrMinus == false) {
                     node->leftNode = cache;
                 } else {
                     if (temp == NULL) {
-                        char *lval = (char*)PG_get_identifier_by_index(tokens, i - 1, LEFT);
-                        struct Node *leftNode = PG_create_node(lval, _IDENTIFIER_);
+                        struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, i - 1, LEFT);
+                        char *lval = lvalRet.value;
+                        struct Node *leftNode = PG_create_node(lval, _IDEN_NODE_);
                         node->leftNode = leftNode;
                     } else {
                         node->leftNode = temp;
@@ -292,14 +470,27 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
                 temp = NULL;
             } else if (cache == NULL) {
-                char *value = PG_get_identifier_by_index(tokens, startPos, RIGHT);
-                struct Node *node = PG_create_node(value, _IDENTIFIER_);
+                struct idenValRet valRet = PG_get_identifier_by_index(tokens, startPos, RIGHT);
+                char *value = valRet.value;
+                struct Node *node = PG_create_node(value, _IDEN_NODE_);
                 cache = node;
             }
         }
     }
 
     return PG_create_node_report(cache, boundaries);
+}
+
+size_t go_backwards_till_operator(TOKEN **tokens, size_t startPos) {
+    for (size_t i = 0; startPos - i > 0; i++) {
+        if (PG_is_operator(&(*tokens)[startPos - i]) == true) {
+            return i - 1;
+        } else if (startPos - (i + 1) == 0) {
+            return i + 1;
+        }
+    }
+
+    return 0;
 }
 
 /*
@@ -345,7 +536,8 @@ int PG_is_next_operator_multiply_divide_or_modulo_by_direction(TOKEN **tokens, s
             if (token->type == _OP_PLUS_
                 || token->type == _OP_MINUS_
                 || token->type == _OP_LEFT_BRACKET_
-                || token->type == _OP_RIGHT_BRACKET_) {
+                || token->type == _OP_RIGHT_BRACKET_
+                || token->type == _OP_COMMA_) {
                 return false;
             } else if (token->type == _OP_MULTIPLY_
                 || token->type == _OP_DIVIDE_
@@ -379,12 +571,12 @@ int PG_is_next_operator_multiply_divide_or_modulo_by_direction(TOKEN **tokens, s
 
 /*
 Purpose: Get the value of an identifier list like "Math.sqrt()"
-Return Type: char * => Pointer to summed up string
+Return Type: struct idenValRet => Contains the value of the identifier and how many tokens to skip
 Params: TOKEN **tokens => Token array in which the identifiers are located;
         size_t startPos => Position from where to start to get the values;
-        enum processDirection => In which direction should be processed
+        enum processDirection => In which direction should be processed;
 */
-char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction) {
+struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction) {
     size_t idenStartPos = startPos;
     size_t idenEndPos = startPos;
 
@@ -400,6 +592,8 @@ char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDi
                 int isFunctionCall = (int)PG_is_function_call(tokens, idenEndPos);
 
                 if (isFunctionCall == false) {
+                    break;
+                } else {
                     break;
                 }
 
@@ -420,6 +614,8 @@ char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDi
                 if (isFunctionCall == false) {
                     idenStartPos++;
                     break;
+                } else {
+                    break;
                 }
 
                 idenStartPos -= isFunctionCall + 1;
@@ -436,10 +632,11 @@ char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDi
         TOKEN *currentToken = &(*tokens)[i];
 
         if (cache == NULL) {
+            //The currentToken->size already includes a +1 for the '\0'
             cache = (char*)malloc(sizeof(char) * currentToken->size);
 
             if (cache == NULL) {
-                (void)printf("ERROR!\n");
+                (void)printf("ERROR! (CACHE MALLOC)\n");
             }
             //currentToken->value already has '\0'
             (void)strncpy(cache, currentToken->value, currentToken->size);
@@ -448,7 +645,7 @@ char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDi
             cache = (char*)realloc(cache, sizeof(char) * (cacheSize + currentToken->size - 1));
 
             if (cache == NULL) {
-                (void)printf("ERROR!\n");
+                (void)printf("ERROR! (CACHE REALLOC)\n");
             }
 
             (void)strncat(cache, currentToken->value, currentToken->size);
@@ -456,7 +653,8 @@ char *PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDi
         }
     }
 
-    return cache;
+    struct idenValRet ret = {cache, idenEndPos - idenStartPos};
+    return ret;
 }
 
 int PG_is_function_call(TOKEN **tokens, size_t startPos) {
@@ -510,9 +708,9 @@ int PG_is_function_call(TOKEN **tokens, size_t startPos) {
 Purpose: Create a node based on the params
 Return Type: struct Node * => Pointer to the Node
 Params: char *value => Value of the node;
-        TOKENTYPES type => Type of the Node
+        enum NodeType type => Type of the Node
 */
-struct Node *PG_create_node(char *value, TOKENTYPES type) {
+struct Node *PG_create_node(char *value, enum NodeType type) {
     struct Node *node = (struct Node*)malloc(sizeof(struct Node));
 
     if (node == NULL) {
@@ -523,6 +721,8 @@ struct Node *PG_create_node(char *value, TOKENTYPES type) {
     node->value = value;
     node->leftNode = NULL;
     node->rightNode = NULL;
+    node->details = NULL;
+    node->detailsCount = 0;
     return node;
 }
 
@@ -533,7 +733,8 @@ Params: const TOKEN *token => Token to be checked
 */
 const TOKENTYPES operators[] = {
 _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
-_OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_};
+_OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_, _OP_EQUALS_, _OP_SEMICOLON_,
+_OP_COMMA_};
 
 int PG_is_operator(const TOKEN *token) {
     if (token->type == __EOF__) {
@@ -603,6 +804,14 @@ void FREE_NODE(struct Node *node) {
         FREE_NODE(node->leftNode);
         FREE_NODE(node->rightNode);
         free(node->value);
+
+        for (size_t i = 0; i < node->detailsCount; i++) {
+            FREE_NODE(node->details[i]);
+            free(node->details[i]);
+        }
+
+        free(node->details);
+
         free(node);
     }
 }
