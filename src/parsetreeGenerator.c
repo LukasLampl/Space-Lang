@@ -186,6 +186,26 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock)
 }
 
 /*
+Purpose: Generate a subtree for an inclusion
+Return Type: NodeReport => Contains topNode and tokensToSkip
+Params: TOKEN **tokens => Pointer to token array;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+[INCLUDE]
+
+In the [INCLUDE] node is a indicator and the included
+file can be found in ´´´node->value´´´.
+_______________________________
+*/
+NodeReport create_include_tree(TOKEN **tokens, size_t startPos) {
+    //Here: include "../file.spc";
+    struct Node *topNode = PG_create_node((*tokens)[startPos + 1].value, _INCLUDE_NODE_);
+    return PG_create_node_report(topNode, 3);
+}
+
+/*
 Purpose: Generate a subtree for an enum
 Return Type: NodeReport => Contains topNode and how many tokens to skip
 Params: TOKEN **tokens => Pointer to the array of tokens;
@@ -238,6 +258,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
         if (currentToken->type == _OP_COMMA_
             || currentToken->type == _OP_RIGHT_BRACE_) {
             //Looking for: enumerator : [NUMBER]
+            //                        ^
             if ((*tokens)[startPos + skip + 2].type == _OP_COLON_) {
                 currentEnumeratorValue = (int)atoi((*tokens)[startPos + skip + 3].value);
                 skip++;
@@ -251,9 +272,8 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
                 exit(EXIT_FAILURE);
             }
 
-            (void)snprintf(value, 24, "%d", currentEnumeratorValue);
+            (void)snprintf(value, 24, "%d", currentEnumeratorValue++);
             enumeratorNode->rightNode = PG_create_node(value, _VALUE_NODE_);
-            currentEnumeratorValue++;
             enumNode->details[argumentCount++] = enumeratorNode;
             skip ++;
         }
