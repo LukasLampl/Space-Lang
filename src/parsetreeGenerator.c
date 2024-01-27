@@ -56,6 +56,9 @@ enum processDirection {
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_export_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_include_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos);
 int PG_predict_enumerator_count(TOKEN **tokens, size_t starPos);
 NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos);
@@ -95,32 +98,16 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     RootNode.nodeCount = 0;
     printf("TOKENLENGTH: %i\n", TokenLength);
 
-    for (size_t i = 0; i < TokenLength; i++) {
-        TOKEN *currentToken = &(*tokens)[i];
-        
-        if (currentToken->type == __EOF__) {
-            break;
-        }
-        /*NodeReport report = {NULL, UNINITIALZED};
+    NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
+    printf("TREE:\n");
+    PG_print_from_top_node(runnable.node, 0, 0);
 
-        switch (currentToken->type) {
-        case _KW_VAR_:
-            report = PG_create_variable_tree(tokens, i);
-            break;
-        default:
-            break;
-        }
-
-        if (report.node != NULL) {
-            printf("\nPRINT:\n");
-            PG_print_from_top_node(report.node, 0, 0);
-            i += report.tokensToSkip;
-        }*/
-
-        NodeReport termRep = PG_create_enum_tree(tokens, i);
-        PG_print_from_top_node(termRep.node, 0, 0);
-        i += termRep.tokensToSkip;
+    if (runnable.node == NULL) {
+        printf("Something went wrong (PG)!\n");
     }
+
+    /*NodeReport rep = PG_create_function_tree(tokens, 0);
+    printf("CLOSING TOK: %s\n", (*tokens)[rep.tokensToSkip].value);*/
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
@@ -169,6 +156,7 @@ _______________________________
 */
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock) {
     struct Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_);
+    int argumentCount = 0;
     size_t jumper = 0;
 
     while (startPos + jumper < TOKENLENGTH) {
@@ -176,13 +164,82 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock)
 
         if (currentToken->type == _OP_LEFT_BRACE_
             && inBlock == true) {
+            jumper++;
+            break;
+        } else if (currentToken->type == __EOF__) {
             break;
         }
 
-        jumper++;
+        NodeReport report = PG_get_report_based_on_token(tokens, startPos + jumper);
+
+        if (report.node != NULL) {
+            if (argumentCount == 0) {
+                (void)PG_allocate_node_details(parentNode, 1);
+            } else {
+                parentNode->details = (struct Node**)realloc(parentNode->details, sizeof(struct Node) * argumentCount + 1);
+
+                if (parentNode->details == NULL) {
+                    printf("Something went wrong (runnable)!\n");
+                    exit(EXIT_FAILURE);
+                }
+
+                parentNode->detailsCount = argumentCount + 1;
+            }
+
+            parentNode->details[argumentCount++] = report.node;
+            jumper += report.tokensToSkip;
+            printf("NEXT TOK: %s\n", (*tokens)[startPos + jumper].value);
+        } else {
+            jumper++;
+        }
     }
 
     return PG_create_node_report(parentNode, jumper);
+}
+
+NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
+    switch ((*tokens)[startPos].type) {
+    case _KW_VAR_:
+        return PG_create_variable_tree(tokens, startPos);
+    case _KW_INCLUDE_:
+        return PG_create_include_tree(tokens, startPos);
+    case _KW_EXPORT_:
+        return PG_create_export_tree(tokens, startPos);
+    case _KW_ENUM_:
+        return PG_create_enum_tree(tokens, startPos);
+    case _KW_FUNCTION_:
+        return PG_create_function_tree(tokens, startPos);
+    case _KW_GLOBAL_:
+    case _KW_SECURE_:
+    case _KW_PRIVATE_:
+        if ((*tokens)[startPos + 1].type == _KW_FUNCTION_) {
+            return PG_create_function_tree(tokens, startPos);
+        }
+    default:
+        break;
+    }
+
+    return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+/*
+Purpose: Generate a subtree for an inclusion
+Return Type: NodeReport => Contains topNode and tokensToSkip
+Params: TOKEN **tokens => Pointer to token array;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+[EXPORT]
+
+In the [EXPORT] node is a indicator and the exported
+file can be found in ´´´node->value´´´.
+_______________________________
+*/
+NodeReport PG_create_export_tree(TOKEN **tokens, size_t startPos) {
+    //Here: export "name";
+    struct Node *topNode = PG_create_node((*tokens)[startPos + 1].value, _EXPORT_NODE_);
+    return PG_create_node_report(topNode, 3);
 }
 
 /*
@@ -199,7 +256,7 @@ In the [INCLUDE] node is a indicator and the included
 file can be found in ´´´node->value´´´.
 _______________________________
 */
-NodeReport create_include_tree(TOKEN **tokens, size_t startPos) {
+NodeReport PG_create_include_tree(TOKEN **tokens, size_t startPos) {
     //Here: include "../file.spc";
     struct Node *topNode = PG_create_node((*tokens)[startPos + 1].value, _INCLUDE_NODE_);
     return PG_create_node_report(topNode, 3);
@@ -245,6 +302,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
         TOKEN *currentToken = &(*tokens)[startPos + skip];
 
         if (currentToken->type == _OP_LEFT_BRACE_) {
+            skip++;
             break;
         }
 
@@ -275,12 +333,12 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
             (void)snprintf(value, 24, "%d", currentEnumeratorValue++);
             enumeratorNode->rightNode = PG_create_node(value, _VALUE_NODE_);
             enumNode->details[argumentCount++] = enumeratorNode;
-            skip ++;
+            skip++;
         }
 
         skip++;
     }
-
+    
     return PG_create_node_report(enumNode, skip);
 }
 
@@ -483,6 +541,11 @@ Params: TOKEN **tokens => Pointer to the array of tokens;
         size_t startPos => The index of the first token of the function call
 */
 int PG_predict_argument_count(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
+        && (*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_) {
+        return 0;
+    }
+
     int count = 1;
     int openBrackets = 0;
 
@@ -573,6 +636,10 @@ void PG_print_from_top_node(struct Node *topNode, int depth, int pos) {
 
     for (int i = 0; i < topNode->detailsCount; i++) {
         if (topNode->details[i] != NULL) {
+            for (int i = 0; i < depth + 1; ++i) {
+                printf("  ");
+            }
+
             printf("(%s) detail: %s -> %i\n", topNode->value, topNode->details[i]->value, topNode->details[i]->type);
             PG_print_from_top_node(topNode->details[i]->leftNode, depth + 2, 1);
             PG_print_from_top_node(topNode->details[i]->rightNode, depth + 2, 2);

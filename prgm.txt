@@ -1,4 +1,11 @@
-enum processDirection {
-    LEFT,
-    RIGHT
+function test(param1, param2) {
+    enum a {
+        b,
+        c
+    }
+
+    enum d {
+        e,
+        f
+    }
 }
