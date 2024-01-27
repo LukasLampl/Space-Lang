@@ -53,7 +53,7 @@ If you want to run the program with the Batch file, you'll need a Terminal and t
 # 3. Error messages #
 When you run the compiler on an invalid input you'll get an error message like this:
 ```
-SYNTAX ERROR: An error occured at line 1.
+SYNTAX ERROR: An error occured at line 1 (file1.spc).
 -------------------------------------------------------
 1 : 19 | for (var i = 0; i = 10; i++) {
                            ^

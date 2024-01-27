@@ -2183,7 +2183,7 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
         case true:
             if ((int)SA_is_arithmetic_operator(currentToken) != true
                 && currentToken->type != _OP_MODULU_) {
-                return SA_create_syntax_report(currentToken, 0, true, "+\", \"-\", \"*\" or \"/");
+                return SA_create_syntax_report(currentToken, 0, true, "+\", \"-\", \"*\", \"%\" or \"/");
             }
 
             jumper++;

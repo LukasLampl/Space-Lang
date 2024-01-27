@@ -55,22 +55,24 @@ enum processDirection {
 
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos);
 size_t PG_get_size_till_next_semicolon(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos);
 size_t PG_add_params_to_node(struct Node *node, TOKEN **tokens, size_t startPos);
 int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos);
 enum NodeType PG_get_node_type_by_value(char **value);
-enum NodeType PG_get_node_type_by_token(TOKEN *token);
 NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries);
 size_t PG_go_backwards_till_operator(TOKEN **tokens, size_t startPos);
 int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
 int PG_is_next_operator_multiply_divide_or_modulo_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction);
 struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos, enum processDirection direction);
 int PG_is_function_call(TOKEN **tokens, size_t startPos);
-int predict_argument_count(TOKEN **tokens, size_t startPos);
+int PG_predict_argument_count(TOKEN **tokens, size_t startPos);
 int PG_is_operator(const TOKEN *token);
 struct Node *PG_create_node(char *value, enum NodeType type);
 NodeReport PG_create_node_report(struct Node *topNode, int tokensToSkip);
+void PG_allocate_node_details(struct Node *node, size_t size);
 void PG_print_from_top_node(struct Node *topNode, int depth, int pos);
 int FREE_NODES();
 void FREE_NODE(struct Node *node);
@@ -92,8 +94,12 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     printf("TOKENLENGTH: %i\n", TokenLength);
 
     for (size_t i = 0; i < TokenLength; i++) {
-        /*TOKEN *currentToken = &(*tokens)[i];
-        NodeReport report = {NULL, UNINITIALZED};
+        TOKEN *currentToken = &(*tokens)[i];
+        
+        if (currentToken->type == __EOF__) {
+            break;
+        }
+        /*NodeReport report = {NULL, UNINITIALZED};
 
         switch (currentToken->type) {
         case _KW_VAR_:
@@ -109,7 +115,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
             i += report.tokensToSkip;
         }*/
 
-        NodeReport termRep = PG_create_simple_term_node(tokens, i, TokenLength);
+        NodeReport termRep = PG_create_function_tree(tokens, i);
         PG_print_from_top_node(termRep.node, 0, 0);
         i += termRep.tokensToSkip;
     }
@@ -138,6 +144,83 @@ NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
     return PG_create_node_report(varNode, 1);
 }
 
+NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock) {
+    struct Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_);
+    size_t jumper = 0;
+
+    while (startPos + jumper < TOKENLENGTH) {
+        TOKEN *currentToken = &(*tokens)[startPos + jumper];
+
+        if (currentToken->type == _OP_LEFT_BRACE_
+            && inBlock == true) {
+            break;
+        }
+
+        jumper++;
+    }
+
+    return PG_create_node_report(parentNode, jumper);
+}
+
+/*
+Purpose: Generate a subtree for a function definition
+Return Type: NodeReport => Contains the root node of the subtree and the number of tokens to skip
+Params: TOKEN **tokens => Pointer to the array of tokens;
+        size_t startPos => The position from where to start constructing
+_______________________________
+Layout:
+
+     [FUNCTION]
+   /      |     \
+[MOD]  [PARAMS]  [RET]
+      [RUNNABLE]
+
+To the [FUNCTION] node appended are the
+function name ´´´node->leftNode´´´ and
+the parameters ´´´node->rightNode´´´.
+In addition to that the modifier and
+return type.
+
+[FUNCTION]: Node the holds the function and name
+[PARAMS]: Parameters, that get invoked
+[MOD]: Modifier
+[RET]: Return type
+[RUNNABLE]: All processes, that happen in the function
+_______________________________
+*/
+NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
+
+    struct Node *modNode = NULL;
+    struct Node *retTypeNode = NULL;
+
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_
+        || (*tokens)[startPos].type == _KW_SECURE_) {
+        modNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
+        skip++;
+    }
+
+    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
+        retTypeNode = PG_create_node((*tokens)[startPos + skip + 2].value, _RET_TYPE_NODE_);
+        skip += 2;
+    }
+
+    //No NULL check needed, if leftNode or rightNode == NULL nothing changes
+    struct Node *functionNode = PG_create_node((*tokens)[startPos + skip + 1].value, _FUNCTION_NODE_);
+    functionNode->leftNode = modNode;
+    functionNode->rightNode = retTypeNode;
+
+    int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip + 1);
+    (void)PG_allocate_node_details(functionNode, argumentCount + 1);
+    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip + 1);
+
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip + 1, true);
+    functionNode->details[argumentCount] = runnableReport.node;
+
+    return PG_create_node_report(functionNode, skip + runnableReport.tokensToSkip + 1);
+}
+
 /*
 Purpose: Generate a subtree for a function call
 Return Type: NodeReport => Contains the root node of the subtree and the number of tokens to skip
@@ -148,19 +231,8 @@ NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos) {
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos, RIGHT);
     struct Node *functionCallNode = PG_create_node(nameRet.value, _FUNCTION_CALL_NODE_);
 
-    int argumentSize = (int)predict_argument_count(tokens, startPos);
-    functionCallNode->details = (struct Node**)malloc(sizeof(struct Node*) * argumentSize);
-    functionCallNode->detailsCount = argumentSize;
-
-    if (functionCallNode->details == NULL) {
-        printf("DETAILS ERROR!\n");
-        return PG_create_node_report(NULL, 0);
-    }
-    
-    //Set all details for the params to NULL
-    for (int i = 0; i < functionCallNode->detailsCount; i++) {
-        functionCallNode->details[i] = NULL;
-    }
+    int argumentSize = (int)PG_predict_argument_count(tokens, startPos);
+    (void)PG_allocate_node_details(functionCallNode, argumentSize);
 
     size_t paramSize = (size_t)PG_add_params_to_node(functionCallNode, tokens, startPos + nameRet.movedTokens);
 
@@ -173,6 +245,8 @@ Return Type: size_t => The number of tokens to skip
 Params: struct Node *node => The root node of the function call subtree;
         TOKEN **tokens => Pointer to the array of tokens;
         size_t startPos => The index of the first token of the function call
+NOTICE: THE PARENTNODE HAS TO HAVE ALLOCATED SPACE OR ELSE THE PROGRAM
+        WILL CRASH!!!
 _______________________________
 Layout:
 
@@ -182,7 +256,7 @@ Layout:
     [PARAM]       
 
 To the [FUNCTION_CALL] node appended are the
-params. The params are appended at ´´´node->details[pos]´´´
+params. The params are appended at ´´´node->details[pos]´´´.
 
 [FUNCTION_CALL]: Node the holds the function call name
 [PARAM]: Parameter, that gets invoked
@@ -255,7 +329,7 @@ Return Type: int => Number of arguments of the function call
 Params: TOKEN **tokens => Pointer to the array of tokens;
         size_t startPos => The index of the first token of the function call
 */
-int predict_argument_count(TOKEN **tokens, size_t startPos) {
+int PG_predict_argument_count(TOKEN **tokens, size_t startPos) {
     int count = 1;
     int openBrackets = 0;
 
@@ -293,6 +367,31 @@ size_t PG_get_size_till_next_semicolon(TOKEN **tokens, size_t startPos) {
     }
 
     return size;
+}
+
+/*
+Purpose: Allocate space for the details of the node
+Return Type: void
+Params: struct Node *node => Pointer to the node;
+        size_t size => The size of the details to allocate
+*/
+void PG_allocate_node_details(struct Node *node, size_t size) {
+    if (node == NULL) {
+        printf("NODE NULL\n");
+        exit(EXIT_FAILURE);
+    }
+
+    node->details = (struct Node**)malloc(sizeof(struct Node*) * size);
+    node->detailsCount = size;
+
+    if (node->details == NULL) {
+        printf("DETAILS ERROR!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < size; i++) {
+        node->details[i] = NULL;
+    }
 }
 
 /*
@@ -353,30 +452,34 @@ enum NodeType PG_get_node_type_by_value(char **value) {
         }
 
         return _NUMBER_NODE_;
+    } else if ((*value)[0] == '*') {
+        if ((*value)[1] == '\0') {
+            return _MULTIPLY_NODE_;
+        }
+        
+        return _POINTER_NODE_;
+    } else if ((*value)[0] == '&') {
+        return _REFERENCE_NODE_;
+    } else if ((*value)[0] == '+') {
+        return _PLUS_NODE_;
+    } else if ((*value)[0] == '-') {
+        return _MINUS_NODE_;
+    } else if ((*value)[0] == '/') {
+        return _DIVIDE_NODE_;
+    } else if ((*value)[0] == '%') {
+        return _MODULO_NODE_;
     } else if ((int)strcmp((*value), "true") == 0
         || (int)strcmp((*value), "false") == 0) {
         return _BOOL_NODE_;
-    }
-
-    return _IDEN_NODE_;
-}
-
-/*
-Purpose: Get the node type by the token type
-Return Type: enum NodeType => The node type of the node
-Params: TOKEN *token => The token to get the node type from
-*/
-enum NodeType PG_get_node_type_by_token(TOKEN *token) {
-    if (token->type == _OP_MULTIPLY_) {
-        return _MULTIPLY_NODE_;
-    } else if (token->type == _OP_DIVIDE_) {
-        return _DIVIDE_NODE_;
-    } else if (token->type == _OP_MODULU_) {
-        return _MODULO_NODE_;
-    } else if (token->type == _OP_PLUS_) {
-        return _PLUS_NODE_;
-    } else if (token->type == _OP_MINUS_) {
-        return _MINUS_NODE_;
+    } else if ((int)strcmp((*value), "null") == 0) {
+        return _NULL_NODE_;
+    } else {
+        for (size_t i = 0; (*value)[i] != '\0'; i++) {
+            if ((*value)[i] == '-'
+                && (*value)[i + 1] == '>') {
+                return _CLASS_ACCESS_NODE_;
+            }
+        }
     }
 
     return _IDEN_NODE_;
@@ -432,7 +535,8 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
         if (currentToken->type == __EOF__) {
             break;
         } else if (boundaries == 1) {
-            cache = PG_create_node(currentToken->value, _IDENTIFIER_);
+            enum NodeType nodeType = PG_get_node_type_by_value(&currentToken->value);
+            cache = PG_create_node(currentToken->value, nodeType);
             break;
         }
 
@@ -484,7 +588,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                 temp = NULL;
             }
 
-            struct Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_token(currentToken));
+            struct Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value));
 
             if (cache == NULL) {
                 int multOrDivOrModAtRight = (int)PG_is_next_operator_multiply_divide_or_modulo_by_direction(tokens, i + 1, RIGHT);
@@ -524,7 +628,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
         case _OP_DIVIDE_:
         case _OP_MULTIPLY_:
         case _OP_MODULU_: {
-            struct Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_token(currentToken));
+            struct Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value));
 
             if (cache == NULL) {
                 struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, i - 1, LEFT);

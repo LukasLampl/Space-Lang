@@ -52,7 +52,7 @@ Params: NULL
 */
 struct InputReaderResults ProcessInput(char *path) {
     //File to read
-    FILE *filePointer = (FILE *)fopen(path, "r");
+    FILE *filePointer = (FILE*)fopen(path, "r");
 
     (void)check_file_pointer(filePointer, path);
     
