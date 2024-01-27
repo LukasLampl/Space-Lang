@@ -56,6 +56,8 @@ enum processDirection {
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos);
+int PG_predict_enumerator_count(TOKEN **tokens, size_t starPos);
 NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos);
 size_t PG_get_size_till_next_semicolon(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos);
@@ -115,7 +117,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
             i += report.tokensToSkip;
         }*/
 
-        NodeReport termRep = PG_create_function_tree(tokens, i);
+        NodeReport termRep = PG_create_enum_tree(tokens, i);
         PG_print_from_top_node(termRep.node, 0, 0);
         i += termRep.tokensToSkip;
     }
@@ -144,6 +146,27 @@ NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
     return PG_create_node_report(varNode, 1);
 }
 
+/*
+Purpose: Generate a subtree for a function definition
+Return Type: NodeReport => Contains the root node of the subtree and the number of tokens to skip
+Params: TOKEN **tokens => Pointer to the array of tokens;
+        size_t startPos => The position from where to start constructing
+_______________________________
+Layout:
+
+ [RUNNABLE]
+     |
+[STATEMENT]
+[EXPRESSION]
+
+The [RUNNABLE] is created as a fully independent node,
+whose [STATEMENT] and [EXPRESSION] con be found in
+´´´node->details[position]´´´.
+
+[STATEMENT]: Statements in the source
+[EXPRESSION]: Expressions to run
+_______________________________
+*/
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock) {
     struct Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_);
     size_t jumper = 0;
@@ -160,6 +183,104 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock)
     }
 
     return PG_create_node_report(parentNode, jumper);
+}
+
+/*
+Purpose: Generate a subtree for an enum
+Return Type: NodeReport => Contains topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the array of tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+   [ENUM]
+     |
+[ENUMERATOR]
+           \
+         [VALUE]
+
+To the [ENUM] node appended are the [ENUMERATOR] nodes,
+int the ´´´node->details[position]´´´ field. The
+´´´enumerator->rightNode´´´ field contains the value of
+the enumerator (If not set it assigns it automatically).
+
+[ENUM]: Contains the enum's name
+[ENUMERATOR]: A single enumerator element
+[VALUE]: Value of a enumerator element
+_______________________________
+*/
+NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
+    //enum exampleEnum = {...}
+    //     ^^^^^^^^^^^
+    //(*tokens)[startPos + 1]
+    struct Node *enumNode = PG_create_node((*tokens)[startPos + 1].value, _ENUM_NODE_);
+    int argumentCount = (int)PG_predict_enumerator_count(tokens, startPos + 2);
+    (void)PG_allocate_node_details(enumNode, argumentCount);
+    
+    argumentCount = 0;
+    size_t skip = 2;
+    int currentEnumeratorValue = 0;
+
+    while (startPos + skip < TOKENLENGTH) {
+        TOKEN *currentToken = &(*tokens)[startPos + skip];
+
+        if (currentToken->type == _OP_LEFT_BRACE_) {
+            break;
+        }
+
+        if (argumentCount > enumNode->detailsCount) {
+            printf("SIZE (enum) %i!\n", enumNode->detailsCount);
+            exit(EXIT_FAILURE);
+        }
+
+        struct Node *enumeratorNode = PG_create_node((*tokens)[startPos + skip + 1].value, _ENUMERATOR_NODE_);
+
+        if (currentToken->type == _OP_COMMA_
+            || currentToken->type == _OP_RIGHT_BRACE_) {
+            //Looking for: enumerator : [NUMBER]
+            if ((*tokens)[startPos + skip + 2].type == _OP_COLON_) {
+                currentEnumeratorValue = (int)atoi((*tokens)[startPos + skip + 3].value);
+                skip++;
+            }
+
+            //Size for long
+            char *value = malloc(sizeof(char) * 24);
+
+            if (value == NULL) {
+                printf("VALUE = NULL! (enum)\n");
+                exit(EXIT_FAILURE);
+            }
+
+            (void)snprintf(value, 24, "%d", currentEnumeratorValue);
+            enumeratorNode->rightNode = PG_create_node(value, _VALUE_NODE_);
+            currentEnumeratorValue++;
+            enumNode->details[argumentCount++] = enumeratorNode;
+            skip ++;
+        }
+
+        skip++;
+    }
+
+    return PG_create_node_report(enumNode, skip);
+}
+
+int PG_predict_enumerator_count(TOKEN **tokens, size_t starPos) {
+    int enumCount = 1;
+    int jumper = 0;
+
+    while (starPos + jumper < TOKENLENGTH) {
+        TOKEN *currentToken = &(*tokens)[starPos + jumper];
+
+        if (currentToken->type == _OP_LEFT_BRACE_) {
+            break;
+        } else if (currentToken->type == _OP_COMMA_) {
+            enumCount++;
+        }
+
+        jumper++;
+    }
+
+    return enumCount;
 }
 
 /*
@@ -194,6 +315,18 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     struct Node *modNode = NULL;
     struct Node *retTypeNode = NULL;
 
+    /*
+    > global function:int add(number1, number2)
+    > ^^^^^^         ^^^^ ^^^ ^^^^^^^^^^^^^^^^
+    > [POS1]        [POS2] |       [POS4]
+    >                    [POS3]
+    >
+    > [POS1]: (*tokens)[startPos] (skip gets increased by 1)
+    > [POS2]: (*tokens)[startPos + skip + 2] (skip gets increased by 2)
+    > [POS3]: (*tokens)[startPos + skip + 1]
+    > [POS4]: (*tokens)[startPos + skip + 2]
+    */
+
     if ((*tokens)[startPos].type == _KW_PRIVATE_
         || (*tokens)[startPos].type == _KW_GLOBAL_
         || (*tokens)[startPos].type == _KW_SECURE_) {
@@ -211,9 +344,9 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     functionNode->leftNode = modNode;
     functionNode->rightNode = retTypeNode;
 
-    int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip + 1);
+    int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip + 2);
     (void)PG_allocate_node_details(functionNode, argumentCount + 1);
-    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip + 1);
+    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip + 2);
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip + 1, true);
     functionNode->details[argumentCount] = runnableReport.node;

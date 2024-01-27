@@ -1,3 +1,4 @@
-global function:int add(number1, number2, number3, number4, number5, number6, number7) {
-    
+enum processDirection {
+    LEFT,
+    RIGHT
 }
