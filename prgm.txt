@@ -1,11 +1,6 @@
-try {
-    enum t {
+secure class test(param1) with ActionListener {
+    enum d {
         a,
         b
-    }
-} catch (Exception e) {
-    enum e {
-        f : 56,
-        gesture : 78
     }
 }
