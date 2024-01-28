@@ -57,6 +57,8 @@ void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_try_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_catch_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_export_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_include_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos);
@@ -209,6 +211,10 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
         return PG_create_enum_tree(tokens, startPos);
     case _KW_FUNCTION_:
         return PG_create_function_tree(tokens, startPos);
+    case _KW_CATCH_:
+        return PG_create_catch_tree(tokens, startPos);
+    case _KW_TRY_:
+        return PG_create_try_tree(tokens, startPos);
     case _KW_GLOBAL_:
     case _KW_SECURE_:
     case _KW_PRIVATE_:
@@ -220,6 +226,64 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+/*
+Purpose: Create a subtree for a try statement
+Return Type: NodeReport => Contains top of the subtree and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+ [TRY]
+    |
+[RUNNABLE]
+
+In the [TRY] node contained are the runnable
+statements ´´´node->details[position]´´´.
+_______________________________
+*/
+NodeReport PG_create_try_tree(TOKEN **tokens, size_t startPos) {
+    //try {}
+    //    ^
+    //(*tokens)[startPos + 1]
+    //Rest is checked by the SYNTAXANALYZER for correctness
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + 1, true);
+    struct Node *tryNode = runnableReport.node;
+    tryNode->type = _TRY_NODE_;
+    tryNode->value = "TRY";
+
+    return PG_create_node_report(tryNode, runnableReport.tokensToSkip + 1);
+}
+
+/*
+Purpose: Create a subtree for a catch statement
+Return Type: NodeReport => Contains top of the subtree and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+ [CATCH]
+    |
+[RUNNABLE]
+
+In the [CATCH] node contained are the runnable
+statements ´´´node->details[position]´´´.
+_______________________________
+*/
+NodeReport PG_create_catch_tree(TOKEN **tokens, size_t startPos) {
+    //catch (Exception e) {}
+    //                    ^
+    //           (*tokens)[startPos + 5]
+    //Rest is checked by the SYNTAXANALYZER for correctness
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + 5, true);
+    struct Node *catchNode = runnableReport.node;
+    catchNode->type = _CATCH_NODE_;
+    catchNode->value = "CATCH";
+
+    return PG_create_node_report(catchNode, runnableReport.tokensToSkip + 5);
 }
 
 /*

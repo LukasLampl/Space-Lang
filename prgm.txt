@@ -1,11 +1,11 @@
-function test(param1, param2) {
-    enum a {
-        b,
-        c
+try {
+    enum t {
+        a,
+        b
     }
-
-    enum d {
-        e,
-        f
+} catch (Exception e) {
+    enum e {
+        f : 56,
+        gesture : 78
     }
 }
