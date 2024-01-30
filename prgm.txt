@@ -1,6 +1,0 @@
-secure class test(param1) with ActionListener {
-    enum d {
-        a,
-        b
-    }
-}

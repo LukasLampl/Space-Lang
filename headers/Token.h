@@ -52,7 +52,7 @@ typedef enum TOKENTYPES {
     _OP_LEFT_BRACKET_,               _OP_RIGHT_BRACKET_,              _OP_LEFT_BRACE_,
     _OP_RIGHT_BRACE_,                _OP_LEFT_EDGE_BRACKET_,          _OP_RIGHT_EDGE_BRACKET_,
     _OP_GREATER_CONDITION_,          _OP_SMALLER_CONDITION_,          _OP_NOT_,
-    _OP_NOT_CONDITION_,              _OP_NOT_EQUALS_CONDITION_,       _OP_EQUALS_,
+    _OP_NOT_EQUALS_CONDITION_,       _OP_EQUALS_,
     _OP_EQUALS_CONDITION_,           _OP_GREATER_OR_EQUAL_CONDITION_, _OP_SMALLER_OR_EQUAL_CONDITION_,
     _OP_CLASS_ACCESSOR_,              _OP_OVERWRITE_,                  _OP_SEMICOLON_,
     _OP_PLUS_EQUALS_,                _OP_MINUS_EQUALS_,               _OP_DIVIDE_EQUALS_,
