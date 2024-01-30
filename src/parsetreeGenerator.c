@@ -114,9 +114,9 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     if (runnable.node == NULL) {
         printf("Something went wrong (PG)!\n");
     }*/
-    
+
     printf("NMA: %i\n", PG_is_next_iden_a_member_access(tokens, 0));
-    NodeReport rep = PG_create_simple_term_node(tokens, 0, TOKENLENGTH);
+    NodeReport rep = PG_create_member_access_tree(tokens, 0);
     PG_print_from_top_node(rep.node, 0, 0);
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
@@ -740,7 +740,7 @@ NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos) {
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos);
     struct Node *functionCallNode = PG_create_node(nameRet.value, _FUNCTION_CALL_NODE_);
 
-    int argumentSize = (int)PG_predict_argument_count(tokens, startPos, true);
+    int argumentSize = (int)PG_predict_argument_count(tokens, startPos + nameRet.movedTokens, true);
     (void)PG_allocate_node_details(functionCallNode, argumentSize, false);
 
     size_t paramSize = (size_t)PG_add_params_to_node(functionCallNode, tokens, startPos + nameRet.movedTokens, 0, _NULL_);
@@ -1366,6 +1366,10 @@ int PG_is_next_iden_a_member_access(TOKEN **tokens, size_t startPos) {
                 return true;
             } else if ((*tokens)[i].type == _OP_CLASS_ACCESSOR_) {
                 continue;
+            }  else if ((*tokens)[i].type == _OP_RIGHT_BRACKET_) {
+                continue;
+            } else if ((*tokens)[i].type == _OP_LEFT_BRACKET_) {
+                continue;
             } else {
                 return false;
             }
@@ -1391,23 +1395,62 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
         if (currentToken->type == _OP_DOT_) {
             if (cache == NULL) {
                 struct Node *topNode = PG_create_node(".", _MEMBER_ACCESS_NODE_);
-                struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
-                struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
-                
-                topNode->leftNode = PG_create_node(lvalRet.value, _IDEN_NODE_);
-                topNode->rightNode = PG_create_node(rvalRet.value, _IDEN_NODE_);
+                /*
+                > get()
+                >    ^
+                > (*tokens)[startPos + 1]
+                */
+                if ((int)PG_is_function_call(tokens, startPos + 1) > 0) {
+                    NodeReport functionCallReport = PG_create_function_call_tree(tokens, startPos);
+                    topNode->leftNode = functionCallReport.node;
+                } else {
+                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
+                    topNode->leftNode = PG_create_node(lvalRet.value, _IDEN_NODE_);
+                }
+
+                /*
+                > .get()
+                >     ^
+                >  (*tokens)[startPos + skip + 2]
+                */
+                if ((int)PG_is_function_call(tokens, startPos + skip + 2) > 0) {
+                    NodeReport functionCallReport = PG_create_function_call_tree(tokens, startPos + skip + 1);
+                    topNode->rightNode = functionCallReport.node;
+                    skip += functionCallReport.tokensToSkip + 1;
+                } else {
+                    struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
+                    topNode->rightNode = PG_create_node(rvalRet.value, _IDEN_NODE_);
+                }
 
                 cache = topNode;
             } else {
                 struct Node *topNode = PG_create_node(".", _MEMBER_ACCESS_NODE_);
-                struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
+                
+                /*
+                > .get()
+                >     ^
+                >  (*tokens)[startPos + skip + 2]
+                */
+                if ((int)PG_is_function_call(tokens, startPos + skip + 2) > 0) {
+                    NodeReport functionCallReport = PG_create_function_call_tree(tokens, startPos + skip + 1);
+                    topNode->rightNode = functionCallReport.node;
+                    skip += functionCallReport.tokensToSkip + 1;
+                } else {
+                    struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
+                    topNode->rightNode = PG_create_node(rvalRet.value, _IDEN_NODE_);
+                }
 
                 topNode->leftNode = cache;
-                topNode->rightNode = PG_create_node(rvalRet.value, _IDEN_NODE_);
-
                 cache = topNode;
             }
         } else if ((int)PG_is_operator(currentToken) == true) {
+            if (cache == NULL
+                && (currentToken->type == _OP_LEFT_BRACKET_
+                || currentToken->type == _OP_RIGHT_BRACKET_)) {
+                    skip++;
+                    continue;
+                }
+
             break;
         }
 
