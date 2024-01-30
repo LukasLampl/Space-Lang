@@ -116,7 +116,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     }*/
 
     printf("NMA: %i\n", PG_is_next_iden_a_member_access(tokens, 0));
-    NodeReport rep = PG_create_member_access_tree(tokens, 0);
+    NodeReport rep = PG_create_simple_term_node(tokens, 0, TOKENLENGTH);
     PG_print_from_top_node(rep.node, 0, 0);
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
@@ -1081,9 +1081,11 @@ After [OP] the [IDEN] is either on the ´´´node->leftNode´´´ or
 [IDEN]: Can be a number, function call, a string or an identifier
 _______________________________
 */
+
 NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries) {
     struct Node *cache = NULL;
     struct Node *temp = NULL;
+    size_t lastIdenPos = UNINITIALZED;
     int waitingToEndPlusOrMinus = false;
 
     for (size_t i = startPos; i < startPos + boundaries; i++) {
@@ -1103,7 +1105,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
 
             if (isFunctionCall > 0) {
-                size_t tokensBack = (size_t)PG_go_backwards_till_operator(tokens, i - 1);
+                size_t tokensBack = lastIdenPos;//(size_t)PG_go_backwards_till_operator(tokens, i - 1);
                 NodeReport functionCallReport = PG_create_function_call_tree(tokens, i - tokensBack - 1);
                 //-2 Because of the brackets
                 i += functionCallReport.tokensToSkip - 2;
@@ -1149,16 +1151,25 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             if (cache == NULL) {
                 int multOrDivOrModAtRight = (int)PG_is_next_operator_multiply_divide_or_modulo(tokens, i + 1);
 
-                if ((int)PG_is_next_iden_a_member_access(tokens, startPos) == true) {
-                    NodeReport memberAccReport = PG_create_member_access_tree(tokens, startPos);
+                if ((int)PG_is_next_iden_a_member_access(tokens, lastIdenPos) == true) {
+                    NodeReport memberAccReport = PG_create_member_access_tree(tokens, lastIdenPos);
                     node->leftNode = memberAccReport.node;
                 } else {
-                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
+                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, lastIdenPos);
                     node->leftNode = PG_create_node(lvalRet.value, PG_get_node_type_by_value(&lvalRet.value));
                 }
 
                 if (multOrDivOrModAtRight == false) {
-                    if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
+                    if ((*tokens)[i + 1].type == _OP_RIGHT_BRACKET_) {
+                        size_t bounds = PG_determine_bounds_for_capsulated_term(tokens, i + 1);
+                        NodeReport termReport = PG_create_simple_term_node(tokens, i + 2, bounds);
+                        node->rightNode = termReport.node;
+                        i += termReport.tokensToSkip;
+                    } else if ((*tokens)[i + 2].type == _OP_RIGHT_BRACKET_) {
+                        NodeReport funcCallReport = PG_create_function_call_tree(tokens, i + 1);
+                        node->rightNode = funcCallReport.node;
+                        i += funcCallReport.tokensToSkip - 1;
+                    } else if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
                         NodeReport memAccessReport = PG_create_member_access_tree(tokens, i + 1);
                         node->rightNode = memAccessReport.node;
                         i += memAccessReport.tokensToSkip;
@@ -1173,7 +1184,16 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                 int multOrDivOrModAtRight = (int)PG_is_next_operator_multiply_divide_or_modulo(tokens, i + 1);
 
                 if (multOrDivOrModAtRight == false) {
-                    if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
+                    if ((*tokens)[i + 1].type == _OP_RIGHT_BRACKET_) {
+                        size_t bounds = PG_determine_bounds_for_capsulated_term(tokens, i + 1);
+                        NodeReport termReport = PG_create_simple_term_node(tokens, i + 2, bounds);
+                        node->rightNode = termReport.node;
+                        i += termReport.tokensToSkip;
+                    } else if ((*tokens)[i + 2].type == _OP_RIGHT_BRACKET_) {
+                        NodeReport funcCallReport = PG_create_function_call_tree(tokens, i + 1);
+                        node->rightNode = funcCallReport.node;
+                        i += funcCallReport.tokensToSkip - 1;
+                    } else if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
                         NodeReport memAccessReport = PG_create_member_access_tree(tokens, i + 1);
                         node->rightNode = memAccessReport.node;
                         i += memAccessReport.tokensToSkip;
@@ -1189,6 +1209,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                 }
             }
 
+            lastIdenPos = UNINITIALZED;
             cache = node;
             break;
         }
@@ -1198,7 +1219,16 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             struct Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value));
 
             if (cache == NULL) {
-                if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
+                if ((*tokens)[i + 1].type == _OP_RIGHT_BRACKET_) {
+                    size_t bounds = PG_determine_bounds_for_capsulated_term(tokens, i + 1);
+                    NodeReport termReport = PG_create_simple_term_node(tokens, i + 2, bounds);
+                    node->rightNode = termReport.node;
+                    i += termReport.tokensToSkip;
+                } else if ((*tokens)[i + 2].type == _OP_RIGHT_BRACKET_) {
+                    NodeReport funcCallReport = PG_create_function_call_tree(tokens, i + 1);
+                    node->rightNode = funcCallReport.node;
+                    i += funcCallReport.tokensToSkip - 1;
+                } else if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
                     NodeReport memAccessReport = PG_create_member_access_tree(tokens, i + 1);
                     node->rightNode = memAccessReport.node;
                     i += memAccessReport.tokensToSkip;
@@ -1206,16 +1236,25 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                     struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, i + 1);
                     node->rightNode = PG_create_node(rvalRet.value, PG_get_node_type_by_value(&(rvalRet.value)));
                 }
-
-                if ((int)PG_is_next_iden_a_member_access(tokens, startPos) == true) {
-                    NodeReport memberAccReport = PG_create_member_access_tree(tokens, startPos);
+                
+                if ((int)PG_is_next_iden_a_member_access(tokens, lastIdenPos) == true) {
+                    NodeReport memberAccReport = PG_create_member_access_tree(tokens, lastIdenPos);
                     node->leftNode = memberAccReport.node;
                 } else {
-                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
+                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, lastIdenPos);
                     node->leftNode = PG_create_node(lvalRet.value, PG_get_node_type_by_value(&lvalRet.value));
                 }
             } else {
-                if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
+                if ((*tokens)[i + 1].type == _OP_RIGHT_BRACKET_) {
+                    size_t bounds = PG_determine_bounds_for_capsulated_term(tokens, i + 1);
+                    NodeReport termReport = PG_create_simple_term_node(tokens, i + 2, bounds);
+                    node->rightNode = termReport.node;
+                    i += termReport.tokensToSkip;
+                } else if ((*tokens)[i + 2].type == _OP_RIGHT_BRACKET_) {
+                    NodeReport funcCallReport = PG_create_function_call_tree(tokens, i + 1);
+                    node->rightNode = funcCallReport.node;
+                    i += funcCallReport.tokensToSkip - 1;
+                } else if ((int)PG_is_next_iden_a_member_access(tokens, i + 1) == true) {
                     NodeReport memAccessReport = PG_create_member_access_tree(tokens, i + 1);
                     node->rightNode = memAccessReport.node;
                     i += memAccessReport.tokensToSkip;
@@ -1228,11 +1267,11 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                     node->leftNode = cache;
                 } else {
                     if (temp == NULL) {
-                        if ((int)PG_is_next_iden_a_member_access(tokens, startPos) == true) {
-                            NodeReport memberAccReport = PG_create_member_access_tree(tokens, startPos);
+                        if ((int)PG_is_next_iden_a_member_access(tokens, lastIdenPos) == true) {
+                            NodeReport memberAccReport = PG_create_member_access_tree(tokens, lastIdenPos);
                             node->leftNode = memberAccReport.node;
                         } else {
-                            struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
+                            struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, lastIdenPos);
                             node->leftNode = PG_create_node(lvalRet.value, PG_get_node_type_by_value(&lvalRet.value));
                         }
                     } else {
@@ -1247,9 +1286,14 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                 temp = node;
             }
 
+            lastIdenPos = UNINITIALZED;
             break;
         }
         default:
+            if (lastIdenPos == UNINITIALZED) {
+                lastIdenPos = i;
+            }
+
             break;
         }
 

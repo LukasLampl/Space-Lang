@@ -1,1 +1,1 @@
-getColor(item).getRed(int)
+1 * ((3 + 7) * 6)
