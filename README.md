@@ -1,3 +1,6 @@
+> [IMPORTANT!]
+> This repo is in development state, so expect breaks and bugs!
+
 # SPACE - Language #
 This project is a compiler for my own programming language.
 The program basically reads in an input file and converts it into tokens, then a parsetree and finally in an intermediate language.
