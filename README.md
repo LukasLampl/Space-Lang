@@ -1,4 +1,4 @@
-> [IMPORTANT!]
+> [!CAUTION]
 > This repo is in development state, so expect breaks and bugs!
 
 # SPACE - Language #
