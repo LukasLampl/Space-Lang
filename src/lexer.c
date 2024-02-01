@@ -3,7 +3,7 @@
 /////////////////////////////////////////////////////////////
 /*
 The SPACE-Language compiler compiles an input file into a runnable program.
-Copyright (C) 2023  Lukas Nian En Lampl
+Copyright (C) 2024  Lukas Nian En Lampl
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

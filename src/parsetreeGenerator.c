@@ -3,7 +3,7 @@
 /////////////////////////////////////////////////////////////
 /*
 The SPACE-Language compiler compiles an input file into a runnable program.
-Copyright (C) 2023  Lukas Nian En Lampl
+Copyright (C) 2024  Lukas Nian En Lampl
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -1268,7 +1268,7 @@ Params: TOKEN **tokens => Tokens to checked for the operator;
 */
 size_t PG_go_backwards_till_operator(TOKEN **tokens, size_t startPos) {
     for (size_t i = 0; startPos - i > 0; i++) {
-        if (PG_is_operator(&(*tokens)[startPos - i]) == true) {
+        if ((int)PG_is_operator(&(*tokens)[startPos - i]) == true) {
             return i - 1;
         } else if (startPos - (i + 1) == 0) {
             return i + 1;
@@ -1348,11 +1348,8 @@ int PG_is_next_iden_a_member_access(TOKEN **tokens, size_t startPos) {
             if (currentToken->type == _OP_DOT_
                 || currentToken->type == _OP_CLASS_ACCESSOR_) {
                 return true;
-            } else if (currentToken->type == _OP_CLASS_ACCESSOR_) {
-                continue;
-            }  else if (currentToken->type == _OP_RIGHT_BRACKET_) {
-                continue;
-            } else if (currentToken->type == _OP_LEFT_BRACKET_) {
+            } else if (currentToken->type == _OP_RIGHT_BRACKET_
+                || currentToken->type == _OP_LEFT_BRACKET_) {
                 continue;
             } else {
                 return false;
