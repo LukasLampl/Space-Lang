@@ -64,7 +64,7 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock)
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos);
-int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos, enum processDirection direction);
+int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos);
 int PG_is_condition_operator(TOKENTYPES type);
 NodeReport PG_create_class_constructor_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_class_tree(TOKEN **tokens, size_t startPos);
@@ -122,7 +122,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
         printf("Something went wrong (PG)!\n");
     }*/
 
-    NodeReport rep = PG_create_simple_term_node(tokens, 0, TOKENLENGTH);
+    NodeReport rep = PG_create_chained_condition_tree(tokens, 0);
     PG_print_from_top_node(rep.node, 0, 0);
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
@@ -279,8 +279,54 @@ PRECEDENCE of CONDITION operators:
 */
 NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos) {
     struct Node *cache = NULL;
+    size_t lastCondStart = UNINITIALZED;
+    size_t skip = startPos;
 
-    return PG_create_node_report(cache, 0);
+    while (skip < TOKENLENGTH) {
+        TOKEN *currentToken = &(*tokens)[skip];
+
+        if (currentToken->type == _OP_LEFT_BRACKET_) {
+            break;
+        }
+
+        switch (currentToken->type) {
+        case _KW_OR_:
+        case _KW_AND_: {
+            enum NodeType type = currentToken->type == _KW_AND_ ? _AND_NODE_ : _OR_NODE_;
+            struct Node *node = PG_create_node(currentToken->value, type);
+
+            NodeReport rightReport = {NULL, UNINITIALZED};
+            rightReport = PG_create_condition_tree(tokens, skip + 1);
+
+            skip += rightReport.tokensToSkip;
+            node->rightNode = rightReport.node;
+
+            if (cache == NULL) {
+                NodeReport leftReport = {NULL, UNINITIALZED};
+                leftReport = PG_create_condition_tree(tokens, lastCondStart);
+                node->leftNode = leftReport.node;
+            } else {
+                node->leftNode = cache;
+            }
+
+            cache = node;
+            lastCondStart = UNINITIALZED;
+            break;
+        }
+        default:
+            lastCondStart = lastCondStart == UNINITIALZED ? skip : lastCondStart;
+            break;
+        }
+
+        skip++;
+    }
+
+    if (cache == NULL) {
+        NodeReport condRep = PG_create_condition_tree(tokens, startPos);
+        cache = condRep.node;
+    }
+
+    return PG_create_node_report(cache, skip - startPos + 1);
 }
 
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
@@ -291,12 +337,10 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
 
         if ((int)PG_is_condition_operator(currentToken->type) == true) {
             struct Node *conditionNode = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value));
-            int leftBounds = (int)PG_get_condition_iden_length(tokens, startPos + skip - 1, LEFT);
-            int rightBounds = (int)PG_get_condition_iden_length(tokens, startPos + skip + 1, RIGHT);
+            int leftBounds = (int)PG_get_condition_iden_length(tokens, startPos);
+            int rightBounds = (int)PG_get_condition_iden_length(tokens, startPos + skip + 1);
 
             NodeReport rightTermReport = PG_create_simple_term_node(tokens, startPos + skip + 1, rightBounds);
-            printf("LB: %i\n", leftBounds);
-            printf("LTOK START: %s\n", (*tokens)[startPos + skip - leftBounds].value);
             NodeReport leftTermReport = PG_create_simple_term_node(tokens, startPos + skip - leftBounds, leftBounds);
 
             conditionNode->leftNode = leftTermReport.node;
@@ -309,41 +353,20 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
         skip++;
     }
 
-    printf("CONDITION ERROR!!!\n");
     return PG_create_node_report(NULL, 0);
 }
 
-int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos, enum processDirection direction) {
+int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos) {
     int counter = 0;
 
-    if (direction == RIGHT) {
-        while (startPos + counter < TOKENLENGTH) {
-            if ((int)PG_is_condition_operator((*tokens)[startPos + counter].type) == true
-                || (*tokens)[startPos + counter].type == _OP_LEFT_BRACKET_
-                || (*tokens)[startPos + counter].type == _OP_RIGHT_BRACKET_) {
-                break;
-            }
-
-            counter++;
-        }
-    } else {
-        if (startPos == 0) {
-            return 1;
+    while (startPos + counter < TOKENLENGTH) {
+        if ((int)PG_is_condition_operator((*tokens)[startPos + counter].type) == true
+            || (*tokens)[startPos + counter].type == _OP_LEFT_BRACKET_
+            || (*tokens)[startPos + counter].type == _OP_RIGHT_BRACKET_) {
+            break;
         }
 
-        while (startPos - counter > 0) {
-            if ((int)PG_is_condition_operator((*tokens)[startPos - counter].type) == true
-                || (*tokens)[startPos - counter].type == _OP_LEFT_BRACKET_
-                || (*tokens)[startPos - counter].type == _OP_RIGHT_BRACKET_) {
-                counter++;
-                break;
-            } else if (startPos - counter - 1 == 0) {
-                counter += 2;
-                break;
-            }
-
-            counter++;
-        }
+        counter++;
     }
     
     return counter;
@@ -359,6 +382,7 @@ int PG_is_condition_operator(TOKENTYPES type) {
     case _OP_NOT_EQUALS_CONDITION_:
     case _KW_AND_:
     case _KW_OR_:
+    case _OP_QUESTION_MARK_:
         return true;
     default:
         return false;
