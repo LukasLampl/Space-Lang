@@ -1,1 +1,1 @@
-test(a, b) * (abc + (2 + this.book))
+this.book.read() + this.getPage()->site;

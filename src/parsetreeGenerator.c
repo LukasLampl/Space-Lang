@@ -1199,10 +1199,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             break;
         }
         default:
-            if (lastIdenPos == UNINITIALZED) {
-                lastIdenPos = i;
-            }
-
+            lastIdenPos = lastIdenPos == UNINITIALZED ? i : lastIdenPos;
             break;
         }
 
@@ -1345,14 +1342,17 @@ Params: TOKEN **tokens => Pointer to the tokens;
 */
 int PG_is_next_iden_a_member_access(TOKEN **tokens, size_t startPos) {
     for (size_t i = startPos; i < TOKENLENGTH; i++) {
-        if ((int)PG_is_operator(&(*tokens)[i]) == true) {
-            if ((*tokens)[i].type == _OP_DOT_) {
+        TOKEN *currentToken = &(*tokens)[i];
+
+        if ((int)PG_is_operator(currentToken) == true) {
+            if (currentToken->type == _OP_DOT_
+                || currentToken->type == _OP_CLASS_ACCESSOR_) {
                 return true;
-            } else if ((*tokens)[i].type == _OP_CLASS_ACCESSOR_) {
+            } else if (currentToken->type == _OP_CLASS_ACCESSOR_) {
                 continue;
-            }  else if ((*tokens)[i].type == _OP_RIGHT_BRACKET_) {
+            }  else if (currentToken->type == _OP_RIGHT_BRACKET_) {
                 continue;
-            } else if ((*tokens)[i].type == _OP_LEFT_BRACKET_) {
+            } else if (currentToken->type == _OP_LEFT_BRACKET_) {
                 continue;
             } else {
                 return false;
@@ -1376,9 +1376,11 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
     while (startPos + skip < TOKENLENGTH) {
         TOKEN *currentToken = &(*tokens)[startPos + skip];
 
-        if (currentToken->type == _OP_DOT_) {
+        if (currentToken->type == _OP_DOT_
+            || currentToken->type == _OP_CLASS_ACCESSOR_) {
             if (cache == NULL) {
-                struct Node *topNode = PG_create_node(".", _MEMBER_ACCESS_NODE_);
+                enum NodeType type = currentToken->type == _OP_DOT_ ? _MEMBER_ACCESS_NODE_ : _CLASS_ACCESS_NODE_;
+                struct Node *topNode = PG_create_node(currentToken->value, type);
                 /*
                 > get()
                 >    ^
@@ -1408,7 +1410,8 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
 
                 cache = topNode;
             } else {
-                struct Node *topNode = PG_create_node(".", _MEMBER_ACCESS_NODE_);
+                enum NodeType type = currentToken->type == _OP_DOT_ ? _MEMBER_ACCESS_NODE_ : _CLASS_ACCESS_NODE_;
+                struct Node *topNode = PG_create_node(currentToken->value, type);
                 
                 /*
                 > .get()
