@@ -24,7 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 int main() {
     (void)printf("SPACE-Language compiler [Version 0.0.1 - Alpha]\n");
-    (void)printf("Copyright (C) 2023 Lukas Nian En Lampl\n");
+    (void)printf("Copyright (C) 2024 Lukas Nian En Lampl\n");
     (void)printf("_________________________________________________\n\n");
     
     /////////////////////////////////////////

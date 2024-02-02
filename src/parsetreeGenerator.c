@@ -58,9 +58,20 @@ enum nodeSide {
     TOP_NODE
 };
 
+enum varType {
+    UNDEF,
+    NORMAL_VAR, //Normal var: ´´´var a = 0;´´´
+    ARRAY_VAR,  //Array var: ´´´var arr[];´´´
+    MUL_DEF_VAR //Multiple definition var: ´´´var a,b = 0;´´´
+};
+
+///// FUNCTIONS PREDEFINITIONS /////
+
 void PG_append_node_to_root_node(struct Node *node);
-NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
+enum varType get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos);
@@ -122,31 +133,12 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
         printf("Something went wrong (PG)!\n");
     }*/
 
-    NodeReport rep = PG_create_chained_condition_tree(tokens, 0);
+    NodeReport rep = PG_create_variable_tree(tokens, 0);
     PG_print_from_top_node(rep.node, 0, 0);
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
     return 1;
-}
-
-NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
-    struct Node *varNode = PG_create_node("var", _VAR_NODE_);
-
-    struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos + 1);
-    char *varName = nameRet.value;
-    struct Node *nameNode = PG_create_node(varName, _IDEN_NODE_);
-    size_t checkPosition = startPos + nameRet.movedTokens + 1;
-
-    if ((*tokens)[checkPosition].type == _OP_EQUALS_) {
-        size_t bounds = (size_t)PG_get_size_till_next_semicolon(tokens, checkPosition + 1);
-        NodeReport termReport = PG_create_simple_term_node(tokens, checkPosition + 1, bounds);
-        struct Node *valueNode = termReport.node;
-        varNode->rightNode = valueNode;
-    }
-
-    varNode->leftNode = nameNode;
-    return PG_create_node_report(varNode, 1);
 }
 
 /*
@@ -249,12 +241,101 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
             return PG_create_function_tree(tokens, startPos);
         } else if ((*tokens)[startPos + 1].type == _KW_CLASS_) {
             return PG_create_class_tree(tokens, startPos);
+        } else if ((*tokens)[startPos + 1].type == _KW_VAR_) {
+            return PG_create_variable_tree(tokens, startPos);
         }
     default:
         break;
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+/*
+Purpose: Returns a tree from the created var calls
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+*/
+NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
+    enum varType type = get_var_type(tokens, startPos);
+    NodeReport report = {NULL, UNINITIALZED};
+
+    if (type == NORMAL_VAR) {
+        report = PG_create_normal_var_tree(tokens, startPos);
+    }
+
+    return report;
+}
+
+/*
+Purpose: Determines the variable type
+Return Type: enum varType => Type of the variable
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start checking
+*/
+enum varType get_var_type(TOKEN **tokens, size_t startPos) {
+    for (size_t i = startPos; i < TOKENLENGTH; i++) {
+        switch ((*tokens)[i].type) {
+        case _OP_EQUALS_:
+        case _OP_SEMICOLON_:
+            return NORMAL_VAR;
+        case _OP_COMMA_:
+            return MUL_DEF_VAR;
+        case _OP_RIGHT_EDGE_BRACKET_:
+            return ARRAY_VAR;
+        default:
+            break;
+        }
+    }
+
+    return UNDEF;
+}
+
+/*
+Purpose: Create a subtree for a variable definition
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+    [VAR]
+   /    \
+[MOD]  [VAL]
+
+To the [VAR] appended are the modifier
+([MOD]: ´´´node->leftNode´´´) and the value
+([VAL]: ´´´´node->rightNode´´´).
+
+[VAR]: Contains the variable name
+[MOD]: Contains the var modifier
+[VAL]: Value of the variable
+_______________________________
+*/
+NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *varNode = PG_create_node(NULL, _VAR_NODE_);
+    int skip = 0;
+    
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_SECURE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_) {
+        varNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
+        skip++;
+    }
+
+    struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
+    varNode->value = nameRet.value;
+    skip += nameRet.movedTokens + 1;
+
+    if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+        size_t bounds = (size_t)PG_get_size_till_next_semicolon(tokens, startPos + skip + 1);
+        NodeReport termReport = PG_create_simple_term_node(tokens, startPos + skip + 1, bounds);
+        struct Node *valueNode = termReport.node;
+        varNode->rightNode = valueNode;
+    }
+
+    return PG_create_node_report(varNode, 1);
 }
 
 /*
