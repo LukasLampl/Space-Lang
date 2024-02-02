@@ -285,18 +285,40 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos) {
     while (skip < TOKENLENGTH) {
         TOKEN *currentToken = &(*tokens)[skip];
 
-        if (currentToken->type == _OP_LEFT_BRACKET_) {
+        if (currentToken->type == _OP_LEFT_BRACKET_
+            || currentToken->type == _OP_QUESTION_MARK_) {
             break;
         }
 
         switch (currentToken->type) {
+        case _OP_RIGHT_BRACKET_: {
+            NodeReport report = PG_create_chained_condition_tree(tokens, skip + 1);
+            skip += report.tokensToSkip;
+
+            if (cache == NULL) {
+                cache = report.node;
+            } else {
+                if (cache->leftNode == NULL) {
+                    cache->leftNode = report.node;
+                } else {
+                    cache->rightNode = report.node;
+                }
+            }
+
+            break;
+        }
         case _KW_OR_:
         case _KW_AND_: {
             enum NodeType type = currentToken->type == _KW_AND_ ? _AND_NODE_ : _OR_NODE_;
             struct Node *node = PG_create_node(currentToken->value, type);
 
             NodeReport rightReport = {NULL, UNINITIALZED};
-            rightReport = PG_create_condition_tree(tokens, skip + 1);
+
+            if ((*tokens)[skip + 1].type == _OP_RIGHT_BRACKET_) {
+                rightReport = PG_create_chained_condition_tree(tokens, skip + 2);
+            } else {
+                rightReport = PG_create_condition_tree(tokens, skip + 1);
+            }
 
             skip += rightReport.tokensToSkip;
             node->rightNode = rightReport.node;
