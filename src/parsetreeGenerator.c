@@ -276,6 +276,19 @@ PRECEDENCE of CONDITION operators:
 +-----+-----+----+---+---+
 |  )  |  )  | )  | = | = |
 +-----+-----+----+---+---+
+_______________________________
+Layout:
+
+   [CHCOND]
+   /     \
+[COND] [COND]
+
+The conditions can be found in ´´´node->leftNode´´´ and
+´´´node->rightNode´´´.
+
+[COND]: Condition
+[CHCOND]: Chained condition holding multiple [COND]s
+_______________________________
 */
 NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos) {
     struct Node *cache = NULL;
