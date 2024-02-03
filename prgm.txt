@@ -1,0 +1,1 @@
+global var a, b, c = 10 + 2 * Math.pi;

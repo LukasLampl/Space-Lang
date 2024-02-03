@@ -71,6 +71,7 @@ void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos);
@@ -263,6 +264,8 @@ NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
 
     if (type == NORMAL_VAR) {
         report = PG_create_normal_var_tree(tokens, startPos);
+    } else if (type == MUL_DEF_VAR) {
+        report = PG_create_mul_def_var_tree(tokens, startPos);
     }
 
     return report;
@@ -290,6 +293,79 @@ enum varType get_var_type(TOKEN **tokens, size_t startPos) {
     }
 
     return UNDEF;
+}
+
+/*
+Purpose: Create a subtree for a variable definition
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+     [MUL_VAR]
+   /     |     \
+[MOD] [NAMES] [VAL]
+
+To the [MUL_VAR] appended are the modifier
+([MOD]: ´´´node->leftNode´´´), the value
+([VAL]: ´´´´node->rightNode´´´) and the
+definitions ([NAMES]: ´´´´node->details[pos]´´´).
+
+[MUL_VAR]: Indicates a multiple var creation
+[MOD]: Contains the var modifier
+[VAL]: Value of the variables
+[NAMES]: Name of the variables
+_______________________________
+*/
+NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node("mul_var_def", _MUL_DEF_VAR_NODE_);
+    int skip = 0;
+
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_SECURE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_) {
+        topNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
+        skip++;
+    }
+
+    /*
+    > var num, num1, num2 = 10;
+    >     ^^^^^^^^^^^^^^^
+    > (*tokens)[startPos + skip + 1]
+    */
+    int definitions = PG_predict_argument_count(tokens, startPos + skip + 1, false);
+    (void)PG_allocate_node_details(topNode, definitions, false);
+    size_t currentDetail = 0;
+    
+    while (startPos + skip < TOKENLENGTH) {
+        if ((*tokens)[startPos + skip].type == _OP_COMMA_) {
+            if (currentDetail == 0) {
+                topNode->details[currentDetail++] = PG_create_node((*tokens)[startPos + skip - 1].value, _IDEN_NODE_);
+                topNode->details[currentDetail++] = PG_create_node((*tokens)[startPos + skip + 1].value, _IDEN_NODE_);
+            } else {
+                topNode->details[currentDetail++] = PG_create_node((*tokens)[startPos + skip + 1].value, _IDEN_NODE_);
+            }
+        } else if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+            break;
+        }
+        
+        skip++;
+    }
+    
+    /*
+    > var num, num1, num2 = 10;
+    >                     ^
+    >        (*tokens)[startPos + skip]
+    */
+    if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+        size_t bounds = (size_t)PG_get_size_till_next_semicolon(tokens, startPos + skip + 1);
+        NodeReport simpleTermReport = PG_create_simple_term_node(tokens, startPos + skip + 1, bounds);
+        topNode->rightNode = simpleTermReport.node;
+        skip += simpleTermReport.tokensToSkip;
+    }
+
+    return PG_create_node_report(topNode, skip);
 }
 
 /*
@@ -1011,7 +1087,8 @@ int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefine
             count++;
         } else if (token->type == _OP_RIGHT_BRACKET_) {
             openBrackets++;
-        } else if (token->type == _OP_LEFT_BRACKET_) {
+        } else if (token->type == _OP_LEFT_BRACKET_
+            || token->type == _OP_EQUALS_) {
             openBrackets--;
 
             if (openBrackets <= 0) {
