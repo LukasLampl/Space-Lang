@@ -1258,6 +1258,8 @@ enum NodeType PG_get_node_type_by_value(char **value) {
             if ((*value)[i] == '-'
                 && (*value)[i + 1] == '>') {
                 return _CLASS_ACCESS_NODE_;
+            } else if ((*value)[i] == '[') {
+                return _ARRAY_NODE_;
             }
         }
     }
@@ -1435,8 +1437,9 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
                 temp = NULL;
             } else if (cache == NULL) {
+                printf("START: %s\n", (*tokens)[startPos].value);
                 struct Node *node = NULL;
-                NodeReport assignRep = PG_assign_processed_node_to_node(tokens, startPos);
+                NodeReport assignRep = PG_assign_processed_node_to_node(tokens, startPos - 1);
                 node = assignRep.node;
                 i += assignRep.tokensToSkip;
                 cache = node;
@@ -1605,7 +1608,7 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
                     topNode->leftNode = functionCallReport.node;
                 } else {
                     struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
-                    topNode->leftNode = PG_create_node(lvalRet.value, _IDEN_NODE_);
+                    topNode->leftNode = PG_create_node(lvalRet.value, PG_get_node_type_by_value(&lvalRet.value));
                 }
 
                 /*
@@ -1619,7 +1622,7 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
                     skip += functionCallReport.tokensToSkip + 1;
                 } else {
                     struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
-                    topNode->rightNode = PG_create_node(rvalRet.value, _IDEN_NODE_);
+                    topNode->rightNode = PG_create_node(rvalRet.value, PG_get_node_type_by_value(&rvalRet.value));
                 }
 
                 cache = topNode;
@@ -1638,7 +1641,7 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
                     skip += functionCallReport.tokensToSkip + 1;
                 } else {
                     struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
-                    topNode->rightNode = PG_create_node(rvalRet.value, _IDEN_NODE_);
+                    topNode->rightNode = PG_create_node(rvalRet.value, PG_get_node_type_by_value(&rvalRet.value));
                 }
 
                 topNode->leftNode = cache;
