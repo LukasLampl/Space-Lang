@@ -71,6 +71,10 @@ void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos);
+int PG_get_array_element_size(TOKEN **tokens, size_t startPos);
+void PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t startPos);
+int PG_get_dimension_count(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos);
@@ -266,6 +270,8 @@ NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
         report = PG_create_normal_var_tree(tokens, startPos);
     } else if (type == MUL_DEF_VAR) {
         report = PG_create_mul_def_var_tree(tokens, startPos);
+    } else if (type == ARRAY_VAR) {
+        report = PG_create_array_var_tree(tokens, startPos);
     }
 
     return report;
@@ -293,6 +299,117 @@ enum varType get_var_type(TOKEN **tokens, size_t startPos) {
     }
 
     return UNDEF;
+}
+
+/*
+Purpose: Create a subtree for an array variable definition
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+     [ARR_VAR]
+   /     |     \
+[MOD] [DIMEN] [VAL]
+
+To the [ARR_VAR] appended are the modifier
+([MOD]: ´´´node->leftNode´´´), the value
+([VAL]: ´´´´node->rightNode´´´) and the
+definitions ([NAMES]: ´´´´node->details[pos]´´´).
+
+[ARR_VAR]: Contains variable name
+[MOD]: Contains the var modifier
+[VAL]: Value of the variables
+[DIMEN]: Dimension of the array var
+_______________________________
+*/
+NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node(NULL, _ARRAY_VAR_NODE_);
+    int skip = 0;
+
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_SECURE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_) {
+        topNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
+        skip++;
+    }
+
+    struct idenValRet varName = PG_get_identifier_by_index(tokens, startPos + skip + 1);
+    topNode->value = varName.value;
+    skip++;
+
+    //DIMENSION HANDLING
+    int dimCount = PG_get_dimension_count(tokens, startPos + skip);
+    (void)PG_allocate_node_details(topNode, dimCount, false);
+    (void)PG_add_dimensions_to_var_node(topNode, tokens, startPos + skip);
+
+    return PG_create_node_report(topNode, skip);
+}
+
+/*
+Purpose: Set the individual dimensions into the ´´´node->details[pos]´´´ field
+Return Type: void
+Params: struct Node *node => Node to set the dimensions in;
+        TOKEN **tokens => Pointer to the tokens array;
+        size_t startPos => Position from where the dimensions start
+*/
+void PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t startPos) {
+    size_t jumper = 0;
+    size_t currentDetail = 0;
+
+    while (startPos + jumper < TOKENLENGTH) {
+        TOKEN *currentToken = &(*tokens)[startPos + jumper];
+
+        if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
+            int bounds = PG_get_array_element_size(tokens, startPos + jumper);
+            NodeReport termReport = PG_create_simple_term_node(tokens, startPos + jumper + 1, bounds);
+            node->details[currentDetail++] = termReport.node;
+            jumper += termReport.tokensToSkip;
+        } else if (currentToken->type == _OP_EQUALS_
+            || currentToken->type == _OP_SEMICOLON_) {
+                break;
+        }
+
+        jumper++;
+    }
+}
+
+/*
+Purpose: Get the size of an array element
+Return Type: int => Size of the array element
+Params: TOKEN **tokens => Pointer to the tokens array;
+        size_t startPos => Position from where to start getting the size
+*/
+int PG_get_array_element_size(TOKEN **tokens, size_t startPos) {
+    int bounds = 0;
+
+    while ((*tokens)[startPos + bounds].type != _OP_LEFT_EDGE_BRACKET_) {
+        bounds++;
+    }
+
+    return bounds - 1;
+}
+
+/*
+Purpose: Get the dimension count of an array var
+Return Type: int => Dimension count
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start counting
+*/
+int PG_get_dimension_count(TOKEN **tokens, size_t startPos) {
+    int counter = 0;
+
+    for (size_t i = startPos; i < TOKENLENGTH; i++) {
+        if ((*tokens)[i].type == _OP_RIGHT_EDGE_BRACKET_) {
+            counter++;
+        } else if ((*tokens)[i].type == _OP_EQUALS_
+            || (*tokens)[i].type == _OP_SEMICOLON_) {
+            break;
+        }
+    }
+
+    return counter;
 }
 
 /*
@@ -362,7 +479,7 @@ NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos) {
         size_t bounds = (size_t)PG_get_size_till_next_semicolon(tokens, startPos + skip + 1);
         NodeReport simpleTermReport = PG_create_simple_term_node(tokens, startPos + skip + 1, bounds);
         topNode->rightNode = simpleTermReport.node;
-        skip += simpleTermReport.tokensToSkip;
+        skip += simpleTermReport.tokensToSkip + 1;
     }
 
     return PG_create_node_report(topNode, skip);
@@ -1815,7 +1932,8 @@ Params: const TOKEN *token => Token to be checked
 const TOKENTYPES operators[] = {
 _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
 _OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_, _OP_EQUALS_, _OP_SEMICOLON_,
-_OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_};
+_OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_, _OP_RIGHT_EDGE_BRACKET_,
+_OP_LEFT_EDGE_BRACKET_};
 
 int PG_is_operator(const TOKEN *token) {
     if (token->type == __EOF__) {

@@ -1,1 +1,1 @@
-var a = lol.book[i];
+var arr[0][1] = {1, 0};
