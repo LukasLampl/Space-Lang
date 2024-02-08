@@ -222,6 +222,7 @@ Params: TOKEN **tokens => Pointer to the tokens array;
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
     switch ((*tokens)[startPos].type) {
     case _KW_VAR_:
+    case _KW_CONST_:
         return PG_create_variable_tree(tokens, startPos);
     case _KW_INCLUDE_:
         return PG_create_include_tree(tokens, startPos);

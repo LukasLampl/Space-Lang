@@ -19,11 +19,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-### VARIABLES ###
-var a = 10;
-var a[5][10] = {{10}};
-var a,b;
-const a = 15;
+### VARIABLES ###                      ALREADY MADE IN PG
+var a = 10;                                     x
+var a[5][10] = {{10}};                          x
+var a,b;                                        x
+const a = 15;                                   x
 var a = (a < 10) ? a : b;
 
 ### CLASS CALL ###
@@ -31,15 +31,17 @@ Obj b = new Obj(par1, par2);
 Obj b = new Obj[4];
 
 ### FUNCTION ###
-function test(param1, param2) {}
-function test(*param1, param2) {}
-function:int add(num1, num2);
-function:String greet() {}
-global function test(param1, param2) {}
-global function test(param1, *param2) {}
+function test(param1, param2) {}                x
+function test(*param1, param2) {}               x
+function:int add(num1, num2);                   x
+function:String greet() {}                      x
+global function test(param1, param2) {}         x
+global function test(param1, *param2) {}        x
 
 ### IF ###
-if (a < 10 and b == 20 or c >= 30) {} else if (c < 10 and b > 30) {} else {}
+if (a < 10 and b == 20 or c >= 30) {
+} else if (c < 10 and b > 30) {
+} else {}
 
 ### WHILE ###
 while (a < 10 and b == 20) {}
@@ -48,7 +50,7 @@ while (a < 10 and b == 20) {}
 do {} while (a < 10 and b == 20)
 
 ### TRY ###
-try {} catch (Exception e) {}
+try {} catch (Exception e) {}                   x
 
 ### FOR ###
 for (var i = 0; i < 5; i++) {}
@@ -60,23 +62,25 @@ check (a) {
 }
 
 ### INCLUDE ###
-include "myTest.lib";
+include "myTest.lib";                           x
+
+### EXPORT ###
+export "File.spc";                              x
 
 ### CLASS ###
-class obj(param1, param2) => {}
+class obj(param1, param2) => {}                 x
+class Obj() with Object => {}                   x
 
-class Obj() with Object => {}
-
-this::constructor {}
+this::constructor {}                            x
 
 ### ENUM ###
-enum Test {
+enum Test {                                     x
     a : 10,
     b,
     c
 }
 
 ### FUNCTION CALL ###
-a(param1, param2);
-a(param1, *param2);
-a(&param1, param2);
+a(param1, param2);                              x
+a(param1, *param2);                             x
+a(&param1, param2);                             x
