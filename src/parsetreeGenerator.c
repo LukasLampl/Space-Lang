@@ -290,6 +290,7 @@ enum varType get_var_type(TOKEN **tokens, size_t startPos) {
         switch ((*tokens)[i].type) {
         case _OP_EQUALS_:
         case _OP_SEMICOLON_:
+        case _KW_CONST_:
             return NORMAL_VAR;
         case _OP_COMMA_:
             return MUL_DEF_VAR;
@@ -346,9 +347,11 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
     (void)PG_allocate_node_details(topNode, dimCount, false);
     skip += (int)PG_add_dimensions_to_var_node(topNode, tokens, startPos + skip);
 
-    NodeReport arrayInit = PG_create_array_init(tokens, startPos + skip, 0);
-    skip += arrayInit.tokensToSkip;
-    topNode->rightNode = arrayInit.node;
+    if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+        NodeReport arrayInit = PG_create_array_init(tokens, startPos + skip + 1, 0);
+        skip += arrayInit.tokensToSkip + 1;
+        topNode->rightNode = arrayInit.node;
+    }
 
     return PG_create_node_report(topNode, skip);
 }
@@ -481,7 +484,7 @@ int PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t star
         jumper++;
     }
 
-    return jumper + 1;
+    return jumper;
 }
 
 /*
@@ -625,6 +628,10 @@ NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
         varNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
         skip++;
     }
+
+    //Determine var type
+    enum NodeType type = (*tokens)[startPos + skip].type == _KW_VAR_ ? _VAR_NODE_ : _CONST_NODE_;
+    varNode->type = type;
 
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
     varNode->value = nameRet.value;
