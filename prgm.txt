@@ -1,1 +1,1 @@
-const arr = 10;
+global var c = a == true and b == true ? 2 + u : 1;;

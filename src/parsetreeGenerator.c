@@ -60,9 +60,10 @@ enum nodeSide {
 
 enum varType {
     UNDEF,
-    NORMAL_VAR, //Normal var: ´´´var a = 0;´´´
+    NORMAL_VAR, //Normal var: ´´´var a = 0;´´´ or ´´´const a = 10;´´´
     ARRAY_VAR,  //Array var: ´´´var arr[];´´´
-    MUL_DEF_VAR //Multiple definition var: ´´´var a,b = 0;´´´
+    MUL_DEF_VAR, //Multiple definition var: ´´´var a,b = 0;´´´
+    COND_VAR
 };
 
 ///// FUNCTIONS PREDEFINITIONS /////
@@ -71,6 +72,8 @@ void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos);
+int PG_get_cond_assignment_bounds(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_array_init(TOKEN **tokens, size_t startPos, int dim);
 int PG_predict_array_init_count(TOKEN **tokens, size_t startPos);
@@ -249,7 +252,8 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
             return PG_create_function_tree(tokens, startPos);
         } else if ((*tokens)[startPos + 1].type == _KW_CLASS_) {
             return PG_create_class_tree(tokens, startPos);
-        } else if ((*tokens)[startPos + 1].type == _KW_VAR_) {
+        } else if ((*tokens)[startPos + 1].type == _KW_VAR_
+            || (*tokens)[startPos + 1].type == _KW_CONST_) {
             return PG_create_variable_tree(tokens, startPos);
         }
     default:
@@ -275,6 +279,8 @@ NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
         report = PG_create_mul_def_var_tree(tokens, startPos);
     } else if (type == ARRAY_VAR) {
         report = PG_create_array_var_tree(tokens, startPos);
+    } else if (type == COND_VAR) {
+        report = PG_create_conditional_var(tokens, startPos);
     }
 
     return report;
@@ -289,7 +295,6 @@ Params: TOKEN **tokens => Pointer to the tokens;
 enum varType get_var_type(TOKEN **tokens, size_t startPos) {
     for (size_t i = startPos; i < TOKENLENGTH; i++) {
         switch ((*tokens)[i].type) {
-        case _OP_EQUALS_:
         case _OP_SEMICOLON_:
         case _KW_CONST_:
             return NORMAL_VAR;
@@ -297,12 +302,95 @@ enum varType get_var_type(TOKEN **tokens, size_t startPos) {
             return MUL_DEF_VAR;
         case _OP_RIGHT_EDGE_BRACKET_:
             return ARRAY_VAR;
+        case _OP_QUESTION_MARK_:
+            return COND_VAR;
         default:
             break;
         }
     }
 
     return UNDEF;
+}
+
+/*
+Purpose: Create a subtree for a conditional variable definition
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+     [COND_VAR]
+   /            \
+[MOD]            [?]
+              /   |
+         [COND] [VAL]
+
+[COND_VAR] is the root, appended is the modifier
+at ´´´node->leftNode´´´ and the condition at
+´´´node->rightNode´´´. The [?] is the assignment holder,
+to it's leftNode is the condition and to the details the
+assigning value if cond is true and false.
+
+[COND_VAR]: Conditional var
+[MOD]: Modifier
+[?]: Conditional assignment indicator
+[COND]: Condition
+[VAL]: Values for true and false
+_______________________________
+*/
+NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node(NULL, _CONDITIONAL_VAR_NODE_);
+    int skip = 0;
+
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_SECURE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_) {
+        topNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
+        skip++;
+    }
+
+    struct idenValRet varName = PG_get_identifier_by_index(tokens, startPos + skip + 1);
+    topNode->value = varName.value;
+    skip += 3;
+
+    NodeReport conditionReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    topNode->rightNode = PG_create_node("?", _CONDITIONAL_ASSIGNMENT_NODE_);
+    topNode->rightNode->leftNode = conditionReport.node;
+    skip += conditionReport.tokensToSkip;
+
+    (void)PG_allocate_node_details(topNode->rightNode, 2, false);
+
+    int bounds = PG_get_cond_assignment_bounds(tokens, startPos + skip);
+
+    NodeReport trueValue = PG_create_simple_term_node(tokens, startPos + skip, bounds);
+    topNode->rightNode->details[0] = trueValue.node;
+    topNode->rightNode->details[0]->type = _TRUE_VALUE_NODE_;
+    skip += trueValue.tokensToSkip + 1;
+
+    bounds = PG_get_cond_assignment_bounds(tokens, startPos + skip);
+
+    NodeReport falseValue = PG_create_simple_term_node(tokens, startPos + skip, bounds);
+    topNode->rightNode->details[1] = falseValue.node;
+    topNode->rightNode->details[1]->type = _FALSE_VALUE_NODE_;
+    skip += falseValue.tokensToSkip + 1;
+
+    return PG_create_node_report(topNode, skip);
+}
+
+int PG_get_cond_assignment_bounds(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
+
+    while (startPos + skip < TOKENLENGTH) {
+        if ((*tokens)[startPos + skip].type == _OP_SEMICOLON_
+            || (*tokens)[startPos + skip].type == _OP_COLON_) {
+            break;
+        }
+
+        skip++;
+    }
+
+    return skip;
 }
 
 /*
@@ -2050,7 +2138,7 @@ const TOKENTYPES operators[] = {
 _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
 _OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_, _OP_EQUALS_, _OP_SEMICOLON_,
 _OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_, _OP_RIGHT_EDGE_BRACKET_,
-_OP_LEFT_EDGE_BRACKET_};
+_OP_LEFT_EDGE_BRACKET_, _OP_COLON_};
 
 int PG_is_operator(const TOKEN *token) {
     if (token->type == __EOF__) {

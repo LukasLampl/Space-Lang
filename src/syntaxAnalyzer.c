@@ -1129,6 +1129,10 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
         } else {
             return SA_create_syntax_report(crucialToken, 0, true, "[\", \";\", \",\", \"=\" or \"<IDENTIFIER>");
         }
+        
+        if ((*tokens)[startPos + skip + modifier + 1].type != _OP_SEMICOLON_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + skip + modifier + 1], 0, true, ";");
+        }
 
         return SA_create_syntax_report(NULL, skip + modifier + 2, false, NULL);
     } else if ((*tokens)[startPos + modifier].type == _KW_CONST_) {
@@ -2657,23 +2661,19 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
         return;
     }
 
-    if (errorToken->type == __EOF__) {
-        return;
-    }
-
     (void)printf("SYNTAX ERROR: An error occured at line %i (%s).\n", (errorToken->line + 1), FILE_NAME);
     (void)printf("-------------------------------------------------------\n");
 
-    int printPosition = errorToken->tokenStart;
+    int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorToken->tokenStart;
 
-    for (int i = errorToken->tokenStart; i > 0; i--) {
+    for (int i = printPosition; i > 0; i--) {
         if ((*SOURCE_CODE)[i] == '\n') {
             break;
         }
 
         printPosition = i - 1;
     }
-
+    
     char buffer[32];
     int tokPos = ((errorToken->tokenStart + 1) - printPosition);
     int blankLength = (int)snprintf(buffer, 32, "%i : %i | ", (errorToken->line + 1), tokPos);
