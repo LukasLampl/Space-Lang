@@ -70,6 +70,7 @@ enum varType {
 
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos);
@@ -143,7 +144,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
         printf("Something went wrong (PG)!\n");
     }*/
 
-    NodeReport rep = PG_create_variable_tree(tokens, 0);
+    NodeReport rep = PG_create_while_statement_tree(tokens, 0);
     PG_print_from_top_node(rep.node, 0, 0);
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
@@ -206,7 +207,6 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock)
 
             parentNode->details[argumentCount++] = report.node;
             jumper += report.tokensToSkip;
-            printf("NEXT TOK: %s\n", (*tokens)[startPos + jumper].value);
         } else {
             jumper++;
         }
@@ -241,6 +241,8 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
         return PG_create_try_tree(tokens, startPos);
     case _KW_CLASS_:
         return PG_create_class_tree(tokens, startPos);
+    case _KW_WHILE_:
+        return PG_create_while_statement_tree(tokens, startPos);
     case _KW_THIS_:
         if ((*tokens)[startPos + 3].type == _KW_CONSTRUCTOR_) {
             return PG_create_class_constructor_tree(tokens, startPos);
@@ -261,6 +263,47 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+/*
+Purpose: Creates a subtree for a while statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+   [WHILE_STMT]
+    /       \
+[COND]   [RUNNABLE]
+
+The indicator node [WHILE_STMT] has the conditions at
+´´´node->leftNode´´´ and the runnable block in
+´´´node->rightNode´´´.
+
+[WHILE_STMT]: Indicator for the while statement
+[COND]: Chained condition to be fulfilled
+[RUNNABLE]: Block in the while statment
+*/
+NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node("WHILE_STMT", _WHILE_STMT_NODE_);
+    int skip = 2;
+
+    /*
+    > while (a == 2) {}
+    >        ^
+    >   (*tokens)[startPos + skip]
+    */
+
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    topNode->leftNode = chainedCondReport.node;
+    skip += chainedCondReport.tokensToSkip + 1; //Skip the '{'
+
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, 1);
+    topNode->rightNode = runnableReport.node;
+    skip += runnableReport.tokensToSkip;
+
+    return PG_create_node_report(topNode, skip);
 }
 
 /*
@@ -322,7 +365,7 @@ Layout:
 
      [COND_VAR]
    /            \
-[MOD]            [?]
+[MOD]           [?]
               /   |
          [COND] [VAL]
 
@@ -361,6 +404,12 @@ NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos) {
 
     (void)PG_allocate_node_details(topNode->rightNode, 2, false);
 
+    /*
+    > var a = b == true ? 2 : 1;
+    >                     ^
+    >         (*tokens)[startPos + skip]
+    */
+
     int bounds = PG_get_cond_assignment_bounds(tokens, startPos + skip);
 
     NodeReport trueValue = PG_create_simple_term_node(tokens, startPos + skip, bounds);
@@ -378,6 +427,12 @@ NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos) {
     return PG_create_node_report(topNode, skip);
 }
 
+/*
+Purpose: Get the size of an conditional assignment statement
+Return Type: int => Size of the statement
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start Counting
+*/
 int PG_get_cond_assignment_bounds(TOKEN **tokens, size_t startPos) {
     int skip = 0;
 

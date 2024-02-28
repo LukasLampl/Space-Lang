@@ -1,1 +1,8 @@
-global var c = a == true and b == true ? 2 + u : 1;;
+while (a == true and b == 2) {
+    var a = 10;
+
+    enum test {
+        a : 10,
+        b
+    }
+}

@@ -24,7 +24,7 @@ var a = 10;                                     x
 var a[5][10] = {{10}};                          x
 var a,b;                                        x
 const a = 15;                                   x
-var a = (a < 10) ? a : b;
+var a = (a < 10) ? a : b;                       x
 
 ### CLASS CALL ###
 Obj b = new Obj(par1, par2);
