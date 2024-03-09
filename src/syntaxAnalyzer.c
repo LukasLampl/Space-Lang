@@ -843,7 +843,11 @@ SyntaxReport SA_is_do_statment(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(isWhileCond.token, 0, true, isWhileCond.expectedToken);
     }
 
-    return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + isWhileCond.tokensToSkip + 1, false, NULL);
+    if ((*tokens)[startPos + isWhileCond.tokensToSkip + isRunnable.tokensToSkip + 1].type != _OP_SEMICOLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + isWhileCond.tokensToSkip + isRunnable.tokensToSkip + 1], 0, true, ";");
+    }
+
+    return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + isWhileCond.tokensToSkip + 2, false, NULL);
 }
 
 /*

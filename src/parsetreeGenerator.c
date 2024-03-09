@@ -70,6 +70,7 @@ enum varType {
 
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
@@ -136,16 +137,16 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     RootNode.nodeCount = 0;
     printf("TOKENLENGTH: %i\n", TokenLength);
 
-    /*NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
+    NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
     printf("TREE:\n");
     PG_print_from_top_node(runnable.node, 0, 0);
 
     if (runnable.node == NULL) {
         printf("Something went wrong (PG)!\n");
-    }*/
+    }
 
-    NodeReport rep = PG_create_while_statement_tree(tokens, 0);
-    PG_print_from_top_node(rep.node, 0, 0);
+    //NodeReport rep = PG_create_while_statement_tree(tokens, 0);
+    //PG_print_from_top_node(rep.node, 0, 0);
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
@@ -243,6 +244,8 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
         return PG_create_class_tree(tokens, startPos);
     case _KW_WHILE_:
         return PG_create_while_statement_tree(tokens, startPos);
+    case _KW_DO_:
+        return PG_create_do_statement_tree(tokens, startPos);
     case _KW_THIS_:
         if ((*tokens)[startPos + 3].type == _KW_CONSTRUCTOR_) {
             return PG_create_class_constructor_tree(tokens, startPos);
@@ -263,6 +266,52 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+/*
+Purpose: Creates a subtree for a do statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+    [DO_STMT]
+    /       \
+[COND]   [RUNNABLE]
+
+The indicator node [WHILE_STMT] has the conditions at
+´´´node->leftNode´´´ and the runnable block in
+´´´node->rightNode´´´.
+
+[DO_STMT]: Indicator for the do statement
+[COND]: Chained condition to be fulfilled
+[RUNNABLE]: Block in the while statment
+*/
+NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node("DO_STMT", _DO_STMT_NODE_);
+    int skip = 2;
+
+    /*
+    > do { }
+    >     ^
+    > (*tokens)[startPos + skip]
+    */
+
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, 1);
+    topNode->rightNode = runnableReport.node;
+    skip += runnableReport.tokensToSkip + 2;
+
+    /*
+    > do {} while (a == 2);
+    >              ^
+    >  (*tokens)[startPos + skip + 2]
+    */
+
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    topNode->leftNode = chainedCondReport.node;
+    skip += chainedCondReport.tokensToSkip + 1; //Skip the ';'
+    return PG_create_node_report(topNode, skip);
 }
 
 /*
@@ -898,6 +947,12 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos) {
     return PG_create_node_report(cache, skip - startPos + 1);
 }
 
+/*
+Purpose: Creates a condition subtree
+Return Type: NodeReport => Contains the subtree and how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens array;
+        size_t startPos => Position from where to start constructing;
+*/
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
     size_t skip = 0;
 
@@ -917,7 +972,12 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
 
             skip += rightTermReport.tokensToSkip;
             return PG_create_node_report(conditionNode, skip);
-        }
+        } else if ((currentToken->type == _KW_TRUE_
+            || currentToken->type == _KW_FALSE_)
+            && (int)PG_is_condition_operator((*tokens)[startPos + skip + 1].type) == false) {
+                struct Node *boolNode = PG_create_node(currentToken->value, _BOOL_NODE_);
+                return PG_create_node_report(boolNode, 1);
+            }
 
         skip++;
     }
