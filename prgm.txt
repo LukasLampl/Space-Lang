@@ -1,3 +1,1 @@
-do {
-    var a = 20;
-} while (true);
+Object[2 + 5] obj = null;

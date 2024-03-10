@@ -28,7 +28,7 @@ var a = (a < 10) ? a : b;                       x
 
 ### CLASS CALL ###
 Obj b = new Obj(par1, par2);
-Obj b = new Obj[4];
+Obj b[4] = new Obj[4];
 
 ### FUNCTION ###
 function test(param1, param2) {}                x
@@ -47,7 +47,7 @@ if (a < 10 and b == 20 or c >= 30) {
 while (a < 10 and b == 20) {}                   x
 
 ### DO ###
-do {} while (a < 10 and b == 20)
+do {} while (a < 10 and b == 20);               x
 
 ### TRY ###
 try {} catch (Exception e) {}                   x

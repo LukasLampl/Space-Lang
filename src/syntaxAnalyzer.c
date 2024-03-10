@@ -44,6 +44,7 @@ enum ParameterType {
 int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock);
 SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock);
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos);
 int SA_predict_class_instance(TOKEN **tokens, size_t startPos);
 int SA_predict_expression(TOKEN **tokens, size_t startPos);
@@ -327,18 +328,81 @@ SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     if ((int)SA_predict_class_instance(tokens, startPos) == true) {
         return SA_is_class_instance(tokens, startPos);
     } else if ((int)SA_predict_expression(tokens, startPos) == true) {
-        return SA_is_expression(tokens, startPos, true);
+        SyntaxReport isExpression = SA_is_expression(tokens, startPos, true);
+
+        if (isExpression.errorOccured == false) {
+            return isExpression;
+        }
+        
+        SyntaxReport isNullAssignementToClassInstance = SA_is_null_assigned_class_instance(tokens, startPos);
+        
+        if (isNullAssignementToClassInstance.errorOccured == false) {
+            return isNullAssignementToClassInstance;
+        }
     } else if ((int)SA_predict_class_object_access(tokens, startPos) == true) {
         return SA_is_class_object_access(tokens, startPos, true);
     } else {
         SyntaxReport isRunnableFunctionCall = SA_is_runnable_function_call(tokens, startPos);
-
+        
         if (isRunnableFunctionCall.errorOccured == false) {
             return isRunnableFunctionCall;
         }
     }
 
     return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<EXPRESSION>\" or \"<CLASS_OBJECT_ACCESS>");
+}
+
+/*
+Purpose: Check if the following tokens are a null assignment to a class instance
+Return Type: SyntaxReport => errorOccured = false on success + holding how many tokens to skip
+Params: TOKEN **tokens => Tokens to be checked;
+        size_t startPos => Position from where to start checking;
+*/
+SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos) {
+    int isRootIdentifier = SA_is_root_identifier(&(*tokens)[startPos]);
+    int skip = 1;
+    
+    if (isRootIdentifier == false) {
+        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<IDENTIFIER>");
+    }
+
+    if ((*tokens)[startPos + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
+        while (startPos + skip < MAX_TOKEN_LENGTH) {
+            if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
+                SyntaxReport isArrayIdentifier = SA_is_array_identifier(tokens, startPos + skip);
+
+                if (isArrayIdentifier.errorOccured == false) {
+                    skip += isArrayIdentifier.tokensToSkip;
+                    continue;
+                } else {
+                    return SA_create_syntax_report(isArrayIdentifier.token, 0, true, isArrayIdentifier.expectedToken);
+                }
+            }
+
+            break;
+        }
+    }
+
+    isRootIdentifier = SA_is_root_identifier(&(*tokens)[startPos + skip]);
+    skip += isRootIdentifier;
+
+    if (isRootIdentifier == false) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");
+    }
+
+    if ((*tokens)[startPos + skip].type != _OP_EQUALS_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "=");
+    }
+
+    if ((*tokens)[startPos + skip + 1].type != _KW_NULL_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip + 1], 0, true, "null");
+    }
+
+    if ((*tokens)[startPos + skip + 2].type != _OP_SEMICOLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip + 2], 0, true, ";");
+    }
+
+    return SA_create_syntax_report(NULL, skip + 3, false, NULL);
 }
 
 /*
@@ -376,7 +440,7 @@ int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int facedSemicolon = false;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -456,6 +520,8 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
             return SA_is_function(tokens, startPos);
         } else if ((*tokens)[startPos + 1].type == _KW_CLASS_) {
             return SA_is_class(tokens, startPos);
+        } else if ((int)SA_predict_class_instance(tokens, startPos + 1) == true) {
+            return SA_is_class_instance(tokens, startPos);
         } else {
             return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "var\", \"const\" or \"function");
         }
@@ -907,18 +973,26 @@ Params: TOKEN **tokens => Tokens to be checked;
         size_t startPos => Position from where to start checking
 */
 SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos) {
-    if ((int)SA_is_root_identifier(&(*tokens)[startPos]) == false) {
-        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<IDENTIFIER>");
+    int skip = 0;
+
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_SECURE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_) {
+        skip++;
     }
 
-    if ((int)SA_is_root_identifier(&(*tokens)[startPos + 1]) == false) {
-        return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<IDENTIFIER>");
+    if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip]) == false) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");
     }
 
-    int skip = 2;
+    if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip + 1]) == false) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip + 1], 0, true, "<IDENTIFIER>");
+    }
 
-    if ((*tokens)[startPos + 2].type == _OP_RIGHT_EDGE_BRACKET_) {
-        SyntaxReport isArrayElement = SA_is_array_element(tokens, startPos + 2);
+    skip += 2;
+
+    if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
+        SyntaxReport isArrayElement = SA_is_array_element(tokens, startPos + skip);
 
         if (isArrayElement.errorOccured == true) {
             return SA_create_syntax_report(isArrayElement.token, 0, true, isArrayElement.expectedToken);
@@ -2261,7 +2335,7 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int hasToBeDot = false;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
