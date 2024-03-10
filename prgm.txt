@@ -1,1 +1,1 @@
-Object[2 + 5] obj = null;
+Obj[2] obj = new Obj[2];

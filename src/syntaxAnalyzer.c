@@ -985,21 +985,30 @@ SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");
     }
 
-    if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip + 1]) == false) {
+    if ((*tokens)[startPos + skip + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
+        skip++;
+
+        while (startPos + skip < MAX_TOKEN_LENGTH) {
+            if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
+                SyntaxReport isArrayIdentifier = SA_is_array_identifier(tokens, startPos + skip);
+
+                if (isArrayIdentifier.errorOccured == false) {
+                    skip += isArrayIdentifier.tokensToSkip;
+                    continue;
+                } else {
+                    return SA_create_syntax_report(isArrayIdentifier.token, 0, true, isArrayIdentifier.expectedToken);
+                }
+            }
+
+            break;
+        }
+    }
+
+    if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip]) == false) {
         return SA_create_syntax_report(&(*tokens)[startPos + skip + 1], 0, true, "<IDENTIFIER>");
     }
 
-    skip += 2;
-
-    if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
-        SyntaxReport isArrayElement = SA_is_array_element(tokens, startPos + skip);
-
-        if (isArrayElement.errorOccured == true) {
-            return SA_create_syntax_report(isArrayElement.token, 0, true, isArrayElement.expectedToken);
-        } else {
-            skip += isArrayElement.tokensToSkip;
-        }
-    }
+    skip++;
 
     if ((*tokens)[startPos + skip].type != _OP_EQUALS_) {
         return SA_create_syntax_report(&(*tokens)[startPos + 2], 0, true, "=");

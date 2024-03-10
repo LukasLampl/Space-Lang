@@ -322,6 +322,9 @@ NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos) {
     struct idenValRet objReport = PG_get_identifier_by_index(tokens, startPos + skip);
     topNode->value = objReport.value;
 
+    printf("PRINT:\n");
+    PG_print_from_top_node(topNode, 0, 0);
+    skip++;
     return PG_create_node_report(topNode, skip);
 }
 
