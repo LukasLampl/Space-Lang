@@ -63,19 +63,19 @@ enum varType {
     NORMAL_VAR, //Normal var: ´´´var a = 0;´´´ or ´´´const a = 10;´´´
     ARRAY_VAR,  //Array var: ´´´var arr[];´´´
     MUL_DEF_VAR, //Multiple definition var: ´´´var a,b = 0;´´´
-    COND_VAR
+    COND_VAR,
+    INSTANCE_VAR //new Object();
 };
 
 ///// FUNCTIONS PREDEFINITIONS /////
 
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
-int PG_predict_class_instance(TOKEN **tokens, size_t startPos);
-NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_instance_var(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos);
 int PG_get_cond_assignment_bounds(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos);
@@ -262,70 +262,12 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
         } else if ((*tokens)[startPos + 1].type == _KW_VAR_
             || (*tokens)[startPos + 1].type == _KW_CONST_) {
             return PG_create_variable_tree(tokens, startPos);
-        } else if ((int)PG_predict_class_instance(tokens, startPos) == true) {
-            return PG_create_class_instance_tree(tokens, startPos);
         }
     default:
-        if ((int)PG_predict_class_instance(tokens, startPos) == true) {
-            return PG_create_class_instance_tree(tokens, startPos);
-        }
-
         break;
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
-}
-
-int PG_predict_class_instance(TOKEN **tokens, size_t startPos) {
-    for (int i = startPos; i < TOKENLENGTH; i++) {
-        if ((*tokens)[i].type == _KW_NEW_) {
-            return true;
-        } else if ((*tokens)[i].type == _OP_SEMICOLON_) {
-            return false;
-        }
-    }
-
-    return false;
-}
-
-/*
-Purpose: Creates a subtree for a class instance
-Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
-Params: TOKEN **tokens => Point to the tokens;
-        size_t startPos => Position from where to start constructing
-_______________________________
-Layout:
- 
-      [OBJ]
-    /       \
-[MOD]      [VAL]
-
-The indicator node [WHILE_STMT] has the conditions at
-´´´node->leftNode´´´ and the runnable block in
-´´´node->rightNode´´´.
-
-[OBJ]: Indicator for the class instance and holder of the instance's name
-[MOD]: Modifier of the class instance
-[Val]: Assigned value to the OBJ
-*/
-NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos) {
-    struct Node *topNode = PG_create_node(NULL, _CLASS_INSTANCE_NODE_);
-    int skip = 0;
-
-    if ((*tokens)[startPos].type == _KW_PRIVATE_
-        || (*tokens)[startPos].type == _KW_SECURE_
-        || (*tokens)[startPos].type == _KW_GLOBAL_) {
-        topNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
-        skip++;
-    }
-
-    struct idenValRet objReport = PG_get_identifier_by_index(tokens, startPos + skip);
-    topNode->value = objReport.value;
-
-    printf("PRINT:\n");
-    PG_print_from_top_node(topNode, 0, 0);
-    skip++;
-    return PG_create_node_report(topNode, skip);
 }
 
 /*
@@ -433,6 +375,8 @@ NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos) {
         report = PG_create_array_var_tree(tokens, startPos);
     } else if (type == COND_VAR) {
         report = PG_create_conditional_var(tokens, startPos);
+    } else if (type == INSTANCE_VAR) {
+        report = PG_create_instance_var(tokens, startPos);
     }
 
     return report;
@@ -447,8 +391,9 @@ Params: TOKEN **tokens => Pointer to the tokens;
 enum varType get_var_type(TOKEN **tokens, size_t startPos) {
     for (size_t i = startPos; i < TOKENLENGTH; i++) {
         switch ((*tokens)[i].type) {
+        case _KW_NEW_:
+            return INSTANCE_VAR;
         case _OP_SEMICOLON_:
-        case _KW_CONST_:
             return NORMAL_VAR;
         case _OP_COMMA_:
             return MUL_DEF_VAR;
@@ -462,6 +407,47 @@ enum varType get_var_type(TOKEN **tokens, size_t startPos) {
     }
 
     return UNDEF;
+}
+
+/*
+Purpose: Create a subtree for a class instance definition
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+ [INSTANCE]
+   /   \
+[MOD] [VAL]
+_______________________________
+*/
+NodeReport PG_create_instance_var(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node(NULL, _UNDEF_);
+    int skip = 0;
+    
+    if ((*tokens)[startPos].type == _KW_PRIVATE_
+        || (*tokens)[startPos].type == _KW_GLOBAL_
+        || (*tokens)[startPos].type == _KW_SECURE_) {
+        topNode->leftNode = PG_create_node((*tokens)[startPos].value, _MODIFIER_NODE_);
+        skip++;
+    }
+
+    if ((*tokens)[startPos + skip].type == _KW_CONST_) {
+        topNode->type = _CONST_CLASS_INSTANCE_NODE_;
+    } else {
+        topNode->type = _VAR_CLASS_INSTANCE_NODE_;
+    }
+
+    skip++;
+    
+    struct idenValRet name = PG_get_identifier_by_index(tokens, startPos + skip);
+    topNode->value = name.value;
+    skip += 3; //Skip the name, "=" and "new"
+
+
+
+    return PG_create_node_report(topNode, skip);
 }
 
 /*

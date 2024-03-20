@@ -25,10 +25,7 @@ var a[5][10] = {{10}};                          x
 var a,b;                                        x
 const a = 15;                                   x
 var a = (a < 10) ? a : b;                       x
-
-### CLASS CALL ###
-Obj b = new Obj(par1, par2);
-Obj b[4] = new Obj[4];
+var obj = new Object();
 
 ### FUNCTION ###
 function test(param1, param2) {}                x

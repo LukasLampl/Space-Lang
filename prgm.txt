@@ -1,1 +1,1 @@
-Obj[2] obj = new Obj[2];
+global const obj = new Object();
