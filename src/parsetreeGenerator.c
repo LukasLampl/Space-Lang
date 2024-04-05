@@ -441,11 +441,20 @@ NodeReport PG_create_instance_var(TOKEN **tokens, size_t startPos) {
 
     skip++;
     
-    struct idenValRet name = PG_get_identifier_by_index(tokens, startPos + skip);
-    topNode->value = name.value;
+    topNode->value = (*tokens)[startPos + skip].value;
     skip += 3; //Skip the name, "=" and "new"
 
+    struct Node *inheritNode = PG_create_node((*tokens)[startPos + skip].value, _INHERITED_CLASS_NODE_);
+    topNode->rightNode = inheritNode;
+    skip++;
 
+    if ((*tokens)[startPos + skip].type == _OP_RIGHT_BRACKET_) {
+        int bounds = (int)PG_predict_argument_count(tokens, startPos + skip, false);
+        (void)PG_allocate_node_details(topNode, bounds, false);
+        skip += (int)PG_add_params_to_node(topNode, tokens, startPos + skip, 0, _NULL_);
+    } else {
+        
+    }
 
     return PG_create_node_report(topNode, skip);
 }
