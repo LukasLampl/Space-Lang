@@ -71,11 +71,15 @@ enum varType {
 
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, int inBlock);
+NodeReport PG_create_abort_operation(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_return_statement(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum varType get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_class_instance(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_instance_var(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_condition_assignment(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_conditional_var(TOKEN **tokens, size_t startPos);
 int PG_get_cond_assignment_bounds(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos);
@@ -248,6 +252,11 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
         return PG_create_while_statement_tree(tokens, startPos);
     case _KW_DO_:
         return PG_create_do_statement_tree(tokens, startPos);
+    case _KW_CONTINUE_:
+    case _KW_BREAK_:
+        return PG_create_abort_operation(tokens, startPos);
+    case _KW_RETURN_:
+        return PG_create_return_statement(tokens, startPos);
     case _KW_THIS_:
         if ((*tokens)[startPos + 3].type == _KW_CONSTRUCTOR_) {
             return PG_create_class_constructor_tree(tokens, startPos);
@@ -271,6 +280,70 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos) {
 }
 
 /*
+Purpose: Creates a Node for a abort operation (BREAK, CONTINUE)
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+*/
+NodeReport PG_create_abort_operation(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = NULL;
+
+    if ((*tokens)[startPos].type == _KW_CONTINUE_) {
+        topNode = PG_create_node("CONTINUE", _CONTINUE_STMT_NODE_);
+    } else if ((*tokens)[startPos].type == _KW_BREAK_) {
+        topNode = PG_create_node("BREAK", _BREAK_STMT_NODE_);
+    }
+
+    return PG_create_node_report(topNode, 2);
+}
+
+/*
+Purpose: Creates a subtree for a return statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+    [RET_STMT]
+    /
+[RET]
+
+The indicator node [RET_STMT] has the return value at
+´´´node->leftNode´´´.
+
+[RET_STMT]: Indicator for the return statement
+[RET]: Return value
+*/
+NodeReport PG_create_return_statement(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node("RETURN_STATMENT", _RETURN_STMT_NODE_);
+    int skip = 0;
+    
+    if ((*tokens)[startPos + 1].type == _KW_NEW_) {
+        NodeReport classInstanceReport = PG_create_class_instance(tokens, startPos + 1);
+        topNode->leftNode = classInstanceReport.node;
+        skip += classInstanceReport.tokensToSkip + 1;
+    } else if (get_var_type(tokens, startPos + 1) == COND_VAR) {
+        NodeReport condReport = PG_create_condition_assignment(tokens, startPos + 1);
+        topNode->leftNode = condReport.node;
+        skip += condReport.tokensToSkip;
+    } else {
+        int bounds = 0;
+        
+        while ((*tokens)[startPos + bounds + 1].type != __EOF__
+            && (*tokens)[startPos + bounds + 1].type != _OP_SEMICOLON_) {
+            bounds++;
+        }
+        
+        NodeReport termReport = PG_create_simple_term_node(tokens, startPos + 1, bounds);
+        topNode->leftNode = termReport.node;
+        skip += termReport.tokensToSkip + 1;
+    }
+
+    return PG_create_node_report(topNode, skip);
+}
+
+/*
 Purpose: Creates a subtree for a do statement
 Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
 Params: TOKEN **tokens => Point to the tokens;
@@ -282,7 +355,7 @@ Layout:
     /       \
 [COND]   [RUNNABLE]
 
-The indicator node [WHILE_STMT] has the conditions at
+The indicator node [DO_STMT] has the conditions at
 ´´´node->leftNode´´´ and the runnable block in
 ´´´node->rightNode´´´.
 
@@ -417,6 +490,28 @@ Params: TOKEN **tokens => Pointer to the tokens;
 _______________________________
 Layout:
 
+[INSTANCE]
+    |
+  [VAL]
+_______________________________
+*/
+NodeReport PG_create_class_instance(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node((*tokens)[startPos + 1].value, _INHERITED_CLASS_NODE_);
+    int bounds = (int)PG_predict_argument_count(tokens, startPos + 2, false);
+    (void)PG_allocate_node_details(topNode, bounds, false);
+    int skip = (int)PG_add_params_to_node(topNode, tokens, startPos + 2, 0, _NULL_);
+
+    return PG_create_node_report(topNode, skip + 4);
+}
+
+/*
+Purpose: Create a subtree for a class instance definition
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
  [INSTANCE]
    /   \
 [MOD] [VAL]
@@ -452,9 +547,40 @@ NodeReport PG_create_instance_var(TOKEN **tokens, size_t startPos) {
         int bounds = (int)PG_predict_argument_count(tokens, startPos + skip, false);
         (void)PG_allocate_node_details(topNode, bounds, false);
         skip += (int)PG_add_params_to_node(topNode, tokens, startPos + skip, 0, _NULL_);
-    } else {
-        
     }
+
+    return PG_create_node_report(topNode, skip);
+}
+
+NodeReport PG_create_condition_assignment(TOKEN **tokens, size_t startPos) {
+    NodeReport conditionReport = PG_create_chained_condition_tree(tokens, startPos);
+    int skip = 0;
+
+    struct Node *topNode = PG_create_node("?", _CONDITIONAL_ASSIGNMENT_NODE_);
+    topNode->leftNode = conditionReport.node;
+    skip += conditionReport.tokensToSkip;
+
+    (void)PG_allocate_node_details(topNode, 2, false);
+
+    /*
+    > var a = b == true ? 2 : 1;
+    >                     ^
+    >         (*tokens)[startPos + skip]
+    */
+
+    int bounds = PG_get_cond_assignment_bounds(tokens, startPos + skip);
+
+    NodeReport trueValue = PG_create_simple_term_node(tokens, startPos + skip, bounds);
+    topNode->details[0] = trueValue.node;
+    topNode->details[0]->type = _TRUE_VALUE_NODE_;
+    skip += trueValue.tokensToSkip + 1;
+
+    bounds = PG_get_cond_assignment_bounds(tokens, startPos + skip);
+
+    NodeReport falseValue = PG_create_simple_term_node(tokens, startPos + skip, bounds);
+    topNode->details[1] = falseValue.node;
+    topNode->details[1]->type = _FALSE_VALUE_NODE_;
+    skip += falseValue.tokensToSkip + 1;
 
     return PG_create_node_report(topNode, skip);
 }

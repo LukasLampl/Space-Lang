@@ -1,1 +1,8 @@
-global const obj = new Object(a,b,c,d,e,f,g,h,i,j,k,l);
+check (a) {
+    is 2:
+        break;
+    is 3:
+        break;
+    is 4:
+        break;
+}

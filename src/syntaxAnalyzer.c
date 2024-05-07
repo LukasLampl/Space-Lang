@@ -67,6 +67,7 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_simple_conditional_assignment(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inParam);
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam);
 int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos);
@@ -621,6 +622,12 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
     }
 
     if ((*tokens)[startPos + 1].type != _KW_NEW_) {
+        SyntaxReport isCondAssignment = SA_is_simple_conditional_assignment(tokens, startPos + 1);
+        
+        if (isCondAssignment.errorOccured == false) {
+            return SA_create_syntax_report(NULL, isCondAssignment.tokensToSkip + 1, false, NULL);
+        }
+
         SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + 1, false);
 
         if (isSimpleTerm.errorOccured == true) {
@@ -1295,6 +1302,44 @@ SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos) {
     }
 
     return SA_create_syntax_report(NULL, totalSkip + 4, false, NULL);
+}
+
+SyntaxReport SA_is_simple_conditional_assignment(TOKEN **tokens, size_t startPos) {
+    SyntaxReport isChainedCondition = SA_is_chained_condition(tokens, startPos, false);
+
+    if (isChainedCondition.errorOccured == true) {
+        return SA_create_syntax_report(isChainedCondition.token, 0, true, isChainedCondition.expectedToken);
+    }
+
+    if ((*tokens)[startPos + isChainedCondition.tokensToSkip].type != _OP_QUESTION_MARK_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + isChainedCondition.tokensToSkip], 0, true, "?");
+    }
+
+    SyntaxReport leftTerm = SA_is_simple_term(tokens, startPos + isChainedCondition.tokensToSkip + 1, false);
+
+    if (leftTerm.errorOccured == true) {
+        return SA_create_syntax_report(leftTerm.token, 0, true, leftTerm.expectedToken);
+    }
+
+    int totalSkip = isChainedCondition.tokensToSkip + leftTerm.tokensToSkip;
+
+    if ((*tokens)[startPos + totalSkip + 1].type != _OP_COLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip + 1], 0, true, ":");
+    }
+
+    SyntaxReport rightTerm = SA_is_simple_term(tokens, startPos + totalSkip + 2, false);
+
+    if (rightTerm.errorOccured == true) {
+        return SA_create_syntax_report(rightTerm.token, 0, true, rightTerm.expectedToken);
+    }
+
+    totalSkip += rightTerm.tokensToSkip;
+
+    if ((*tokens)[startPos + totalSkip + 2].type != _OP_SEMICOLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip + 2], 0, true, ";");
+    }
+
+    return SA_create_syntax_report(NULL, totalSkip + 3, false, NULL);
 }
 
 /*

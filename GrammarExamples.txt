@@ -25,7 +25,7 @@ var a[5][10] = {{10}};                          x
 var a,b;                                        x
 const a = 15;                                   x
 var a = (a < 10) ? a : b;                       x
-var obj = new Object();
+var obj = new Object();                         x
 
 ### FUNCTION ###
 function test(param1, param2) {}                x
@@ -81,3 +81,16 @@ enum Test {                                     x
 a(param1, param2);                              x
 a(param1, *param2);                             x
 a(&param1, param2);                             x
+
+### RETURN ###
+return a + b;                                   x
+return a;                                       x
+return 1 + 2 * 3;                               x
+return a == 0 ? a : b;                          x
+return new Object();                            x
+
+### BREAK ###
+break;
+
+### CONTINUE ###
+continue;
