@@ -53,7 +53,7 @@ try {} catch (Exception e) {}                   x
 for (var i = 0; i < 5; i++) {}
 
 ### CHECK ###
-check (a) {
+check (a) {                                     x
     is 10:
     is 20:
 }
@@ -90,7 +90,7 @@ return a == 0 ? a : b;                          x
 return new Object();                            x
 
 ### BREAK ###
-break;
+break;  	                                    x
 
 ### CONTINUE ###
-continue;
+continue;                                       x
