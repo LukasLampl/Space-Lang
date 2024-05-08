@@ -78,11 +78,12 @@ enum RUNNABLE_TYPE {
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
+
+NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos);
 int PG_predict_assignment(TOKEN **tokens, size_t startPos);
 int PG_get_term_bounds(TOKEN **tokens, size_t startPos);
 enum NodeType PG_get_nodeType_of_operator(TOKENTYPES type);
 NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos);
-
 NodeReport PG_create_is_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_check_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_abort_operation_tree(TOKEN **tokens, size_t startPos);
@@ -232,7 +233,6 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
 
             parentNode->details[argumentCount++] = report.node;
             jumper += report.tokensToSkip;
-            printf("Jump: %i\n", report.tokensToSkip);
         } else {
             jumper++;
         }
@@ -257,6 +257,8 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
         return PG_create_include_tree(tokens, startPos);
     case _KW_EXPORT_:
         return PG_create_export_tree(tokens, startPos);
+    case _KW_FOR_:
+        return PG_create_for_statement_tree(tokens, startPos);
     case _KW_ENUM_:
         return PG_create_enum_tree(tokens, startPos);
     case _KW_FUNCTION_:
@@ -308,6 +310,64 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
     return PG_create_node_report(NULL, UNINITIALZED);
 }
 
+/*
+Purpose: Creates a subtree for a for statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+   [FOR_STMT]
+   /    |   \
+[VAR] [COND] [RUNNABLE]
+     [ACTION]
+The [FOR_STMT] contains the var to count for at
+```node->leftNode``` and the conditions at
+```node->details[0]``` and action to fulfill (incrementing)
+as well at ```node->details[1]```.
+
+[FOR_STMT]: Indicator for the for statment
+[VAR]: Var to use as "counter" or iterator
+[COND]: Condition that has to be met to run the loop
+[ACTION]: Actions that occur at every iteration, like incrementing
+[RUNNABLE]: Runnable in the the loop itself
+*/
+NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *topNode = PG_create_node("FOR", _FOR_STMT_NODE_);
+    (void)PG_allocate_node_details(topNode, 2, false);
+    int skip = 0;
+    /*
+    > for (var i = 0; i < 10; i++) {}
+    >      ^
+    > (*tokens)[startPos + 2]
+    */
+
+    NodeReport varReport = PG_create_variable_tree(tokens, startPos + 2);
+    topNode->leftNode = varReport.node;
+    skip += varReport.tokensToSkip + 3; //+1 for ';'
+
+    NodeReport chainedReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    topNode->details[0] = chainedReport.node;
+    skip += chainedReport.tokensToSkip;
+
+    NodeReport expressionReport = PG_create_simple_assignment_tree(tokens, startPos + skip);
+    topNode->details[1] = expressionReport.node;
+    skip += expressionReport.tokensToSkip + 2;
+
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
+    topNode->rightNode = runnableReport.node;
+    skip += runnableReport.tokensToSkip;
+
+    return PG_create_node_report(topNode, skip);
+}
+
+/*
+Purpose: Check whether an assignment follows or not
+Return Type: int => true = is assignment; false = not an assignment
+Params: TOKEN **tokens => Point to tokens array with tokens to check;
+        size_t startPos => Position from where to start checking
+*/
 int PG_predict_assignment(TOKEN **tokens, size_t startPos) {
     for (int i = startPos; i < TOKENLENGTH; i++) {
         if ((*tokens)[i].type == _OP_SEMICOLON_) {
@@ -326,6 +386,11 @@ int PG_predict_assignment(TOKEN **tokens, size_t startPos) {
     return false;
 }
 
+/*
+Purpose: Convert TOKENTYPES (Operators only) to NodeType
+Return Type: enum NodeType => Converted NodeType
+Params: TOKENTYPES type => Type to convert
+*/
 enum NodeType PG_get_nodeType_of_operator(TOKENTYPES type) {
     switch (type) {
     case _OP_SUBTRACT_ONE_:
@@ -347,6 +412,12 @@ enum NodeType PG_get_nodeType_of_operator(TOKENTYPES type) {
     }
 }
 
+/*
+Purpose: Get the bounds of a simple term
+Return Type: int => Boundaries
+Params: TOKEN **tokens => Pointer to tokens on which the bound is predicted from;
+        size_t startPos => Position from where to start counting
+*/
 int PG_get_term_bounds(TOKEN **tokens, size_t startPos) {
     for (int i = startPos; i < TOKENLENGTH; i++) {
         if ((*tokens)[i].type == _OP_SEMICOLON_) {
@@ -1261,7 +1332,8 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos) {
         TOKEN *currentToken = &(*tokens)[skip];
 
         if (currentToken->type == _OP_LEFT_BRACKET_
-            || currentToken->type == _OP_QUESTION_MARK_) {
+            || currentToken->type == _OP_QUESTION_MARK_
+            || currentToken->type == _OP_SEMICOLON_) {
             break;
         }
 
