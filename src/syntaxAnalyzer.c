@@ -470,8 +470,7 @@ Params: TOKEN **tokens => Tokens to be checked;
 */
 int SA_predict_expression(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
-    int facedSemicolon = false;
-
+    
     while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
@@ -480,16 +479,11 @@ int SA_predict_expression(TOKEN **tokens, size_t startPos) {
             || currentToken->type == _OP_EQUALS_
             || currentToken->type == _OP_ADD_ONE_
             || currentToken->type == _OP_SUBTRACT_ONE_) {
-            if (facedSemicolon == true) {
-                return false;
-            } else {
-                return true;
-            }
+            return true;
         }
 
-        if (currentToken->type == _OP_SEMICOLON_) {
-            facedSemicolon = true;
-        } else if (currentToken->type == _OP_RIGHT_BRACE_) {
+        if (currentToken->type == _OP_SEMICOLON_
+            || currentToken->type == _OP_RIGHT_BRACE_) {
             return false;
         }
 
@@ -2447,17 +2441,23 @@ SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "[");
     }
     
-    SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + 1, 0);
+    int jumper = 0;
 
-    if (isSimpleTerm.errorOccured == true) {
-        return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, isSimpleTerm.expectedToken);
+    while ((*tokens)[startPos + jumper].type == _OP_RIGHT_EDGE_BRACKET_) {
+        SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper + 1, 0);
+
+        if (isSimpleTerm.errorOccured == true) {
+            return SA_create_syntax_report(&(*tokens)[startPos + jumper + 1], 0, true, isSimpleTerm.expectedToken);
+        }
+
+        if ((*tokens)[startPos + isSimpleTerm.tokensToSkip + jumper + 1].type != _OP_LEFT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + isSimpleTerm.tokensToSkip + jumper + 1], 0, true, "]");
+        }
+
+        jumper += isSimpleTerm.tokensToSkip + 2;
     }
-
-    if ((*tokens)[startPos + isSimpleTerm.tokensToSkip + 1].type != _OP_LEFT_EDGE_BRACKET_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isSimpleTerm.tokensToSkip + 1], 0, true, "]");
-    }
-
-    return SA_create_syntax_report(NULL, isSimpleTerm.tokensToSkip + 2, 0, NULL);
+    
+    return SA_create_syntax_report(NULL, jumper, 0, NULL);
 }
 
 /*

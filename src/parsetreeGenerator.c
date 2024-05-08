@@ -79,6 +79,10 @@ void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 int PG_predict_assignment(TOKEN **tokens, size_t startPos);
+int PG_get_term_bounds(TOKEN **tokens, size_t startPos);
+enum NodeType PG_get_nodeType_of_operator(TOKENTYPES type);
+NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos);
+
 NodeReport PG_create_is_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_check_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_abort_operation_tree(TOKEN **tokens, size_t startPos);
@@ -295,7 +299,7 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
         }
     default:
         if ((int)PG_predict_assignment(tokens, startPos) == true) {
-            printf("Predicted assignment!\n");
+            return PG_create_simple_assignment_tree(tokens, startPos);
         }
 
         break;
@@ -308,12 +312,102 @@ int PG_predict_assignment(TOKEN **tokens, size_t startPos) {
     for (int i = startPos; i < TOKENLENGTH; i++) {
         if ((*tokens)[i].type == _OP_SEMICOLON_) {
             break;
-        } else if ((*tokens)[i].type == _OP_EQUALS_) {
+        } else if ((*tokens)[i].type == _OP_EQUALS_
+            || (*tokens)[i].type == _OP_PLUS_EQUALS_
+            || (*tokens)[i].type == _OP_MINUS_EQUALS_
+            || (*tokens)[i].type == _OP_ADD_ONE_
+            || (*tokens)[i].type == _OP_SUBTRACT_ONE_
+            || (*tokens)[i].type == _OP_MULTIPLY_EQUALS_
+            ||(*tokens)[i].type == _OP_DIVIDE_EQUALS_) {
             return true;
         }
     }
 
     return false;
+}
+
+enum NodeType PG_get_nodeType_of_operator(TOKENTYPES type) {
+    switch (type) {
+    case _OP_SUBTRACT_ONE_:
+        return _DECREMENT_ONE_NODE_;
+    case _OP_ADD_ONE_:
+        return _INCREMENT_ONE_NODE_;
+    case _OP_PLUS_EQUALS_:
+        return _PLUS_EQUALS_NODE_;
+    case _OP_MINUS_EQUALS_:
+        return _MINUS_EQUALS_NODE_;
+    case _OP_MULTIPLY_EQUALS_:
+        return _MULTIPLY_EQUALS_NODE_;
+    case _OP_DIVIDE_EQUALS_:
+        return _DIVIDE_EQUALS_NODE_;
+    case _OP_EQUALS_:
+        return _EQUALS_NODE_;
+    default:
+        return _NULL_NODE_;
+    }
+}
+
+int PG_get_term_bounds(TOKEN **tokens, size_t startPos) {
+    for (int i = startPos; i < TOKENLENGTH; i++) {
+        if ((*tokens)[i].type == _OP_SEMICOLON_) {
+            return i - startPos;
+        }
+    }
+
+    return -1;
+}
+
+/*
+Purpose: Creates a subtree for an assignment
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+  [ASS_TYPE]
+   /     \
+[VAR]   [VAL]
+
+The [ASS_TYPE] contains the var to change at
+```node->leftNode``` and the value to assign at
+```node-rightNode```.
+
+[ASS_TYPE]: Determines the assignment type
+[VAL]: Value to assign
+*/
+NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
+    struct Node *operatorNode = NULL;
+    operatorNode = PG_create_node((*tokens)[startPos + 1].value, PG_get_nodeType_of_operator((*tokens)[startPos + 1].type));
+    operatorNode->leftNode = PG_create_node((*tokens)[startPos].value, _IDEN_NODE_);
+    
+    int skip = 0;
+
+    //Array assignment handling
+    if ((*tokens)[startPos + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
+        int dimCount = PG_get_dimension_count(tokens, startPos + 1);
+        (void)PG_allocate_node_details(operatorNode->leftNode, dimCount, false);
+        skip += (int)PG_add_dimensions_to_var_node(operatorNode->leftNode, tokens, startPos + skip);
+        operatorNode->value = (*tokens)[startPos + skip].value;
+        operatorNode->type = PG_get_nodeType_of_operator((*tokens)[startPos + skip].type);
+        skip--;
+    }
+
+    skip += 2;
+
+    NodeReport rep = {NULL, UNINITIALZED};
+
+    if (get_var_type(tokens, startPos + skip) == COND_VAR) {
+        rep = PG_create_condition_assignment_tree(tokens, startPos + skip);
+    } else {
+        int bounds = (int)PG_get_term_bounds(tokens, startPos + skip);
+        rep = PG_create_simple_term_node(tokens, startPos + skip, bounds);
+    }
+
+    operatorNode->rightNode = rep.node;
+    skip += rep.tokensToSkip;
+
+    return PG_create_node_report(operatorNode, skip);
 }
 
 /*
