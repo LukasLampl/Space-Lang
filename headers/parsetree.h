@@ -47,6 +47,9 @@ struct Node {
     enum NodeType type;
     char *value;
 
+    size_t line;
+    size_t position;
+
     struct Node **details;
     size_t detailsCount;
 
