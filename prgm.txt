@@ -1,13 +1,1 @@
-check (a) {
-    is 2:
-        var a = 10;
-        break;
-    is 3:
-        function add(param) {
-            return param;
-        }
-        
-        break;
-    is 4:
-        break;
-}
+var a = 10;

@@ -77,6 +77,8 @@ enum RUNNABLE_TYPE {
 
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
+NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
+int PG_predict_assignment(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_is_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_check_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_abort_operation_tree(TOKEN **tokens, size_t startPos);
@@ -98,7 +100,6 @@ int PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t star
 int PG_get_dimension_count(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos);
-NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_chained_condition_tree(TOKEN **tokens, size_t startPos);
 int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos);
@@ -227,6 +228,7 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
 
             parentNode->details[argumentCount++] = report.node;
             jumper += report.tokensToSkip;
+            printf("Jump: %i\n", report.tokensToSkip);
         } else {
             jumper++;
         }
@@ -292,10 +294,26 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
             return PG_create_variable_tree(tokens, startPos);
         }
     default:
+        if ((int)PG_predict_assignment(tokens, startPos) == true) {
+            printf("Predicted assignment!\n");
+        }
+
         break;
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+int PG_predict_assignment(TOKEN **tokens, size_t startPos) {
+    for (int i = startPos; i < TOKENLENGTH; i++) {
+        if ((*tokens)[i].type == _OP_SEMICOLON_) {
+            break;
+        } else if ((*tokens)[i].type == _OP_EQUALS_) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -1101,9 +1119,10 @@ NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
         NodeReport termReport = PG_create_simple_term_node(tokens, startPos + skip + 1, bounds);
         struct Node *valueNode = termReport.node;
         varNode->rightNode = valueNode;
+        skip += termReport.tokensToSkip;
     }
 
-    return PG_create_node_report(varNode, 1);
+    return PG_create_node_report(varNode, skip + 1);
 }
 
 /*
