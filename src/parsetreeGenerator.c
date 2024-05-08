@@ -80,6 +80,8 @@ void PG_print_cpu_time(float cpu_time_used);
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
+
+NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos);
 int PG_predict_assignment(TOKEN **tokens, size_t startPos);
 int PG_get_term_bounds(TOKEN **tokens, size_t startPos);
@@ -167,7 +169,10 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
 
     NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
     printf("TREE:\n");
-    PG_print_from_top_node(runnable.node, 0, 0);
+
+    if (PARSETREE_GENERATOR_DEBUG_MODE == 1) {
+        PG_print_from_top_node(runnable.node, 0, 0);
+    }
 
     if (runnable.node == NULL) {
         printf("Something went wrong (PG)!\n");
@@ -299,6 +304,8 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
         if (type == SwitchStatement) {
             return PG_create_is_statement_tree(tokens, startPos);
         }
+    case _KW_IF_:
+        return PG_create_if_statement_tree(tokens, startPos);
     case _KW_CONTINUE_:
     case _KW_BREAK_:
         return PG_create_abort_operation_tree(tokens, startPos);
@@ -328,6 +335,22 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
+    TOKEN *token = &(*tokens)[startPos];
+    struct Node *node = PG_create_node(token->value, _IF_STMT_NODE_, token->line, token->tokenStart);
+    int skip = 0;
+
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 2);
+    node->leftNode = chainedCondReport.node;
+    skip += chainedCondReport.tokensToSkip + 3;
+
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
+    node->rightNode = runnableReport.node;
+    skip += runnableReport.tokensToSkip;
+    printf("Res: %s", (*tokens)[startPos + skip].value);
+    return PG_create_node_report(node, skip);
 }
 
 /*

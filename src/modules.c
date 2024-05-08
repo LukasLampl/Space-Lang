@@ -43,6 +43,18 @@ int is_space(char character) {
     return 0;
 }
 
+int is_empty_string(const char* string) {
+    if (string == NULL) {
+        return 1;
+    } else if ((sizeof(string) / sizeof(string[0])) <= 1) {
+        return 1;
+    } else if (string[0] == '\0') {
+        return 1;
+    }
+    
+    return 0;
+}
+
 /*
 Purpose: Check if a character is a digit
 Return Type: int => 1 = is digit; 0 = not a digit

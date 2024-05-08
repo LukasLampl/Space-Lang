@@ -155,9 +155,8 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
             tokens[storagePointer].tokenStart = i;
         }
 
-         // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
+        // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
         int isWhiteSpace = (int)is_space(input[i]);
-
         int isOperator = isWhiteSpace != 1 ? (int)check_for_operator(input[i]) : 0; //Checks if input at i is an operator from above
         // Check if the input character at index i is the beginning of an string or character array
         if (input[i] == '"' || input[i] == '\'') {
@@ -170,6 +169,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
         }
 
         if (i + 1 == fileLength) {
+            tokens[--storagePointer].value[storageIndex] = '\0';
             (void)LX_set_keyword_type_to_token(&tokens[storagePointer]);
             (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
         }
@@ -234,22 +234,24 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
                 storageIndex = 0;
                 i++;
                 continue;
-            }  else if (input[i] == '&') {
-                if (input[i + 1] == '(') {
+            } else if (input[i] == '&') {
+                if (input[i + 1] == '(' && input[i + 2] == '*') {
                     i += (int)LX_is_reference_on_pointer(&tokens[storagePointer], buffer, i);
                     (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
+                    tokens[storagePointer].tokenStart = i;
                     storageIndex = 0;
                     storagePointer++;
                     continue;
                 } else {
                     (void)LX_write_reference_in_token(&tokens[storagePointer]);
                     (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
+                    tokens[storagePointer].tokenStart = i;
                     storageIndex++;
                     continue;
                 }
 
             // Figure out whether the input is a double operator like "++" or "--" or not
-            } else if ((int)LX_check_for_double_operator(input[i], input[i + 1])) {   
+            } else if ((int)LX_check_for_double_operator(input[i], input[i + 1])) {
                 tokens[storagePointer].tokenStart = i;
                 i += (int)LX_write_double_operator_in_token(&tokens[storagePointer], input[i], input[i + 1]);   
                 (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
@@ -758,7 +760,7 @@ void LX_set_keyword_type_to_token(TOKEN *token) {
             || token->type == _POINTER_) {
             return;
         }
-
+        
         TOKENTYPES type = (TOKENTYPES)LX_get_keyword_type(token->value);
         token->type = type;
     }
@@ -938,12 +940,12 @@ Return Type: TOKENTYPES => Keyword in TOKENTYPES enum
 Params: char *value => Value to be scanned for keyword
 */
 TOKENTYPES LX_get_keyword_type(const char *value) {
-    if (value == NULL) {
+    if (value == NULL || (int)is_empty_string(value) == 1) {
         return _UNDEF_;
     }
-
+    
     for (int i = 0; i < (sizeof(KeywordTable) / sizeof(KeywordTable[0])); i++) {
-        if (strcmp(value, KeywordTable[i].kwName) == 0) {
+        if ((int)strcmp(value, KeywordTable[i].kwName) == 0) {
             return KeywordTable[i].kwValue;
         }
     }

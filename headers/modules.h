@@ -32,6 +32,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define SYNTAX_ANALYZER_DISPLAY_USED_TIME 1
 
 #define PARSETREE_GENERATOR_DISPLAY_USED_TIME 1
+#define PARSETREE_GENERATOR_DEBUG_MODE 1
 
 #define GRAMMAR_LEXER_DISPLAY_GRAMMAR_PROCESSING 0
 #define GRAMMAR_LEXER_DISPLAY_USED_TIME 1
@@ -42,6 +43,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 int check_for_operator(char input);
 int is_space(char character);
+int is_empty_string(const char* string);
 int is_digit(char character);
 
 //Input reader
