@@ -23,6 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <time.h>
 #include "../headers/modules.h"
 #include "../headers/errors.h"
 #include "../headers/parsetree.h"
@@ -75,10 +76,10 @@ enum RUNNABLE_TYPE {
 
 ///// FUNCTIONS PREDEFINITIONS /////
 
+void PG_print_cpu_time(float cpu_time_used);
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
-
 NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos);
 int PG_predict_assignment(TOKEN **tokens, size_t startPos);
 int PG_get_term_bounds(TOKEN **tokens, size_t startPos);
@@ -157,6 +158,13 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     RootNode.nodeCount = 0;
     printf("TOKENLENGTH: %i\n", TokenLength);
 
+    // CLOCK FOR DEBUG PURPOSES ONLY!!
+    clock_t start, end;
+
+    if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
+        start = (clock_t)clock();
+    }
+
     NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
     printf("TREE:\n");
     PG_print_from_top_node(runnable.node, 0, 0);
@@ -165,12 +173,23 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
         printf("Something went wrong (PG)!\n");
     }
 
-    //NodeReport rep = PG_create_while_statement_tree(tokens, 0);
-    //PG_print_from_top_node(rep.node, 0, 0);
+    if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
+        end = (clock_t)clock();
+        (void)PG_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
+    }
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
     return 1;
+}
+
+/*
+Purpose: Print the used CPU time
+Return Type: void
+Params: float cpu_time_used => Time to be printed
+*/
+void PG_print_cpu_time(float cpu_time_used) {
+    (void)printf("\nCPU time used for PARSETREE GENERATION: %f seconds\n", cpu_time_used);
 }
 
 /*

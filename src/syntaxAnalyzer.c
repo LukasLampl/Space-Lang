@@ -142,11 +142,11 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
 
     clock_t start, end;
 
-    if (PARSER_DISPLAY_USED_TIME == true) {
+    if (SYNTAX_ANALYZER_DISPLAY_USED_TIME == true) {
         start = clock();
     }
 
-    if (PARSER_DEBUG_MODE == true) {
+    if (SYNTAX_ANALYZER_DEBUG_MODE == true) {
         (void)printf("\n\n\n>>>>>>>>>>>>>>>>>>>>    SYNTAX ANALYZER    <<<<<<<<<<<<<<<<<<<<\n\n");
     }
 
@@ -155,11 +155,11 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
         (void)SA_is_runnable(tokens, 0, false);
     }
 
-    if (PARSER_DEBUG_MODE == true) {
+    if (SYNTAX_ANALYZER_DEBUG_MODE == true) {
         (void)printf("\n>>>>>    Tokens successfully analyzed    <<<<<\n");
     }
 
-    if (PARSER_DISPLAY_USED_TIME == true) {
+    if (SYNTAX_ANALYZER_DISPLAY_USED_TIME == true) {
         end = clock();
         (void)printf("\nCPU time used for SYNTAX ANALYSIS: %f seconds\n", ((double) (end - start)) / CLOCKS_PER_SEC);   
     }
