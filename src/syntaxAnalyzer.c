@@ -815,6 +815,8 @@ Params: TOKEN **tokens => Tokens to be checked;
         size_t startPos => Position from where to start checking
 */
 SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) { 
+    int skip = 0;
+    
     if ((*tokens)[startPos].type != _KW_IF_) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "if");
     }
@@ -823,23 +825,29 @@ SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "(");
     }
 
-    SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + 2, true);
+    skip++;
+
+    SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + ++skip, true);
 
     if (isChainedCond.errorOccured == true) {
         return SA_create_syntax_report(isChainedCond.token, 0, true, isChainedCond.expectedToken);
     }
 
-    if ((*tokens)[startPos + isChainedCond.tokensToSkip + 2].type != _OP_LEFT_BRACKET_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isChainedCond.tokensToSkip + 2], 0, true, ")");
-    }
+    skip += isChainedCond.tokensToSkip;
 
-    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + isChainedCond.tokensToSkip + 3, true);
+    if ((*tokens)[startPos + skip].type != _OP_LEFT_BRACKET_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
+    }
+    
+    skip++;
+    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip, true);
 
     if (isRunnable.errorOccured == true) {
         return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
     }
 
-    return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + isChainedCond.tokensToSkip + 3, false, NULL);
+    skip += isRunnable.tokensToSkip;
+    return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /*
@@ -1238,15 +1246,15 @@ SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos) {
     }
 
     SyntaxReport isTerm = SA_is_simple_term(tokens, startPos + 1, false);
-
+    
     if (isTerm.errorOccured == true) {
         return SA_create_syntax_report(isTerm.token, 0, true, isTerm.expectedToken);
     }
-
+    
     if ((*tokens)[startPos + isTerm.tokensToSkip + 1].type != _OP_SEMICOLON_) {
         return SA_create_syntax_report(&(*tokens)[startPos + isTerm.tokensToSkip + 1], 0, true, ";");
     }
-
+    
     return SA_create_syntax_report(NULL, isTerm.tokensToSkip + 2, false, NULL);
 }
 

@@ -80,7 +80,8 @@ void PG_print_cpu_time(float cpu_time_used);
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
-
+NodeReport PG_create_else_statement_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos);
 int PG_predict_assignment(TOKEN **tokens, size_t startPos);
@@ -167,21 +168,28 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
         start = (clock_t)clock();
     }
 
+    //Tree generation process
     NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
-    printf("TREE:\n");
-
+    
+    if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
+        end = (clock_t)clock();            
+    }
+    
     if (PARSETREE_GENERATOR_DEBUG_MODE == 1) {
         PG_print_from_top_node(runnable.node, 0, 0);
+    }
+
+    if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
+        (void)PG_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
     if (runnable.node == NULL) {
         printf("Something went wrong (PG)!\n");
     }
 
-    if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
-        end = (clock_t)clock();
-        (void)PG_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
-    }
+    
+
+    
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
@@ -306,6 +314,12 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
         }
     case _KW_IF_:
         return PG_create_if_statement_tree(tokens, startPos);
+    case _KW_ELSE_:
+        if ((*tokens)[startPos + 1].type == _KW_IF_) {
+            return PG_create_else_if_statement_tree(tokens, startPos);
+        } else {
+            return PG_create_else_statement_tree(tokens, startPos);
+        }
     case _KW_CONTINUE_:
     case _KW_BREAK_:
         return PG_create_abort_operation_tree(tokens, startPos);
@@ -337,6 +351,92 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
     return PG_create_node_report(NULL, UNINITIALZED);
 }
 
+/*
+Purpose: Creates a subtree for an else statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+[ELSE_STMT]
+     \
+  [RUNNABLE]
+
+The [ELSE_STMT] contains the runnable at
+```node->rightNode```.
+
+[ELSE_STMT]: Indicator for the else statment
+[RUNNABLE]: Runnable of the else statement
+*/
+NodeReport PG_create_else_statement_tree(TOKEN **tokens, size_t startPos) {
+    TOKEN *token = &(*tokens)[startPos];
+    struct Node *node = PG_create_node(token->value, _ELSE_STMT_NODE_, token->line, token->tokenStart);
+    int skip = 2;
+    
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
+    node->rightNode = runnableReport.node;
+    skip += runnableReport.tokensToSkip;
+
+    return PG_create_node_report(node, skip);
+}
+
+/*
+Purpose: Creates a subtree for an else-if statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+    [EIF_STMT]
+   /          \
+[COND]     [RUNNABLE]
+
+The [EIF_STMT] contains the condition at
+```node->leftNode``` and the runnable at
+```node->rightNode```.
+
+[EIF_STMT]: Indicator for the else-if statment
+[COND]: Condition that has to be met to run the runnable
+[RUNNABLE]: Runnable of the else-if statement
+*/
+NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos) {
+    TOKEN *token = &(*tokens)[startPos];
+    struct Node *node = PG_create_node(token->value, _ELSE_IF_STMT_NODE_, token->line, token->tokenStart);
+    int skip = 0;
+
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 3);
+    node->leftNode = chainedCondReport.node;
+    skip += chainedCondReport.tokensToSkip + 4;
+
+    NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
+    node->rightNode = runnableReport.node;
+    skip += runnableReport.tokensToSkip;
+
+    return PG_create_node_report(node, skip);
+}
+
+/*
+Purpose: Creates a subtree for an if statement
+Return Type: NodeReport => Contains the topNode as well as how many tokens to skip
+Params: TOKEN **tokens => Point to the tokens;
+        size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+ 
+    [IF_STMT]
+   /         \
+[COND]     [RUNNABLE]
+
+The [IF_STMT] contains the condition at
+```node->leftNode``` and the runnable at
+```node->rightNode```.
+
+[IF_STMT]: Indicator for the if statment
+[COND]: Condition that has to be met to run the runnable
+[RUNNABLE]: Runnable of the if statement
+*/
 NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
     TOKEN *token = &(*tokens)[startPos];
     struct Node *node = PG_create_node(token->value, _IF_STMT_NODE_, token->line, token->tokenStart);
@@ -344,12 +444,12 @@ NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
 
     NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 2);
     node->leftNode = chainedCondReport.node;
-    skip += chainedCondReport.tokensToSkip + 3;
+    skip += chainedCondReport.tokensToSkip + 4;
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     node->rightNode = runnableReport.node;
     skip += runnableReport.tokensToSkip;
-    printf("Res: %s", (*tokens)[startPos + skip].value);
+
     return PG_create_node_report(node, skip);
 }
 

@@ -1,1 +1,11 @@
-if (a == 10 && a < 100) {}
+var a = 10;
+
+if (a == 10 and (a < 100 or a > 200)) {
+    a++;
+} else if (a == 3) {
+    a += 3;
+} else {
+    a += 5;
+}
+
+var b = a;

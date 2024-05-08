@@ -169,7 +169,8 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
         }
 
         if (i + 1 == fileLength) {
-            tokens[--storagePointer].value[storageIndex] = '\0';
+            TOKEN token = tokens[--storagePointer];
+            token.value[token.size] = '\0';
             (void)LX_set_keyword_type_to_token(&tokens[storagePointer]);
             (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
         }
@@ -754,10 +755,7 @@ void LX_set_keyword_type_to_token(TOKEN *token) {
     }
 
     if (token != NULL && token->value != NULL) {
-        if (token->type == _NUMBER_
-            || token->type == _FLOAT_
-            || token->type == _REFERENCE_ 
-            || token->type == _POINTER_) {
+        if (token->type != _IDENTIFIER_) {
             return;
         }
         
