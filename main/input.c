@@ -50,6 +50,9 @@ Purpose: Read in the source files to compile, then read in the grammar file and 
 Return Type: int
 Params: NULL
 */
+char *INPUT_BUFFER = NULL;
+int *ARRAY_OF_INDIVIDUAL_TOKEN_SIZES = NULL;
+
 struct InputReaderResults ProcessInput(char *path) {
     //File to read
     FILE *filePointer = (FILE*)fopen(path, "r");
@@ -59,21 +62,19 @@ struct InputReaderResults ProcessInput(char *path) {
     (void)fseek(filePointer, 0L, SEEK_END);
     const size_t fileLength = (size_t)ftell(filePointer);
     (void)check_file_length(fileLength, path);
-    
-    char *buffer = NULL;
-    int *arrayOfIndividualTokenSizes = NULL;
+
     //Character buffer for all input symbols
-    (void)reserve_buffer(fileLength, &buffer);
-    (void)reserve_token_lengths(fileLength, &arrayOfIndividualTokenSizes);
-    (void)_init_error_buffer_cache_(&buffer);
-    (void)_init_error_token_size_cache_(&arrayOfIndividualTokenSizes);
+    (void)reserve_buffer(fileLength, &INPUT_BUFFER);
+    (void)reserve_token_lengths(fileLength, &ARRAY_OF_INDIVIDUAL_TOKEN_SIZES);
+    (void)_init_error_buffer_cache_(&INPUT_BUFFER);
+    (void)_init_error_token_size_cache_(&ARRAY_OF_INDIVIDUAL_TOKEN_SIZES);
 
     //Go back to the start of the file
     (void)rewind(filePointer);
 
     //Read the contents of the file into the buffer
-    (void)fread(buffer, sizeof(char), fileLength, filePointer);
-    int requiredTokenLength = (int)get_minimum_token_number(&buffer, &arrayOfIndividualTokenSizes, fileLength);
+    (void)fread(INPUT_BUFFER, sizeof(char), fileLength, filePointer);
+    int requiredTokenLength = (int)get_minimum_token_number(&INPUT_BUFFER, &ARRAY_OF_INDIVIDUAL_TOKEN_SIZES, fileLength);
 
     if (fclose(filePointer) == EOF) {
         (void)IO_FILE_CLOSING_EXCEPTION();
@@ -81,8 +82,8 @@ struct InputReaderResults ProcessInput(char *path) {
 
     //Create and return the results
     struct InputReaderResults result;
-    result.buffer = buffer;
-    result.arrayOfIndividualTokenSizes = arrayOfIndividualTokenSizes;
+    result.buffer = INPUT_BUFFER;
+    result.arrayOfIndividualTokenSizes = ARRAY_OF_INDIVIDUAL_TOKEN_SIZES;
     result.requiredTokenNumber = requiredTokenLength;
     result.fileLength = fileLength;
 

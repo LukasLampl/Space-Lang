@@ -100,26 +100,24 @@ Params: char **buffer => Input to tokenize;
         const char *fileName => Name of the file that gets processed
 
 */
+TOKEN *TOKENS = NULL;
 
-TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName) {
-    TOKEN *tokens = NULL;
-    char *input = *buffer;
-    
+TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName) {
     // TOKEN defined in modules.h
-    tokens = (struct TOKEN*)malloc((requiredTokenLength + 2) * sizeof(struct TOKEN));
+    TOKENS = (struct TOKEN*)malloc((requiredTokenLength + 2) * sizeof(struct TOKEN));
     maxlength = fileLength;
     maxTokensLength = requiredTokenLength;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
-    if (tokens == NULL) {
+    if (TOKENS == NULL) {
         (void)IO_BUFFER_RESERVATION_EXCEPTION();
     }
 
-    (void)LX_set_token_value_to_awaited_size(&tokens, arrayOfIndividualTokenSizes);
+    (void)LX_set_token_value_to_awaited_size(&TOKENS, arrayOfIndividualTokenSizes);
     tokensreserved = 1;
     
     // Set a pointer on the token array to free it, when the program crashes or ends
-    (void)_init_error_token_cache_(&tokens);
+    (void)_init_error_token_cache_(&TOKENS);
     // Set StoragePointer and Index to 0 for new counting
     size_t storageIndex = 0;
     size_t storagePointer = 0;
@@ -135,9 +133,9 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
 
     for (size_t i = 0; i < fileLength; i++) {
         // When the input character at index i is a hashtag, then skip the input till the next hashtag
-        if (input[i] == '/'
-            && (input[i + 1] == '/' || input[i + 1] == '*')) {
-            i += (int)LX_skip_comment(&input, i, &lineNumber);
+        if ((*input)[i] == '/'
+            && ((*input)[i + 1] == '/' || (*input)[i + 1] == '*')) {
+            i += (int)LX_skip_comment(input, i, &lineNumber);
             continue;
         }
 
@@ -146,135 +144,135 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
         }
 
         // Check if the Size is bigger than the expected, if true, then increase the size of the token value
-        if (storageIndex > tokens[storagePointer].size) {
-            (void)LX_resize_tokens_value(&tokens[storagePointer], tokens[storagePointer].size);
+        if (storageIndex > TOKENS[storagePointer].size) {
+            (void)LX_resize_tokens_value(&TOKENS[storagePointer], TOKENS[storagePointer].size);
         } else if (storageIndex == 0) {
-            tokens[storagePointer].tokenStart = i;
+            TOKENS[storagePointer].tokenStart = i;
         }
 
         // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
-        int isWhiteSpace = (int)is_space(input[i]);
-        int isOperator = isWhiteSpace != 1 ? (int)check_for_operator(input[i]) : 0; //Checks if input at i is an operator from above
+        int isWhiteSpace = (int)is_space((*input)[i]);
+        int isOperator = isWhiteSpace != 1 ? (int)check_for_operator((*input)[i]) : 0; //Checks if input at i is an operator from above
         // Check if the input character at index i is the beginning of an string or character array
-        if (input[i] == '"' || input[i] == '\'') {
-            storagePointer += (int)LX_token_clearance_check(&(tokens[storagePointer]), lineNumber);
-            i += (int)LX_write_string_in_token(&tokens[storagePointer], &input, i, &input[i], &lineNumber, &fileName);
-            (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
+        if ((*input)[i] == '"' || (*input)[i] == '\'') {
+            storagePointer += (int)LX_token_clearance_check(&(TOKENS[storagePointer]), lineNumber);
+            i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, &(*input)[i], &lineNumber, &fileName);
+            (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
             storagePointer++;
             storageIndex = 0;
             continue;
         }
 
         if (i + 1 == fileLength) {
-            TOKEN token = tokens[--storagePointer];
+            TOKEN token = TOKENS[--storagePointer];
             token.value[token.size] = '\0';
-            (void)LX_set_keyword_type_to_token(&tokens[storagePointer]);
-            (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
+            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
+            (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
         }
 
         // If the input character at index i is a whitespace, then filter the whitespace character
         if (isWhiteSpace > 0) {
-            (void)LX_set_keyword_type_to_token(&tokens[storagePointer]);
+            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
 
             // If the current token is already filled or not, if then add "\0" to close the string  
-            if ((int)LX_token_clearance_check(&tokens[storagePointer], lineNumber)) { 
-                if (tokens[storagePointer].size > storageIndex) {
-                    tokens[storagePointer].value[storageIndex] = '\0';
+            if ((int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber)) { 
+                if (TOKENS[storagePointer].size > storageIndex) {
+                    TOKENS[storagePointer].value[storageIndex] = '\0';
                 } else {
-                    tokens[storagePointer].value[storageIndex - 1] = '\0';
+                    TOKENS[storagePointer].value[storageIndex - 1] = '\0';
                 }
 
                 storagePointer++;
             }
 
-            i += (int)LX_skip_whitespaces(&input, fileLength, i, &lineNumber);
+            i += (int)LX_skip_whitespaces(input, fileLength, i, &lineNumber);
             storageIndex = 0;
             continue;
 
         // Execute if input at i is an operator
         } else if (isOperator) {
             // Check if the TOKEN could be a FLOAT or not
-            if (input[i] == '.' 
-                && ((int)is_digit(input[i - 1]) && (int)is_digit(input[i + 1]))) {
-                (void)LX_put_type_float_in_token(&tokens[storagePointer], storageIndex);
+            if ((*input)[i] == '.' 
+                && ((int)is_digit((*input)[i - 1]) && (int)is_digit((*input)[i + 1]))) {
+                (void)LX_put_type_float_in_token(&TOKENS[storagePointer], storageIndex);
                 storageIndex++;
                 continue;
-            } else if (input[i] == '*') {
-                if ((int)is_space(input[i + 1]) == 0
-                    && (int)is_digit(input[i + 1]) == 0) {
-                    int ptrRet = (int)LX_write_pointer_in_token(&tokens[storagePointer], storageIndex, &input, i);
+            } else if ((*input)[i] == '*') {
+                if ((int)is_space((*input)[i + 1]) == 0
+                    && (int)is_digit((*input)[i + 1]) == 0) {
+                    int ptrRet = (int)LX_write_pointer_in_token(&TOKENS[storagePointer], storageIndex, input, i);
 
                     if (ptrRet > 0) {
                         i += ptrRet - 1;
                         storageIndex = ptrRet - 1;
-                        (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
+                        (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
                         storageIndex++;
                     }
 
                     continue;
                 }
-            } else if (input[i] == '-' && (int)is_digit(input[i + 1]) == 1) {
-                storagePointer += (int)LX_token_clearance_check(&tokens[storagePointer], lineNumber);
+            } else if ((*input)[i] == '-' && (int)is_digit((*input)[i + 1]) == 1) {
+                storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
                 storageIndex = 0;
-                tokens[storagePointer].value[storageIndex++] = input[i];
-                tokens[storagePointer].type = _NUMBER_;
+                TOKENS[storagePointer].value[storageIndex++] = (*input)[i];
+                TOKENS[storagePointer].type = _NUMBER_;
                 continue;
             }
 
             // Check if the current token is used or not, and if it increases storagePointer by 1
-            (void)LX_set_keyword_type_to_token(&tokens[storagePointer]);
-            storagePointer += (int)LX_token_clearance_check(&tokens[storagePointer], lineNumber); 
+            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
+            storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber); 
             // Check whether the input could be an ELEMENT ACCESSOR or not
-            if ((input[i] == '-' || input[i] == '=') && input[i + 1] == '>') {
-                (void)LX_write_class_accessor_or_creator_in_token(&tokens[storagePointer], input[i], lineNumber);
-                tokens[storagePointer].tokenStart = i;
+            if (((*input)[i] == '-' || (*input)[i] == '=') && (*input)[i + 1] == '>') {
+                (void)LX_write_class_accessor_or_creator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
+                TOKENS[storagePointer].tokenStart = i;
                 storagePointer++;
                 storageIndex = 0;
                 i++;
                 continue;
-            } else if (input[i] == '&') {
-                if (input[i + 1] == '(' && input[i + 2] == '*') {
-                    i += (int)LX_is_reference_on_pointer(&tokens[storagePointer], buffer, i);
-                    (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
-                    tokens[storagePointer].tokenStart = i;
+            } else if ((*input)[i] == '&') {
+                if ((*input)[i + 1] == '(' && (*input)[i + 2] == '*') {
+                    i += (int)LX_is_reference_on_pointer(&TOKENS[storagePointer], input, i);
+                    (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+                    TOKENS[storagePointer].tokenStart = i;
                     storageIndex = 0;
                     storagePointer++;
                     continue;
                 } else {
-                    (void)LX_write_reference_in_token(&tokens[storagePointer]);
-                    (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
-                    tokens[storagePointer].tokenStart = i;
+                    (void)LX_write_reference_in_token(&TOKENS[storagePointer]);
+                    (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+                    TOKENS[storagePointer].tokenStart = i;
                     storageIndex++;
                     continue;
                 }
 
             // Figure out whether the input is a double operator like "++" or "--" or not
-            } else if ((int)LX_check_for_double_operator(input[i], input[i + 1])) {
-                tokens[storagePointer].tokenStart = i;
-                i += (int)LX_write_double_operator_in_token(&tokens[storagePointer], input[i], input[i + 1]);   
-                (void)LX_set_line_number(&tokens[storagePointer], lineNumber);
-                tokens[storagePointer].tokenStart = i;
+            } else if ((int)LX_check_for_double_operator((*input)[i], (*input)[i + 1])) {
+                TOKENS[storagePointer].tokenStart = i;
+                i += (int)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);   
+                (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+                TOKENS[storagePointer].tokenStart = i;
                 storagePointer++;
                 storageIndex = 0;
                 continue;
             }
             //If non if the above is approved, the input gets processed as a 'normal' Operator
-            tokens[storagePointer].tokenStart = i;
-            storagePointer += (int)LX_write_default_operator_in_token(&tokens[storagePointer], input[i], lineNumber);
+            TOKENS[storagePointer].tokenStart = i;
+            storagePointer += (int)LX_write_default_operator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
             storageIndex = 0;
             continue;
         } else {
-            if (tokens[storagePointer].size > storageIndex + 1) {
+            if (TOKENS[storagePointer].size > storageIndex + 1) {
                 // Sets the rest as IDENTIFIER. Adding the current input to the current token value
-                tokens[storagePointer].value[storageIndex++] = input[i];
-                tokens[storagePointer].line = lineNumber;
-                (void)LX_check_for_number(&tokens[storagePointer]);
+                TOKENS[storagePointer].value[storageIndex++] = (*input)[i];
+                TOKENS[storagePointer].line = lineNumber;
+                (void)LX_check_for_number(&TOKENS[storagePointer]);
 
-                if (tokens[storagePointer].type != _FLOAT_
-                    && tokens[storagePointer].type != _NUMBER_
-                    && tokens[storagePointer].type != _REFERENCE_
-                    && tokens[storagePointer].type != _POINTER_) {
-                    tokens[storagePointer].type = _IDENTIFIER_;
+                if (TOKENS[storagePointer].type != _FLOAT_
+                    && TOKENS[storagePointer].type != _NUMBER_
+                    && TOKENS[storagePointer].type != _REFERENCE_
+                    && TOKENS[storagePointer].type != _POINTER_) {
+                    TOKENS[storagePointer].type = _IDENTIFIER_;
                 }
             }
         }
@@ -283,8 +281,8 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
     /////////////////////////
     ///     EOF TOKEN     ///
     /////////////////////////
-    storagePointer += (int)LX_eof_token_clearance_check(&(tokens[storagePointer]), lineNumber);
-    (void)LX_set_EOF_token(&tokens[storagePointer]);
+    storagePointer += (int)LX_eof_token_clearance_check(&(TOKENS[storagePointer]), lineNumber);
+    (void)LX_set_EOF_token(&TOKENS[storagePointer]);
     storagePointer--;
 
     // END CLOCK AND PRINT RESULT
@@ -293,7 +291,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
     }
 
     if (LEXER_DEBUG_MODE == 1) {
-        (void)LX_print_result(tokens, storagePointer);
+        (void)LX_print_result(TOKENS, storagePointer);
     }
 
     if (LEXER_DISPLAY_USED_TIME == 1) {
@@ -301,7 +299,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
         (void)LX_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
-    return tokens;
+    return TOKENS;
 }
 
 /*

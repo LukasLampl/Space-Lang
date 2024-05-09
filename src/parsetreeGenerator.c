@@ -224,7 +224,7 @@ whose [STATEMENT] and [EXPRESSION] con be found in
 _______________________________
 */
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type) {
-    printf("Start: %s\n", (*tokens)[startPos].value);
+    //printf("Start: %s\n", (*tokens)[startPos].value);
     
     TOKEN *token = &(*tokens)[startPos];
     struct Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_, token->line, token->tokenStart);
@@ -1007,7 +1007,7 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
         skip += (int)PG_add_params_to_node(topNode, tokens, startPos + skip + 1, 0, _NULL_);
     }
 
-    return PG_create_node_report(topNode, skip);
+    return PG_create_node_report(topNode, skip + 1);
 }
 
 NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) {
