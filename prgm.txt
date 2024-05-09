@@ -1,0 +1,25 @@
+class Person(name, age) with IntegerInterface => {
+    var name = 2;
+    var age = 0;
+
+    this::constructor {
+        this.name = name;
+        this.age = age;
+    }
+
+    function getName() {
+        return this.name;
+    }
+
+    function getAge() {
+        return this.age;
+    }
+
+    function setName(newName) {
+        this.name = newName;
+    }
+
+    function setAge(newAge) {
+        this.age = newAge;
+    }
+}
