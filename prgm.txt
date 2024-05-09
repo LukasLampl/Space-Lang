@@ -1,25 +1,91 @@
-class Person(name, age) with IntegerInterface => {
-    var name = 2;
-    var age = 0;
+/*
+class Transaction(amount, type) => {
+    var amount;
+    var date;
+    var type;
 
     this::constructor {
-        this.name = name;
-        this.age = age;
+        this.amount = amount;
+        this.date = currentDate();
+        this.type = type;
     }
 
-    function getName() {
-        return this.name;
+    function getAmount() {
+        return this.amount;
     }
 
-    function getAge() {
-        return this.age;
+    function getDate() {
+        return this.date;
     }
 
-    function setName(newName) {
-        this.name = newName;
-    }
-
-    function setAge(newAge) {
-        this.age = newAge;
+    function getType() {
+        return this.type;
     }
 }
+*/
+class Account(initialBalance) => {
+    var balance;
+    var transactions;
+
+    this::constructor {
+        this.balance = initialBalance;
+    }
+
+    function deposit(amount) {
+        this.balance += amount;
+        //var transaction = new Transaction(amount, "Deposit");
+        this.transactions.push(transaction);
+    }
+
+    /*function withdraw(amount) {
+        if (amount <= this.balance) {
+            this.balance -= amount;
+            var transaction = new Transaction(amount, "Withdrawal");
+            this.transactions.push(transaction);
+        } else {
+            print("Insufficient funds.");
+        }
+    }
+
+    function getBalance() {
+        return this.balance;
+    }
+
+    function getTransactions() {
+        return this.transactions;
+    }*/
+}
+/*
+class Bank() => {
+    var accounts;
+
+    this::constructor {
+    }
+
+    function createAccount(accountNumber, initialBalance) {
+        if (accountNumber != this.accounts) {
+            var account = new Account(initialBalance);
+            this.accounts[accountNumber] = account;
+        } else {
+            print("Account number already exists.");
+        }
+    }
+
+    function getAccount(accountNumber) {
+        if (accountNumber == this.accounts) {
+            return this.accounts[accountNumber];
+        } else {
+            print("Account not found.");
+            return null;
+        }
+    }
+}
+
+var bank = new Bank();
+bank.createAccount("123456", 1000);
+var account = bank.getAccount("123456");
+account.deposit(500);
+account.withdraw(200);
+print("Current balance:", account.getBalance());
+print("Transactions:", account.getTransactions());
+*/

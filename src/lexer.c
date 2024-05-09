@@ -139,9 +139,6 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
             && (input[i + 1] == '/' || input[i + 1] == '*')) {
             i += (int)LX_skip_comment(&input, i, &lineNumber);
             continue;
-        } else if (input[i] == '\n') {
-            lineNumber++;
-            continue;
         }
 
         if (storagePointer > requiredTokenLength) {
@@ -300,7 +297,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
     }
 
     if (LEXER_DISPLAY_USED_TIME == 1) {
-        (void)printf("Finished with %i tokens in total.\n", storagePointer);
+        (void)printf("Finished with %i tokens and %i lines in total.\n", storagePointer + 1, lineNumber + 1);
         (void)LX_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
@@ -506,7 +503,7 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
     int jumpForward = 1;
     // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
     while ((jumpForward + currentIndex) < maxlength) {
-        if ((*input)[currentIndex + jumpForward] == '\n') {
+        if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
             (*lineNumber)++;
         }
 
@@ -557,7 +554,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
                 token->value[jumpForward] = (*input)[currentInputIndex + jumpForward];
             }
 
-            if ((*input)[currentInputIndex + jumpForward] == '\n') {
+            if ((int)is_space((*input)[currentInputIndex + jumpForward]) == 2) {
                 (*lineNumber)++;
             }
 
@@ -612,12 +609,12 @@ Params: char **input => Input to be processed; int maxLength => Length of the bu
 int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
     int jumpForward = 0;
 
-    while (((currentInputIndex + jumpForward) + 1) < maxLength) {
-        int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward) + 1]);
-
+    while ((currentInputIndex + jumpForward) < maxLength) {
+        int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward)]);
+        
         if (whitespaceChar == 0) {
             break;
-        } if (whitespaceChar == 2) {
+        } else if (whitespaceChar == 2) {
             (*lineNumber)++;
         }
 
@@ -626,7 +623,7 @@ int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, s
     }
 
     // return the value of how much the input index has to skip until there's another non whitespace character
-    return jumpForward;
+    return jumpForward - 1;
 }
 
 /*

@@ -32,9 +32,9 @@ char OPERATORS[] = {
 /*
 Purpose: Check if a character is a space character
 Return Type: int => 1 = is whitespace char; 0 = is not a whitespace char
-Params: char character => Character to be checked
+Params: const char character => Character to be checked
 */
-int is_space(char character) {
+int is_space(const char character) {
     switch (character) {
     case '\n':
         return 2;
@@ -42,6 +42,7 @@ int is_space(char character) {
     case '\r':
     case '\v':
     case '\t':
+    case '\f':
         return 1;
     default:
         return 0;

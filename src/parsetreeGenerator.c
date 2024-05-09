@@ -341,6 +341,8 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
         if ((*tokens)[startPos].type == _KW_THIS_
             && (*tokens)[startPos + 3].type == _KW_CONSTRUCTOR_) {
             return PG_create_class_constructor_tree(tokens, startPos);
+        } else if ((*tokens)[startPos].type == _OP_SEMICOLON_) {
+            break;
         }
 
         if ((int)PG_predict_assignment(tokens, startPos) == true) {
@@ -592,7 +594,11 @@ Params: TOKEN **tokens => Pointer to tokens on which the bound is predicted from
 int PG_get_term_bounds(TOKEN **tokens, size_t startPos) {
     for (int i = startPos; i < TOKENLENGTH; i++) {
         if ((*tokens)[i].type == _OP_SEMICOLON_
-            || (*tokens)[i].type == _OP_EQUALS_) {
+            || (*tokens)[i].type == _OP_EQUALS_
+            || (*tokens)[i].type == _OP_PLUS_EQUALS_
+            || (*tokens)[i].type == _OP_MINUS_EQUALS_
+            || (*tokens)[i].type == _OP_MULTIPLY_EQUALS_
+            || (*tokens)[i].type == _OP_DIVIDE_EQUALS_) {
             return i - startPos;
         }
     }
@@ -642,7 +648,7 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
         operatorNode->leftNode = termReport.node;
     }
 
-    skip ++;
+    skip++;
     NodeReport rep = {NULL, UNINITIALZED};
     
     if (get_var_type(tokens, startPos + skip) == COND_VAR) {
@@ -2789,15 +2795,7 @@ struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos) {
         TOKEN *currentToken = &(*tokens)[idenEndPos];
 
         if ((int)PG_is_operator(currentToken) == true) {
-            int isFunctionCall = (int)PG_is_function_call(tokens, idenEndPos);
-
-            if (isFunctionCall == false) {
-                break;
-            } else {
-                break;
-            }
-
-            idenEndPos += isFunctionCall + 1;
+            break;
         }
 
         idenEndPos++;
@@ -2921,7 +2919,8 @@ const TOKENTYPES operators[] = {
 _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
 _OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_, _OP_EQUALS_, _OP_SEMICOLON_,
 _OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_, _OP_RIGHT_EDGE_BRACKET_,
-_OP_LEFT_EDGE_BRACKET_, _OP_COLON_};
+_OP_LEFT_EDGE_BRACKET_, _OP_COLON_, _OP_PLUS_EQUALS_, _OP_MINUS_EQUALS_,
+_OP_MULTIPLY_EQUALS_, _OP_DIVIDE_EQUALS_};
 
 int PG_is_operator(const TOKEN *token) {
     if (token->type == __EOF__) {

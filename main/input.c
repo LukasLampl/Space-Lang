@@ -123,11 +123,13 @@ Params: const long fileLength => Length of the file;
 */
 void reserve_buffer(const size_t fileLength, char **buffer) {
     if (fileLength > 0) {
-        *buffer = (char*)calloc(fileLength, sizeof(char));
+        *buffer = (char*)calloc(fileLength + 1, sizeof(char));
 
         if (*buffer == NULL) {
             (void)IO_BUFFER_RESERVATION_EXCEPTION();
         }
+
+        (*buffer)[fileLength] = '\0';
     }
 }
 
