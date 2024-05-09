@@ -80,6 +80,7 @@ void PG_print_cpu_time(float cpu_time_used);
 void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
+int PG_predict_function_call(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_else_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos);
@@ -227,7 +228,7 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
     struct Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_, token->line, token->tokenStart);
     int argumentCount = 0;
     size_t jumper = 0;
-    printf("Start: %s\n", (*tokens)[startPos].value);
+    
     while (startPos + jumper < TOKENLENGTH) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -341,10 +342,35 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
             return PG_create_simple_assignment_tree(tokens, startPos);
         }
 
+        int fncCallBounds = (int)PG_predict_function_call(tokens, startPos);
+
+        if (fncCallBounds > 0) {
+            return PG_create_simple_term_node(tokens, startPos, fncCallBounds);
+        }
+
         break;
     }
 
     return PG_create_node_report(NULL, UNINITIALZED);
+}
+
+///////////////////////////////////////////////////
+//////////  THIS FUNCTION IS TEMPORARELY  /////////
+///////////////////////////////////////////////////
+int PG_predict_function_call(TOKEN **tokens, size_t startPos) {
+    int counter = 0;
+
+    while (startPos + counter < TOKENLENGTH) {
+        TOKEN *token = &(*tokens)[startPos + counter];
+
+        if (token->type == _OP_SEMICOLON_) {
+            break;
+        }
+
+        counter++;
+    }
+
+    return counter;
 }
 
 /*
@@ -440,7 +466,7 @@ NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
 
     NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 2);
     node->leftNode = chainedCondReport.node;
-    skip += chainedCondReport.tokensToSkip + 4;
+    skip += chainedCondReport.tokensToSkip + 3;
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     node->rightNode = runnableReport.node;
@@ -609,7 +635,7 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
     skip += 2;
 
     NodeReport rep = {NULL, UNINITIALZED};
-
+    
     if (get_var_type(tokens, startPos + skip) == COND_VAR) {
         rep = PG_create_condition_assignment_tree(tokens, startPos + skip);
     } else {
@@ -732,7 +758,6 @@ NodeReport PG_create_return_statement_tree(TOKEN **tokens, size_t startPos) {
     int skip = 0;
     
     if ((*tokens)[startPos + 1].type == _KW_NEW_) {
-        printf("Enter?");
         NodeReport classInstanceReport = PG_create_class_instance_tree(tokens, startPos + 1);
         topNode->leftNode = classInstanceReport.node;
         skip += classInstanceReport.tokensToSkip + 1;
@@ -911,11 +936,9 @@ Layout:
 _______________________________
 */
 NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos) {
-    printf("Enter\n");
     TOKEN *token = &(*tokens)[startPos + 1];
     struct Node *topNode = PG_create_node(token->value, _INHERITED_CLASS_NODE_, token->line, token->tokenStart);
     int bounds = (int)PG_predict_argument_count(tokens, startPos + 2, false);
-    printf("Bounds: %i\n", bounds);
     (void)PG_allocate_node_details(topNode, bounds, false);
     int skip = (int)PG_add_params_to_node(topNode, tokens, startPos + 3, 0, _NULL_);
 
@@ -965,9 +988,7 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
 
     if ((*tokens)[startPos + skip].type == _OP_RIGHT_BRACKET_) {
         int bounds = (int)PG_predict_argument_count(tokens, startPos + skip + 1, false);
-        printf("Bounds: %i\n", bounds);
         (void)PG_allocate_node_details(topNode, bounds, false);
-        printf("Till here\n");
         skip += (int)PG_add_params_to_node(topNode, tokens, startPos + skip + 1, 0, _NULL_);
     }
 
@@ -2031,11 +2052,10 @@ NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos) {
     TOKEN *token = &(*tokens)[startPos];
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos);
     struct Node *functionCallNode = PG_create_node(nameRet.value, _FUNCTION_CALL_NODE_, token->line, token->tokenStart);
-
     int argumentSize = (int)PG_predict_argument_count(tokens, startPos + nameRet.movedTokens, true);
     (void)PG_allocate_node_details(functionCallNode, argumentSize, false);
 
-    size_t paramSize = (size_t)PG_add_params_to_node(functionCallNode, tokens, startPos + nameRet.movedTokens, 0, _NULL_);
+    size_t paramSize = (size_t)PG_add_params_to_node(functionCallNode, tokens, startPos + nameRet.movedTokens + 1, 0, _NULL_);
 
     return PG_create_node_report(functionCallNode, paramSize + 2);
 }
@@ -2157,8 +2177,7 @@ int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefine
             count++;
         } else if (token->type == _OP_RIGHT_BRACKET_) {
             openBrackets++;
-        } else if (token->type == _OP_LEFT_BRACKET_
-            || token->type == _OP_EQUALS_) {
+        } else if (token->type == _OP_LEFT_BRACKET_) {
             openBrackets--;
 
             if (openBrackets <= 0) {
@@ -2529,7 +2548,7 @@ Params: TOKEN **tokens => Pointer to the tokens;
 */
 NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos) {
     NodeReport report = {NULL, UNINITIALZED};
-    
+
     if ((*tokens)[startPos + 1].type == _OP_RIGHT_BRACKET_) {
         size_t bounds = (size_t)PG_determine_bounds_for_capsulated_term(tokens, startPos + 1);
         report = PG_create_simple_term_node(tokens, startPos + 2, bounds);
@@ -2676,15 +2695,14 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
                 >    ^
                 > (*tokens)[startPos + 1]
                 */
-                if ((int)PG_is_function_call(tokens, startPos + 1) > 0) {
-                    NodeReport functionCallReport = PG_create_function_call_tree(tokens, startPos);
+                if ((int)PG_is_function_call(tokens, startPos + skip - 1) > 0) {
+                    NodeReport functionCallReport = PG_create_function_call_tree(tokens, startPos + skip - 1);
                     topNode->leftNode = functionCallReport.node;
                 } else {
-                    token = &(*tokens)[startPos];
-                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos);
+                    token = &(*tokens)[startPos + skip - 1];
+                    struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, startPos + skip - 1);
                     topNode->leftNode = PG_create_node(lvalRet.value, PG_get_node_type_by_value(&lvalRet.value), token->line, token->tokenStart);
                 }
-
                 /*
                 > .get()
                 >     ^
@@ -2693,13 +2711,13 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
                 if ((int)PG_is_function_call(tokens, startPos + skip + 2) > 0) {
                     NodeReport functionCallReport = PG_create_function_call_tree(tokens, startPos + skip + 1);
                     topNode->rightNode = functionCallReport.node;
-                    skip += functionCallReport.tokensToSkip + 1;
+                    skip += functionCallReport.tokensToSkip;
                 } else {
                     token = &(*tokens)[startPos + skip + 1];
                     struct idenValRet rvalRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
                     topNode->rightNode = PG_create_node(rvalRet.value, PG_get_node_type_by_value(&rvalRet.value), token->line, token->tokenStart);
                 }
-
+                
                 cache = topNode;
             } else {
                 enum NodeType type = currentToken->type == _OP_DOT_ ? _MEMBER_ACCESS_NODE_ : _CLASS_ACCESS_NODE_;
@@ -2736,7 +2754,7 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos) {
 
         skip++;
     }
-
+    
     return PG_create_node_report(cache, skip);
 }
 
