@@ -36,9 +36,9 @@ global function test(param1, param2) {}         x
 global function test(param1, *param2) {}        x
 
 ### IF ###
-if (a < 10 and b == 20 or c >= 30) {
-} else if (c < 10 and b > 30) {
-} else {}
+if (a < 10 and b == 20 or c >= 30) {            x
+} else if (c < 10 and b > 30) {                 x
+} else {}                                       x
 
 ### WHILE ###
 while (a < 10 and b == 20) {}                   x

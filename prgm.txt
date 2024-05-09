@@ -1,11 +1,11 @@
-var a = 10;
+class Math() => {
+    private function:int mul(num1, num2, num3) {
+        var res = 0;
 
-if (a == 10 and (a < 100 or a > 200)) {
-    a++;
-} else if (a == 3) {
-    a += 3;
-} else {
-    a += 5;
+        for (var i = 0; i < num2; i++) {
+            res += num1;
+        }
+
+        return res;
+    }
 }
-
-var b = a;

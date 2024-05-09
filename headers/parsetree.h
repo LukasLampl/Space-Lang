@@ -25,7 +25,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/Token.h"
 
 enum NodeType {
-    _NULL_, _IDEN_NODE_ = 0, _STRING_NODE_, _NUMBER_NODE_, _FLOAT_NODE_, _BOOL_NODE_,
+    _NULL_ = -1, _IDEN_NODE_ = 0, _STRING_NODE_, _NUMBER_NODE_, _FLOAT_NODE_, _BOOL_NODE_,
     _NULL_NODE_, _CLASS_ACCESS_NODE_, _POINTER_NODE_, _REFERENCE_NODE_,
     _FUNCTION_NODE_, _MODIFIER_NODE_, _RET_TYPE_NODE_, _NAME_NODE_,
     _MULTIPLY_NODE_, _DIVIDE_NODE_, _PLUS_NODE_, _MINUS_NODE_, _MODULO_NODE_,
