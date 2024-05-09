@@ -436,24 +436,16 @@ Params: TOKEN **tokens => Tokens to be checked;
 */
 int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
-    int facedSemicolon = false;
 
     while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
-        TOKEN *currentToken = &(*tokens)[startPos + jumper];
-
-        if (currentToken->type == _KW_NEW_) {
-            if (facedSemicolon == true) {
-                return false;
-            } else {
-                return true;
-            }
-        }
-
-        if (currentToken->type == _OP_SEMICOLON_) {
-            facedSemicolon = true;
-        } else if (currentToken->type == _OP_RIGHT_BRACE_) {
+        switch ((*tokens)[startPos + jumper].type) {
+        case _KW_NEW_:
+            return true;
+        case _OP_SEMICOLON_:
+        case _OP_RIGHT_BRACE_:
             return false;
+        default: break;
         }
 
         jumper++;
@@ -1452,19 +1444,13 @@ Params: TOKEN **tokens => Tokens to be checked;
         size_t startPos => Position from where to start checking
 */
 int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
-    int facedSemicolon = false;
-
     for (int i = startPos; i <  MAX_TOKEN_LENGTH; i++) {
-        if ((*tokens)[i].type == _OP_QUESTION_MARK_) {
-            if (facedSemicolon == false) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        if ((*tokens)[i].type == _OP_SEMICOLON_) {
-            facedSemicolon = true;
+        switch ((*tokens)[i].type) {
+        case _OP_QUESTION_MARK_:
+            return true;
+        case _OP_SEMICOLON_:
+            return false;
+        default: break;
         }
     }
 
@@ -2338,26 +2324,27 @@ Params: TOKEN **tokens => Tokens to be checked for evidence;
         size_t startPos => Position from where to start checking
 */
 int SA_predict_class_object_access(TOKEN **tokens, size_t startPos) {
-    int facedSemicolon = false;
     int jumper = 0;
     int openBrackets = 0;
 
     while (startPos + jumper <  MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
-        TOKEN *currentToken = &(*tokens)[startPos + jumper];
-
-        if (currentToken->type == _OP_CLASS_ACCESSOR_) {
-            if (facedSemicolon == true || openBrackets != 0) {
+        switch ((*tokens)[startPos + jumper].type) {
+        case _OP_CLASS_ACCESSOR_:
+            if (openBrackets != 0) {
                 return false;
-            } else {
-                return true;
             }
-        } else if (currentToken->type == _OP_SEMICOLON_) {
-            facedSemicolon = true;
-        } else if (currentToken->type == _OP_RIGHT_BRACKET_) {
+
+            return true;
+        case _OP_SEMICOLON_:
+            return false;
+        case _OP_RIGHT_BRACKET_:
             openBrackets++;
-        } else if (currentToken->type == _OP_LEFT_BRACKET_) {
+            break;
+        case _OP_LEFT_BRACKET_:
             openBrackets--;
+            break;
+        default: break;
         }
 
         jumper++;
@@ -2810,6 +2797,8 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
         if ((*SOURCE_CODE)[i] == '\n') {
             printPosition = i + 1;
             continue;
+        } else if ((*SOURCE_CODE)[i] == '\0') {
+            break;
         }
 
         (void)printf("%c", (*SOURCE_CODE)[i]);
@@ -2820,13 +2809,15 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
         }
     }
 
+    blankLength = blankLength > 32 ? 32 : blankLength;
+
     for (int i = 0; i < blankLength; i++) {
         (void)printf(" ");
     }
 
     int counter = 0;
 
-    for (int i = printPosition; i < SOURCE_LENGTH; i++) {
+    for (int i = printPosition; i < SOURCE_LENGTH && i - printPosition < 32; i++) {
         if (i >= errorToken->tokenStart
             && counter < (errorToken->size - 1)) {
             (void)printf("^");

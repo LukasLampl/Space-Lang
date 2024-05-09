@@ -35,12 +35,17 @@ Return Type: int => 1 = is whitespace char; 0 = is not a whitespace char
 Params: char character => Character to be checked
 */
 int is_space(char character) {
-    if (character == ' ' || character == '\n' || character == '\r'
-        || character == '\t' || character == '\v') {
+    switch (character) {
+    case '\n':
+        return 2;
+    case ' ':
+    case '\r':
+    case '\v':
+    case '\t':
         return 1;
+    default:
+        return 0;
     }
-
-    return 0;
 }
 
 int is_empty_string(const char* string) {
@@ -51,7 +56,7 @@ int is_empty_string(const char* string) {
     } else if (string[0] == '\0') {
         return 1;
     }
-    
+
     return 0;
 }
 

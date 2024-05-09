@@ -58,7 +58,6 @@ struct InputReaderResults ProcessInput(char *path) {
     
     (void)fseek(filePointer, 0L, SEEK_END);
     const size_t fileLength = (size_t)ftell(filePointer);
-    
     (void)check_file_length(fileLength, path);
     
     char *buffer = NULL;

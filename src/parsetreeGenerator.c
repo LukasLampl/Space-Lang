@@ -2098,7 +2098,6 @@ size_t PG_add_params_to_node(struct Node *node, TOKEN **tokens, size_t startPos,
             && currentToken->type != _KW_WITH_) {
             //Check if the param is going to be out of the allocated space
             if (detailsPointer == node->detailsCount) {
-                printf("SIZE for details too small!\n");
                 skip = i - startPos;
                 break;
             }

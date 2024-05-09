@@ -176,7 +176,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
         }
 
         // If the input character at index i is a whitespace, then filter the whitespace character
-        if (isWhiteSpace) {
+        if (isWhiteSpace > 0) {
             (void)LX_set_keyword_type_to_token(&tokens[storagePointer]);
 
             // If the current token is already filled or not, if then add "\0" to close the string  
@@ -300,6 +300,7 @@ TOKEN* Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t f
     }
 
     if (LEXER_DISPLAY_USED_TIME == 1) {
+        (void)printf("Finished with %i tokens in total.\n", storagePointer);
         (void)LX_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
@@ -611,9 +612,12 @@ Params: char **input => Input to be processed; int maxLength => Length of the bu
 int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
     int jumpForward = 0;
 
-    while (((currentInputIndex + jumpForward) + 1) < maxLength
-        && (int)isspace((*input)[(currentInputIndex + jumpForward) + 1]) != 0) {
-        if ((*input)[currentInputIndex + jumpForward + 1] == '\n') {
+    while (((currentInputIndex + jumpForward) + 1) < maxLength) {
+        int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward) + 1]);
+
+        if (whitespaceChar == 0) {
+            break;
+        } if (whitespaceChar == 2) {
             (*lineNumber)++;
         }
 
