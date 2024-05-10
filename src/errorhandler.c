@@ -162,7 +162,7 @@ void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(char **input, int pos, int maxBackPos, in
             forSpace = forward;
         }
 
-        if (isspace((*input)[i]) && (*input)[i] != ' ') {
+        if (is_space((*input)[i]) > 0 && (*input)[i] != ' ') {
             break;
         }
 
@@ -374,7 +374,7 @@ void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lin
         charPosition++;
     }
 
-    int msgLength = (int)snprintf(buffer, 32, "%i : %i | ", (lineNumber + 1), charPosition);
+    int msgLength = (int)snprintf(buffer, 32, "%li : %i | ", (lineNumber + 1), charPosition);
     (void)printf("%s", buffer);
 
     for (int i = printPosition; (*input)[i] != '\0'; i++) {

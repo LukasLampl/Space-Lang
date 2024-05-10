@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "../headers/modules.h"
 
 // Operators
@@ -52,7 +53,7 @@ int is_space(const char character) {
 int is_empty_string(const char* string) {
     if (string == NULL) {
         return 1;
-    } else if ((sizeof(string) / sizeof(string[0])) <= 1) {
+    } else if ((int)strlen(string) <= 1) {
         return 1;
     } else if (string[0] == '\0') {
         return 1;

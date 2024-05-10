@@ -295,7 +295,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
     }
 
     if (LEXER_DISPLAY_USED_TIME == 1) {
-        (void)printf("Finished with %i tokens and %i lines in total.\n", storagePointer + 1, lineNumber + 1);
+        (void)printf("Finished with %li tokens and %li lines in total.\n", storagePointer + 1, lineNumber + 1);
         (void)LX_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
     }
 
@@ -924,7 +924,7 @@ void LX_print_result(TOKEN *tokens, size_t currenTokenIndex) {
                 continue;
             }
 
-            (void)printf("Token: %3u | Type: %-2d | Size: %3i | Line: %3i | Start of TOKEN: %3i -> Token: %s\n", i, (int)tokens[i].type, tokens[i].size, tokens[i].line, tokens[i].tokenStart, tokens[i].value);
+            (void)printf("Token: %3lu | Type: %-2d | Size: %3li | Line: %3li | Start of TOKEN: %3li -> Token: %s\n", i, (int)tokens[i].type, tokens[i].size, tokens[i].line, tokens[i].tokenStart, tokens[i].value);
         }
 
         (void)printf("\n>>>>>    Buffer successfully lexed    <<<<<\n");

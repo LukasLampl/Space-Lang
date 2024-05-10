@@ -160,7 +160,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     }
 
     RootNode.nodeCount = 0;
-    printf("TOKENLENGTH: %i\n", TokenLength);
+    printf("TOKENLENGTH: %li\n", TokenLength);
 
     // CLOCK FOR DEBUG PURPOSES ONLY!!
     clock_t start, end;
@@ -1918,7 +1918,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
         }
 
         if (argumentCount > enumNode->detailsCount) {
-            printf("SIZE (enum) %i!\n", enumNode->detailsCount);
+            printf("SIZE (enum) %li!\n", enumNode->detailsCount);
             exit(EXIT_FAILURE);
         }
 

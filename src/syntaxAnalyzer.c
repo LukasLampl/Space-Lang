@@ -194,10 +194,10 @@ int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) 
         if (currentToken->type == __EOF__) {
             if (panicModeOpenBraces > 1) {
                 (void)printf("SYNTAX ERROR: Missing %i closing braces \"}\".\n", panicModeOpenBraces);
-                (void)printf("Estimated line: %i (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
+                (void)printf("Estimated line: %li (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
             } else if (panicModeLastStartPos == 1) {
                 (void)printf("SYNTAX ERROR: Missing 1 closing brace \"}\".\n");
-                (void)printf("Estimated line: %i (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
+                (void)printf("Estimated line: %li (%s)\n", (*tokens)[startPos].line + 1, FILE_NAME);
             }
 
             return i - startPos;
@@ -2774,7 +2774,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
         return;
     }
 
-    (void)printf("SYNTAX ERROR: An error occured at line %i (%s).\n", (errorToken->line + 1), FILE_NAME);
+    (void)printf("SYNTAX ERROR: An error occured at line %li (%s).\n", (errorToken->line + 1), FILE_NAME);
     (void)printf("-------------------------------------------------------\n");
 
     int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorToken->tokenStart;
@@ -2789,7 +2789,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     
     char buffer[32];
     int tokPos = ((errorToken->tokenStart + 1) - printPosition);
-    int blankLength = (int)snprintf(buffer, 32, "%i : %i | ", (errorToken->line + 1), tokPos);
+    int blankLength = (int)snprintf(buffer, 32, "%li : %i | ", (errorToken->line + 1), tokPos);
 
     (void)printf("%s", buffer);
 
