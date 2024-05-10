@@ -327,7 +327,7 @@ Params: TOKEN **tokens => Tokens to be checked;
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     if ((int)SA_predict_expression(tokens, startPos) == true) {
         SyntaxReport isExpression = SA_is_expression(tokens, startPos, true);
-
+        printf("Error: %i\n", isExpression.errorOccured);
         if (isExpression.errorOccured == false) {
             return isExpression;
         }
@@ -763,41 +763,41 @@ SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
     }
 
     TOKEN *crucialToken = &(*tokens)[startPos + isIdentifier.tokensToSkip];
-    int skip = 0;
+    int skip = isIdentifier.tokensToSkip;
 
-    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + isIdentifier.tokensToSkip) == true) {
-        SyntaxReport isConditionAssignment = SA_is_conditional_assignment(tokens, startPos + isIdentifier.tokensToSkip);
+    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+        SyntaxReport isConditionAssignment = SA_is_conditional_assignment(tokens, startPos + skip);
 
         if (isConditionAssignment.errorOccured == true) {
             return SA_create_syntax_report(isConditionAssignment.token, 0, true, isConditionAssignment.expectedToken);
         }
 
-        skip = isConditionAssignment.tokensToSkip - 1;
+        skip += isConditionAssignment.tokensToSkip - 1;
     } else if (crucialToken->type == _OP_ADD_ONE_
         || crucialToken->type == _OP_SUBTRACT_ONE_) {
-        skip = 1;
+        skip++;
     } else if ((int)SA_is_assignment_operator(crucialToken->value) == true
         || crucialToken->type == _OP_EQUALS_) {
-        SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + isIdentifier.tokensToSkip + 1, true);
+        SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + skip + 1, false);
 
         if (isSimpleTerm.errorOccured == true) {
             return SA_create_syntax_report(isSimpleTerm.token, 0, true, isSimpleTerm.expectedToken);
         }
 
-        skip = isSimpleTerm.tokensToSkip + 1;
+        skip += isSimpleTerm.tokensToSkip + 1;
     } else {
-        return SA_create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip], 0, true, "++\", \"--\", \"-=\", \"+=\", \"*=\", \"/=\" or \"=");
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "++\", \"--\", \"-=\", \"+=\", \"*=\", \"/=\" or \"=");
     }
-    
+
     if (inRunnable == true) {
-        if ((*tokens)[startPos + isIdentifier.tokensToSkip + skip].type == _OP_SEMICOLON_) {
-            return SA_create_syntax_report(NULL, isIdentifier.tokensToSkip + skip + 1, false, NULL);
+        if ((*tokens)[startPos + skip].type == _OP_SEMICOLON_) {
+            return SA_create_syntax_report(NULL, + skip + 1, false, NULL);
         }
 
-        return SA_create_syntax_report(&(*tokens)[startPos + isIdentifier.tokensToSkip + skip], 0, true, ";");
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
     }
     
-    return SA_create_syntax_report(NULL, isIdentifier.tokensToSkip + skip, false, NULL);
+    return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /*

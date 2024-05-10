@@ -50,6 +50,11 @@ int is_space(const char character) {
     }
 }
 
+/*
+Purpose: Checks if a string is empty or not
+Return Type: int => 1 = is empty; 0 = not empty
+Params: const char *string => String to be checked
+*/
 int is_empty_string(const char* string) {
     if (string == NULL) {
         return 1;

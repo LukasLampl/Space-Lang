@@ -164,8 +164,6 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
         }
 
         if (i + 1 == fileLength) {
-            TOKEN token = TOKENS[--storagePointer];
-            token.value[token.size] = '\0';
             (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
             (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
         }

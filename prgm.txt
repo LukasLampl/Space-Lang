@@ -1,24 +1,3 @@
-class Bank() => {
-    var accounts;
+var a = 10;
 
-    this::constructor {
-    }
-
-    function createAccount(accountNumber, initialBalance) {
-        if (accountNumber != this.accounts) {
-            var account = new Account(initialBalance);
-            this.accounts[accountNumber] = account;
-        } else {
-            print("Account number already exists.");
-        }
-    }
-    
-    function getAccount(accountNumber) {
-        if (accountNumber == this.accounts) {
-            return this.accounts[accountNumber];
-        } else {
-            print("Account not found.");
-            return null;
-        }
-    }
-}
+this.b = a;
