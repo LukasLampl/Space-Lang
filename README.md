@@ -18,7 +18,7 @@ The program basically reads in an input file and converts it into tokens, then a
 
 # 1. Requirements #
 To compile the source code into an useable format, you'll have to use a C compiler.
-I used the `gcc` compiler throughout the whole project.
+I used the `gcc` compiler (Version 11.4.0) throughout the whole project.
 If you want to run the program with the Batch file, you'll need a Terminal and the gcc compiler, or else the Batchfile won't work.
 
 # 2. Installation & running the compiler #

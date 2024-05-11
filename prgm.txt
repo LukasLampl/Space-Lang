@@ -1,3 +1,24 @@
-var a = 10;
+// Define a class for representing a person
+class Person(name, age) => {
+    var name;
+    var age;
 
-this.b = a;
+    // Constructor to initialize name and age
+    this::constructor {
+        this.name = name;
+        this.age = age;
+    }
+
+    // Method to greet the person
+    function greet() {
+        print("Hello, my name is " + this.name + " and I am " + this.age + " years old.");
+    }
+}
+
+// Create instances of the Person class
+var person1 = new Person("Alice", 30);
+var person2 = new Person("Bob", 25);
+
+// Call the greet method for each person
+person1->greet();
+person2->greet();
