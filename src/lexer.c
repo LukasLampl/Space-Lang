@@ -104,9 +104,9 @@ TOKEN *TOKENS = NULL;
 
 TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName) {
     // TOKEN defined in modules.h
-    TOKENS = (struct TOKEN*)malloc((requiredTokenLength + 2) * sizeof(struct TOKEN));
+    TOKENS = (struct TOKEN*)calloc((requiredTokenLength + 2), sizeof(struct TOKEN));
     maxlength = fileLength;
-    maxTokensLength = requiredTokenLength;
+    maxTokensLength = requiredTokenLength + 1;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
     if (TOKENS == NULL) {
@@ -281,6 +281,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
     /////////////////////////
     storagePointer += (int)LX_eof_token_clearance_check(&(TOKENS[storagePointer]), lineNumber);
     (void)LX_set_EOF_token(&TOKENS[storagePointer]);
+    maxTokensLength = storagePointer > maxTokensLength ? storagePointer : maxTokensLength;
     storagePointer--;
 
     // END CLOCK AND PRINT RESULT
@@ -308,7 +309,7 @@ Params: TOKEN *token => Token to check its value;
 */
 int LX_eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
     if (token != NULL && token->value != NULL) {
-        if (token->size > _LII_ || token->size == 0 || token->type == __EOF__) {
+        if (token->type > _LII_ || token->size == 0 || token->type == __EOF__) {
             return 0;
         } else {
             if (token->value[0] != 0) {
@@ -585,10 +586,10 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
         }
 
         // End the whole token with the '\0' character
-        if (token->size > jumpForward + 1) {
+        if (token->size >= jumpForward + 1) {
             token->value[jumpForward + 1] = '\0';
-        } {
-            token->value[token->size] = *crucial_character;
+        } else {
+            token->value[token->size - 1] = *crucial_character;
         }
     }
 
@@ -725,7 +726,7 @@ Params: TOKEN *token => Current token which should be the EOF token
 void LX_set_EOF_token(TOKEN *token) {
     if (token != NULL) {
         char *src = "$EOF$\0";
-        token->value = (char*)malloc(sizeof(char) * 6);
+        token->value = (char*)calloc(sizeof(char), 7);
 
         if (token->value == NULL) {
             printf("ERROR ON ALLOCATIONG MEMORY FOR EOF TOKEN!\n");
@@ -876,7 +877,8 @@ int FREE_TOKENS(TOKEN *tokens) {
             }
         }
 
-        (void)free(tokens); 
+        (void)free(tokens);
+        tokens = NULL;
         tokensreserved = 0;
     }
 

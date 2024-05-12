@@ -253,13 +253,16 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
             if (argumentCount == 0) {
                 (void)PG_allocate_node_details(parentNode, 1, false);
             } else {
-                parentNode->details = (struct Node**)realloc(parentNode->details, sizeof(struct Node) * argumentCount + 1);
+                struct Node **temp = (struct Node**)realloc(parentNode->details, sizeof(struct Node) * argumentCount + 1);
 
-                if (parentNode->details == NULL) {
+                if (temp == NULL) {
+                    free(parentNode->details);
+                    FREE_MEMORY();
                     printf("Something went wrong (runnable)!\n");
                     exit(EXIT_FAILURE);
                 }
 
+                parentNode->details = temp;
                 parentNode->detailsCount = argumentCount + 1;
             }
 
@@ -1209,9 +1212,10 @@ _______________________________
 */
 NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim) {
     unsigned int size = sizeof(char) * sizeof(int);
-    char *name = (char*)malloc(size);
+    char *name = (char*)calloc(dim + 2, size);
 
     if (name == NULL) {
+        FREE_MEMORY();
         printf("NAME ERROR!\n");
         exit(EXIT_FAILURE);
     }
@@ -1918,6 +1922,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
         }
 
         if (argumentCount > enumNode->detailsCount) {
+            FREE_MEMORY();
             printf("SIZE (enum) %li!\n", enumNode->detailsCount);
             exit(EXIT_FAILURE);
         }
@@ -1939,9 +1944,10 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
             }
 
             //Size for long
-            char *value = malloc(sizeof(char) * 24);
+            char *value = (char*)calloc(24, sizeof(char));
 
             if (value == NULL) {
+                FREE_MEMORY();
                 printf("VALUE = NULL! (enum)\n");
                 exit(EXIT_FAILURE);
             }
@@ -2232,30 +2238,35 @@ Params: struct Node *node => Pointer to the node;
 */
 void PG_allocate_node_details(struct Node *node, size_t size, int resize) {
     if (node == NULL) {
+        FREE_MEMORY();
         printf("NODE NULL\n");
         exit(EXIT_FAILURE);
     }
 
     if (resize == false) {
-        node->details = (struct Node**)malloc(sizeof(struct Node*) * size);
+        struct Node **temp = (struct Node**)calloc(size, sizeof(struct Node*));
+        
+        if (temp == NULL) {
+            free(node->details);
+            FREE_MEMORY();
+            printf("DETAILS ERROR!\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        node->details = temp;
         node->detailsCount = size;
-
-        if (node->details == NULL) {
-            printf("DETAILS ERROR!\n");
-            exit(EXIT_FAILURE);
-        }
-
-        for (int i = 0; i < size; i++) {
-            node->details[i] = NULL;
-        }
     } else {
-        node->details = (struct Node**)realloc(node->details, sizeof(struct Node) * (node->detailsCount + size));
-        node->detailsCount = node->detailsCount + size;
+        struct Node **temp = (struct Node**)realloc(node->details, sizeof(struct Node) * (node->detailsCount + size));
 
-        if (node->details == NULL) {
+        if (temp == NULL) {
+            free(node->details);
+            FREE_MEMORY();
             printf("DETAILS ERROR!\n");
             exit(EXIT_FAILURE);
         }
+
+        node->details = temp;
+        node->detailsCount = node->detailsCount + size;
 
         for (int i = node->detailsCount; i < node->detailsCount + size; i++) {
             node->details[i] = NULL;
@@ -2809,21 +2820,24 @@ struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos) {
 
         if (cache == NULL) {
             //The currentToken->size already includes a +1 for the '\0'
-            cache = (char*)malloc(sizeof(char) * currentToken->size);
+            cache = (char*)calloc(currentToken->size, sizeof(char));
 
             if (cache == NULL) {
-                (void)printf("ERROR! (CACHE MALLOC)\n");
+                (void)printf("ERROR! (CACHE CALLOC)\n");
             }
             //currentToken->value already has '\0'
             (void)strncpy(cache, currentToken->value, currentToken->size);
             cacheSize = currentToken->size;
         } else {
-            cache = (char*)realloc(cache, sizeof(char) * (cacheSize + currentToken->size - 1));
+            char *temp = (char*)realloc(cache, sizeof(char) * (cacheSize + currentToken->size - 1));
 
-            if (cache == NULL) {
+            if (temp == NULL) {
+                free(cache);
+                FREE_MEMORY();
                 (void)printf("ERROR! (CACHE REALLOC)\n");
             }
 
+            cache = temp;
             (void)strncat(cache, currentToken->value, currentToken->size);
             cacheSize += currentToken->size;
         }
@@ -2893,7 +2907,7 @@ Params: char *value => Value of the node;
         enum NodeType type => Type of the Node
 */
 struct Node *PG_create_node(char *value, enum NodeType type, int line, int pos) {
-    struct Node *node = (struct Node*)malloc(sizeof(struct Node));
+    struct Node *node = (struct Node*)calloc(1, sizeof(struct Node));
 
     if (node == NULL) {
         (void)PARSE_TREE_NODE_RESERVATION_EXCEPTION();
@@ -2973,9 +2987,14 @@ Params: void
 */
 int FREE_NODES() {
     for (size_t i = 0; i < RootNode.nodeCount; i++) {
-        FREE_NODE(RootNode.nodes[i]);
+        (void)FREE_NODE(RootNode.nodes[i]);
         free(RootNode.nodes[i]->value);
         free(RootNode.nodes[i]);
+        RootNode.nodes[i] = NULL;
+    }
+
+    if (RootNode.nodes != NULL) {
+        free(RootNode.nodes);
     }
 
     return 1;
@@ -2990,15 +3009,15 @@ void FREE_NODE(struct Node *node) {
     if (node != NULL) {
         FREE_NODE(node->leftNode);
         FREE_NODE(node->rightNode);
-        free(node->value);
 
         for (size_t i = 0; i < node->detailsCount; i++) {
             FREE_NODE(node->details[i]);
             free(node->details[i]);
         }
 
+        free(node->value);
         free(node->details);
-
         free(node);
+        node = NULL;
     }
 }
