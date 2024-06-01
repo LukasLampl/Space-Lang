@@ -25,13 +25,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/Token.h"
 
 // 1 = true; 0 = false
-#define LEXER_DEBUG_MODE 0
+#define LEXER_DEBUG_MODE 1
 #define LEXER_DISPLAY_USED_TIME 1
 
 #define SYNTAX_ANALYZER_DEBUG_MODE 0
 #define SYNTAX_ANALYZER_DISPLAY_USED_TIME 1
 
-#define PARSETREE_GENERATOR_DEBUG_MODE 0
+#define PARSETREE_GENERATOR_DEBUG_MODE 1
 #define PARSETREE_GENERATOR_DISPLAY_USED_TIME 1
 
 //////////////////////////////////////
@@ -42,6 +42,7 @@ int check_for_operator(char input);
 int is_space(char character);
 int is_empty_string(const char* string);
 int is_digit(char character);
+int is_primitive(TOKENTYPES type);
 
 //Input reader
 struct InputReaderResults {

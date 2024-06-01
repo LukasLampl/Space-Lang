@@ -94,3 +94,19 @@ int check_for_operator(char input) {
 
     return 0;
 }
+
+int is_primitive(TOKENTYPES type) {
+    switch (type) {
+    case _KW_INT_:
+    case _KW_SHORT_:
+    case _KW_LONG_:
+    case _KW_DOUBLE_:
+    case _KW_FLOAT_:
+    case _KW_CHAR_:
+    case _KW_STRING_:
+    case _KW_BOOLEAN_:
+        return 1;
+    default:
+        return 0;
+    }
+}

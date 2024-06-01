@@ -97,6 +97,7 @@ NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_variable_tree(TOKEN **tokens, size_t startPos);
 enum VAR_TYPE get_var_type(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_varType_tree(TOKEN *typeToken);
 NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos);
@@ -106,7 +107,7 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim);
 int PG_predict_array_init_count(TOKEN **tokens, size_t startPos);
 int PG_get_array_element_size(TOKEN **tokens, size_t startPos);
-int PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t startPos);
+int PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t startPos, int offset);
 int PG_get_dimension_count(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos);
@@ -641,7 +642,7 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
         operatorNode->leftNode = PG_create_node(token->value, _IDEN_NODE_, token->line, token->tokenStart);
         int dimCount = PG_get_dimension_count(tokens, startPos + 1);
         (void)PG_allocate_node_details(operatorNode->leftNode, dimCount, false);
-        skip += (int)PG_add_dimensions_to_var_node(operatorNode->leftNode, tokens, startPos + skip);
+        skip += (int)PG_add_dimensions_to_var_node(operatorNode->leftNode, tokens, startPos + skip, 0);
     //Member acces handling
     } else if ((*tokens)[startPos + 1].type == _OP_DOT_) {
         int bounds = PG_get_term_bounds(tokens, startPos);
@@ -996,6 +997,13 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
 
     skip++;
     
+    if ((*tokens)[startPos + skip].type == _OP_COLON_) {
+        NodeReport typeReport = PG_create_varType_tree(&(*tokens)[startPos + skip + 1]);
+        (void)PG_allocate_node_details(topNode, 1, false);
+        topNode->details[0] = typeReport.node;
+        skip += 2;
+    }
+
     topNode->value = (*tokens)[startPos + skip].value;
     skip += 3; //Skip the name, "=" and "new"
     token = &(*tokens)[startPos + skip];
@@ -1006,11 +1014,11 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
 
     if ((*tokens)[startPos + skip].type == _OP_RIGHT_BRACKET_) {
         int bounds = (int)PG_predict_argument_count(tokens, startPos + skip + 1, false);
-        (void)PG_allocate_node_details(topNode, bounds, false);
-        skip += (int)PG_add_params_to_node(topNode, tokens, startPos + skip + 1, 0, _NULL_);
+        (void)PG_allocate_node_details(topNode, bounds + 1, true);
+        skip += (int)PG_add_params_to_node(topNode, tokens, startPos + skip + 1, 1, _NULL_);
     }
 
-    return PG_create_node_report(topNode, skip + 1);
+    return PG_create_node_report(topNode, skip + 3);
 }
 
 NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) {
@@ -1056,8 +1064,8 @@ _______________________________
 Layout:
 
      [COND_VAR]
-   /            \
-[MOD]           [?]
+   /      |     \
+[MOD]    [T]    [?]
               /   |
          [COND] [VAL]
 
@@ -1072,6 +1080,7 @@ assigning value if cond is true and false.
 [?]: Conditional assignment indicator
 [COND]: Condition
 [VAL]: Values for true and false
+[T]: Type of variable (optional)
 _______________________________
 */
 NodeReport PG_create_conditional_var_tree(TOKEN **tokens, size_t startPos) {
@@ -1084,6 +1093,13 @@ NodeReport PG_create_conditional_var_tree(TOKEN **tokens, size_t startPos) {
         || (*tokens)[startPos].type == _KW_GLOBAL_) {
         topNode->leftNode = PG_create_node(token->value, _MODIFIER_NODE_, token->line, token->tokenStart);
         skip++;
+    }
+
+    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
+        NodeReport typeReport = PG_create_varType_tree(&(*tokens)[startPos + skip + 2]);
+        (void)PG_allocate_node_details(topNode, 1, false);
+        topNode->details[0] = typeReport.node;
+        skip += 2;
     }
 
     struct idenValRet varName = PG_get_identifier_by_index(tokens, startPos + skip + 1);
@@ -1153,6 +1169,7 @@ Layout:
      [ARR_VAR]
    /     |     \
 [MOD] [DIMEN] [VAL]
+        [T]
 
 To the [ARR_VAR] appended are the modifier
 ([MOD]: ´´´node->leftNode´´´), the value
@@ -1163,6 +1180,7 @@ definitions ([NAMES]: ´´´´node->details[pos]´´´).
 [MOD]: Contains the var modifier
 [VAL]: Value of the variables
 [DIMEN]: Dimension of the array var
+[T]: Type of the variable (optional)
 _______________________________
 */
 NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
@@ -1177,14 +1195,21 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
         skip++;
     }
 
+    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
+        NodeReport typeReport = PG_create_varType_tree(&(*tokens)[startPos + skip + 2]);
+        (void)PG_allocate_node_details(topNode, 1, false);
+        topNode->details[0] = typeReport.node;
+        skip += 2;
+    }
+
     struct idenValRet varName = PG_get_identifier_by_index(tokens, startPos + skip + 1);
     topNode->value = varName.value;
     skip++;
 
     //DIMENSION HANDLING
     int dimCount = PG_get_dimension_count(tokens, startPos + skip);
-    (void)PG_allocate_node_details(topNode, dimCount, false);
-    skip += (int)PG_add_dimensions_to_var_node(topNode, tokens, startPos + skip);
+    (void)PG_allocate_node_details(topNode, dimCount + 1, true);
+    skip += (int)PG_add_dimensions_to_var_node(topNode, tokens, startPos + skip, 1);
 
     if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
         NodeReport arrayInit = PG_create_array_init_tree(tokens, startPos + skip + 1, 0);
@@ -1304,9 +1329,9 @@ Params: struct Node *node => Node to set the dimensions in;
         TOKEN **tokens => Pointer to the tokens array;
         size_t startPos => Position from where the dimensions start
 */
-int PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t startPos) {
+int PG_add_dimensions_to_var_node(struct Node *node, TOKEN **tokens, size_t startPos, int offset) {
     size_t jumper = 0;
-    size_t currentDetail = 0;
+    size_t currentDetail = 0 + offset;
 
     while (startPos + jumper < TOKENLENGTH) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
@@ -1375,6 +1400,7 @@ Layout:
      [MUL_VAR]
    /     |     \
 [MOD] [NAMES] [VAL]
+        [T]
 
 To the [MUL_VAR] appended are the modifier
 ([MOD]: ´´´node->leftNode´´´), the value
@@ -1385,6 +1411,7 @@ definitions ([NAMES]: ´´´´node->details[pos]´´´).
 [MOD]: Contains the var modifier
 [VAL]: Value of the variables
 [NAMES]: Name of the variables
+[T]: Variable type (optional)
 _______________________________
 */
 NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos) {
@@ -1399,18 +1426,26 @@ NodeReport PG_create_mul_def_var_tree(TOKEN **tokens, size_t startPos) {
         skip++;
     }
 
+    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
+        NodeReport typeReport = PG_create_varType_tree(&(*tokens)[startPos + skip + 2]);
+        (void)PG_allocate_node_details(topNode, 1, false);
+        topNode->details[0] = typeReport.node;
+        skip += 2;
+    }
+
     /*
     > var num, num1, num2 = 10;
     >     ^^^^^^^^^^^^^^^
     > (*tokens)[startPos + skip + 1]
     */
     int definitions = PG_predict_argument_count(tokens, startPos + skip + 1, false);
-    (void)PG_allocate_node_details(topNode, definitions, false);
+    (void)PG_allocate_node_details(topNode, definitions + 1, true);
     size_t currentDetail = 0;
     
     while (startPos + skip < TOKENLENGTH) {
         if ((*tokens)[startPos + skip].type == _OP_COMMA_) {
             if (currentDetail == 0) {
+                currentDetail++;
                 token = &(*tokens)[startPos + skip - 1];
                 topNode->details[currentDetail++] = PG_create_node(token->value, _IDEN_NODE_, token->line, token->tokenStart);
                 token = &(*tokens)[startPos + skip + 1];
@@ -1449,9 +1484,9 @@ Params: TOKEN **tokens => Pointer to the tokens;
 _______________________________
 Layout:
 
-    [VAR]
-   /    \
-[MOD]  [VAL]
+     [VAR]
+   /   |  \
+[MOD] [T] [VAL]
 
 To the [VAR] appended are the modifier
 ([MOD]: ´´´node->leftNode´´´) and the value
@@ -1460,6 +1495,7 @@ To the [VAR] appended are the modifier
 [VAR]: Contains the variable name
 [MOD]: Contains the var modifier
 [VAL]: Value of the variable
+[T]: Type of the variable (optional)
 _______________________________
 */
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
@@ -1477,6 +1513,13 @@ NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
     //Determine var type
     enum NodeType type = (*tokens)[startPos + skip].type == _KW_VAR_ ? _VAR_NODE_ : _CONST_NODE_;
     varNode->type = type;
+
+    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
+        NodeReport typeReport = PG_create_varType_tree(&(*tokens)[startPos + skip + 2]);
+        (void)PG_allocate_node_details(varNode, 1, false);
+        varNode->details[0] = typeReport.node;
+        skip += 2;
+    }
 
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos + skip + 1);
     varNode->value = nameRet.value;
@@ -1670,6 +1713,11 @@ int PG_is_condition_operator(TOKENTYPES type) {
     default:
         return false;
     }
+}
+
+NodeReport PG_create_varType_tree(TOKEN *typeToken) {
+    struct Node *node = PG_create_node(typeToken->value, _VAR_TYPE_NODE_, typeToken->line, typeToken->tokenStart);
+    return PG_create_node_report(node, 1);
 }
 
 /*

@@ -1082,6 +1082,15 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
     }
 
     if ((*tokens)[startPos + modifier].type == _KW_VAR_) {
+        if ((*tokens)[startPos + modifier + 1].type == _OP_COLON_) {
+            if ((int)SA_is_root_identifier(&(*tokens)[startPos + modifier + 2]) == false
+                && (int)is_primitive((*tokens)[startPos + modifier + 2].type) == false) {
+                return SA_create_syntax_report(&(*tokens)[startPos + modifier + 2], 0, true, "<IDENTIFIER>");
+            }
+
+            modifier += 2;
+        }
+
         if ((int)SA_is_root_identifier(&(*tokens)[startPos + modifier + 1]) == false) {
             return SA_create_syntax_report(&(*tokens)[startPos + modifier + 1], 0, true, "<IDENTIFIER>");
         }

@@ -1,5 +1,1 @@
-class Apple() => {
-    function test() {
-        return "Test";
-    }
-}
+private var tree = new Tree();
