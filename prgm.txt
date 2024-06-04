@@ -1,1 +1,22 @@
-private var tree = new Tree();
+class Math => {
+    this::constructor(obj) {}
+    this::constructor(obj:Object) {}
+
+    global function:int add(num1, num2) {
+        return num1 + num2;
+    }
+
+    global function:long pow(num, exp) {
+        if (exp == 0) {
+            return 1;
+        } else if (exp > 0) {
+            var sum = 0;
+
+            for (var i = 0; i < exp; i++) {
+                sum *= num;
+            }
+
+            return sum;
+        }
+    }
+}

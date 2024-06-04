@@ -27,9 +27,40 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/Token.h"
 #include "../headers/errors.h"
 
+/**
+ * The subprogram {@code SPACE.src.syntaxAnalyzer} was created
+ * to provide a basic syntax analyzer for the SPACE-Lang. The
+ * process of the analysis happens on a "work-down" basis, which
+ * means, that all tokens are invoked as a RUNNABLE, then classified
+ * and processed accordingly.
+ * 
+ * For example:
+ * - Code:
+ * var a[] = {1, 2}
+ * 
+ * - Syntax analysis steps:
+ * RUNNABLE (main) -> VARIABLE -> ARRAY VARIABLE -> INIT ARRAY VARIABLE
+ * -> INIT 1 DIMENSIOT
+ * 
+ * @version 1.0     04.06.2024
+ * @author Lukas Nian En Lampl
+*/
+
+/**
+ * Defines the used booleans, 1 for true and 0 for false
+*/
 #define true 1
 #define false 0
 
+/**
+ * Structure for storing Syntax reports.
+ * The structure contains a token field, which is the place for
+ * the error token. TokensToSkip says how many tokens to skip
+ * until the next operation can be performed. The boolean errorOccured
+ * is a flag that is set to true, when an error occured. The expectedToken
+ * string is the field for defining what token was expected instead of
+ * the error token.
+*/
 typedef struct SyntaxReport {
     TOKEN *token;
     int tokensToSkip;
@@ -37,6 +68,9 @@ typedef struct SyntaxReport {
     char *expectedToken;
 } SyntaxReport;
 
+/**
+ * Enum for all possible parameter types
+*/
 enum ParameterType {
     _PARAM_FUNCTION_CALL_, _PARAM_FUNCTION_, _PARAM_CLASS_
 };
@@ -66,15 +100,13 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_simple_conditional_assignment(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int inDepth);
 SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inParam);
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam);
 int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_multiple_variable_definition(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_multiple_variable_definition_identifier(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int inDepth);
 SyntaxReport SA_is_array_element(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_class_constructor(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_class(TOKEN **tokens, size_t startPos);
@@ -86,12 +118,19 @@ SyntaxReport SA_is_include(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_enumerator(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_function(TOKEN **tokens, size_t startPos);
+int SA_skip_visibility_modifier(TOKEN *token);
 SyntaxReport SA_is_function_return_type_specifier(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_function_call(TOKEN **tokens, size_t startPos, int inFunction);
 SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType type);
+SyntaxReport SA_is_array_dimension_definition(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter);
+SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos);
+int SA_predict_term_expression(TOKEN **tokens, size_t startPos);
 int SA_predict_class_object_access(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos);
+int SA_predict_array_access(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos);
 int SA_is_root_identifier(TOKEN *token);
 SyntaxReport SA_is_numeral_identifier(TOKEN *token);
@@ -120,14 +159,16 @@ char **SOURCE_CODE = NULL;
 size_t SOURCE_LENGTH = 0;
 char *FILE_NAME = NULL;
 
-/*
-Purpose: Checks all TOKENS and returns errors
-Return Type: int => 1 = Syntax is correct; 0 = Syntax is incorrect
-Params: TOKEN **tokens => TOKEN array in which the error/s occured;
-        size_t tokenArrayLength => Size of the TOKEN array
-        char **source => Sourcec code from the user;
-        size_t sourceSize => Length of the source code;
-        char *sourceName => Filename of the source code
+/**
+ * @brief Checks the token sequence received by the
+ * lexer and checks for syntax errors that might have been
+ * introduced by the programmer.
+ * 
+ * @param tokens    Pointer the the tokens array from the lexer
+ * @param tokenArrayLength  Length of the token array
+ * @param **source  Pointer to the actual source code
+ * @param sourceSize    Length of the source code
+ * @param *sourceName    Name of the file that is currently checked
 */
 int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize, char *sourceName) {
     MAX_TOKEN_LENGTH = tokenArrayLength;
@@ -150,10 +191,8 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
         (void)printf("\n\n\n>>>>>>>>>>>>>>>>>>>>    SYNTAX ANALYZER    <<<<<<<<<<<<<<<<<<<<\n\n");
     }
 
-    //Actual check (everything is a runnable, just without or with blocks e.g. braces)
-    for (int i = 0; i < 1; i++) {
-        (void)SA_is_runnable(tokens, 0, false);
-    }
+    //Start of the check sequence
+    (void)SA_is_runnable(tokens, 0, false);
 
     if (SYNTAX_ANALYZER_DEBUG_MODE == true) {
         (void)printf("\n>>>>>    Tokens successfully analyzed    <<<<<\n");
@@ -167,16 +206,17 @@ int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t so
     return FILE_CONTAINS_ERRORS == false ? 0 : 1;
 }
 
-/*
-Purpose: Enters the panic mode and skips as many TOKENS as needed to recover
-Return Type: int => How many tokens got skipped
-Params: TOKEN **tokens => TOKEN array in which the error/s occured;
-        size_t startPos => Position from where to start skipping
-        int runnableWithBlock => If the error occured in a runnable with block or not
-*/
 int panicModeOpenBraces = 0;
 int panicModeLastStartPos = 0;
 
+/**
+ * @brief Enters the syntax analyzer into a "panic mode" and thus skips
+ * all tokens, till a recover might be possible.
+ * 
+ * @param **tokens  Pointer to the tokens array
+ * @param startPos  Position from where to start searching for recovering position
+ * @param runnableWithBlock Is the panic mode happening in a block-runnable
+*/
 int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) {
     for (size_t i = panicModeLastStartPos; i < startPos; i++) {
         if ((*tokens)[i].type == _OP_LEFT_BRACE_) {
@@ -224,15 +264,18 @@ int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) 
         }
     }
 
-    return -1;
+    return 1;
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the RUNNABLE rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int independentCall => Flag if the object access was called by term or indepentently
+/**
+ * @brief Checks if the passed tokens are written accordingly to the runnable
+ * rule
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+ * @param withBlock Flag for whether the runnable is in a block or not (e.g. function)
 */
 SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
     int jumper = 0;
@@ -269,7 +312,7 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
                 continue;
             } else {
                 if (withBlock == true) {
-                    return SA_create_syntax_report(isKWBasedRunnable.token, 0, true, isKWBasedRunnable.expectedToken);
+                    return isKWBasedRunnable;
                 } else {
                     jumper++;
                     continue;
@@ -289,10 +332,10 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
             if (skip > 0) {
                 jumper += skip;
-                return SA_create_syntax_report(isKWBasedRunnable.token, skip, false, isKWBasedRunnable.expectedToken);
+                return isNKWBasedRunnable;
             } else {
                 if (withBlock == true) {
-                    return SA_create_syntax_report(isKWBasedRunnable.token, 0, true, isKWBasedRunnable.expectedToken);
+                    return isNKWBasedRunnable;
                 } else {
                     jumper++;
                     continue;
@@ -317,17 +360,25 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Predicts what the token array wants to achieve, then tries it
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int independentCall => Flag if the object access was called by term or indepentently
+/**
+ * @brief Predicts the programmers target based on expression prediction.
+ *
+ * @note Examples:
+ * @note ```
+ * @note print("Text");
+ * @note a = a + 4;
+ * @note b = getData();
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     if ((int)SA_predict_expression(tokens, startPos) == true) {
         SyntaxReport isExpression = SA_is_expression(tokens, startPos, true);
-        printf("Error: %i\n", isExpression.errorOccured);
+
         if (isExpression.errorOccured == false) {
             return isExpression;
         }
@@ -350,11 +401,13 @@ SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<EXPRESSION>\" or \"<CLASS_OBJECT_ACCESS>");
 }
 
-/*
-Purpose: Check if the following tokens are a null assignment to a class instance
-Return Type: SyntaxReport => errorOccured = false on success + holding how many tokens to skip
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
+/**
+ * @brief Checks if a class instance is set to null.
+ *
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos) {
     int isRootIdentifier = SA_is_root_identifier(&(*tokens)[startPos]);
@@ -373,7 +426,7 @@ SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos)
                     skip += isArrayIdentifier.tokensToSkip;
                     continue;
                 } else {
-                    return SA_create_syntax_report(isArrayIdentifier.token, 0, true, isArrayIdentifier.expectedToken);
+                    return isArrayIdentifier;
                 }
             }
 
@@ -403,18 +456,21 @@ SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos)
     return SA_create_syntax_report(NULL, skip + 3, false, NULL);
 }
 
-/*
-Purpose: Tries if the non keyword runnable is a function call or not
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int independentCall => Flag if the object access was called by term or indepentently
+/**
+ * @brief If no expression could be predicted the runnable function
+ * call is executed as a "replacement". It is also called if it is
+ * an intended function call.
+ *
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos) {
     SyntaxReport isIdentifier = SA_is_identifier(tokens, startPos);
-
+    
     if (isIdentifier.errorOccured == true) {
-        return SA_create_syntax_report(isIdentifier.token, 0, true, isIdentifier.expectedToken);
+        return isIdentifier;
     }
 
     if ((*tokens)[startPos + isIdentifier.tokensToSkip - 1].type != _OP_LEFT_BRACKET_) {
@@ -428,11 +484,14 @@ SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isIdentifier.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Tries to predict if the current token array is a class instance or not
-Return Type: int => true = following array is class instance; false following array is not a class instance
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
+/**
+ * @brief Tries to predict if the current token array sequence is a class sequence
+ * or not.
+ * 
+ * @returns `True (1)` if it is a class instance, else `false (0)`
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
@@ -454,11 +513,13 @@ int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
     return false;
 }
 
-/*
-Purpose: Tries to predict if the current token array is an expression or not
-Return Type: int => true = following array is expression; false following array is not an expression
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
+/**
+ * @brief Tries to predict if the current token sequence is an expression or not.
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 int SA_predict_expression(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
@@ -485,12 +546,14 @@ int SA_predict_expression(TOKEN **tokens, size_t startPos) {
     return false;
 }
 
-/*
-Purpose: Executes a function, that matches with the keyword
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int independentCall => Flag if the object access was called by term or indepentently
+/**
+ * @brief Predicts the intended operation by the programmer and invokes
+ * the predicted function.
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     switch ((*tokens)[startPos].type) {
@@ -561,18 +624,24 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, 0, false, "N/A");
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the CLASS_OBJECT_ACCESS rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int independentCall => Flag if the object access was called by term or indepentently
+/**
+ * @brief Checks if a given token sequence matches the class object access rule.
+ *
+ * @note Example:
+ * @note ```
+ * @note iden->iden2;
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall) {
     SyntaxReport leftIdentifier = SA_is_identifier(tokens, startPos);
 
     if (leftIdentifier.errorOccured == true) {
-        return SA_create_syntax_report(leftIdentifier.token, 0, true, leftIdentifier.expectedToken);
+        return leftIdentifier;
     }
 
     if ((*tokens)[startPos + leftIdentifier.tokensToSkip].type != _OP_CLASS_ACCESSOR_) {
@@ -582,7 +651,7 @@ SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int inde
     SyntaxReport rightIdentifier = SA_is_identifier(tokens, startPos + leftIdentifier.tokensToSkip + 1);
 
     if (rightIdentifier.errorOccured == true) {
-        return SA_create_syntax_report(rightIdentifier.token, 0, true, rightIdentifier.expectedToken);
+        return rightIdentifier;
     }
 
     if (independentCall == true) {
@@ -596,11 +665,22 @@ SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int inde
     return SA_create_syntax_report(NULL, leftIdentifier.tokensToSkip + rightIdentifier.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the RETURN rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the return statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note return null;
+ * @note return 2 + a * b;
+ * @note return "Hello world!";
+ * @note return new Object();
+ * @note return a < -1 ? b : c;
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_RETURN_) {
@@ -608,16 +688,16 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
     }
 
     if ((*tokens)[startPos + 1].type != _KW_NEW_) {
-        SyntaxReport isCondAssignment = SA_is_simple_conditional_assignment(tokens, startPos + 1);
+        SyntaxReport isCondAssignment = SA_is_conditional_assignment(tokens, startPos + 1, true);
         
         if (isCondAssignment.errorOccured == false) {
-            return SA_create_syntax_report(NULL, isCondAssignment.tokensToSkip + 1, false, NULL);
+            return isCondAssignment;
         }
 
         SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + 1, false);
 
         if (isSimpleTerm.errorOccured == true) {
-            return SA_create_syntax_report(isSimpleTerm.token, 0, true, isSimpleTerm.expectedToken);
+            return isSimpleTerm;
         }
 
         if ((*tokens)[startPos + isSimpleTerm.tokensToSkip + 1].type != _OP_SEMICOLON_) {
@@ -630,17 +710,25 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isReturnClassInstance = SA_is_return_class_instance(tokens, startPos + 1);
 
     if (isReturnClassInstance.errorOccured == true) {
-        return SA_create_syntax_report(isReturnClassInstance.token, 0, true, isReturnClassInstance.expectedToken);
+        return isReturnClassInstance;
     }
 
     return SA_create_syntax_report(NULL, isReturnClassInstance.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array is a class instance created as return value
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence is a class instance creation that is
+ * directly returned.
+ *
+ * @note Example:
+ * @note ```
+ * @note return new Object();
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_return_class_instance(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_NEW_) {
@@ -650,7 +738,7 @@ SyntaxReport SA_is_return_class_instance(TOKEN **tokens, size_t startPos) {
     SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + 1, false);
 
     if (isFunctionCall.errorOccured == true) {
-        return SA_create_syntax_report(isFunctionCall.token, 0, true, isFunctionCall.expectedToken);
+        return isFunctionCall;
     }
 
     if ((*tokens)[startPos + isFunctionCall.tokensToSkip + 1].type != _OP_SEMICOLON_) {
@@ -660,11 +748,18 @@ SyntaxReport SA_is_return_class_instance(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isFunctionCall.tokensToSkip + 2, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the CONTINUE rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the continue statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note continue;
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_continue_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_CONTINUE_) {
@@ -678,11 +773,18 @@ SyntaxReport SA_is_continue_statement(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, 2, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the BREAK rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the break statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note break;
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_break_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_BREAK_) {
@@ -696,11 +798,18 @@ SyntaxReport SA_is_break_statement(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, 2, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the FOR rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the for statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note for (var i = 0; i < 10; i++) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_FOR_) {
@@ -714,13 +823,13 @@ SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isVar = SA_is_variable(tokens, startPos + 2);
 
     if (isVar.errorOccured == true) {
-        return SA_create_syntax_report(isVar.token, 0, true, isVar.expectedToken);
+        return isVar;
     }
 
     SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + isVar.tokensToSkip + 2, true);
 
     if (isChainedCond.errorOccured == true) {
-        return SA_create_syntax_report(isChainedCond.token, 0, true, isChainedCond.expectedToken);
+        return isChainedCond;
     }
     
     if ((*tokens)[startPos + isVar.tokensToSkip + isChainedCond.tokensToSkip + 2].type != _OP_SEMICOLON_) {
@@ -731,7 +840,7 @@ SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isExpression = SA_is_expression(tokens, startPos + totalSkip, false);
 
     if (isExpression.errorOccured == true) {
-        return SA_create_syntax_report(isExpression.token, 0, true, isExpression.expectedToken);
+        return isExpression;
     }
 
     totalSkip += isExpression.tokensToSkip;
@@ -743,45 +852,65 @@ SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + totalSkip + 1, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     return SA_create_syntax_report(NULL, totalSkip + isRunnable.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches an expression
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches an expression.
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
     SyntaxReport isIdentifier = SA_is_identifier(tokens, startPos);
+    int skip = 0;
 
     if (isIdentifier.errorOccured == true) {
-        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, isIdentifier.expectedToken);
+        SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos, true);
+
+        if (isSimpleTerm.errorOccured == true) {
+            return isSimpleTerm;
+        }
+
+        skip += isSimpleTerm.tokensToSkip;
     }
 
     TOKEN *crucialToken = &(*tokens)[startPos + isIdentifier.tokensToSkip];
-    int skip = isIdentifier.tokensToSkip;
+    skip += isIdentifier.tokensToSkip;
 
     if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
-        SyntaxReport isConditionAssignment = SA_is_conditional_assignment(tokens, startPos + skip);
+        SyntaxReport isConditionAssignment = SA_is_conditional_assignment(tokens, startPos + skip, false);
 
         if (isConditionAssignment.errorOccured == true) {
-            return SA_create_syntax_report(isConditionAssignment.token, 0, true, isConditionAssignment.expectedToken);
+            return isConditionAssignment;
         }
 
         skip += isConditionAssignment.tokensToSkip - 1;
     } else if (crucialToken->type == _OP_ADD_ONE_
         || crucialToken->type == _OP_SUBTRACT_ONE_) {
-        skip++;
+        int jumper = 0;
+
+        while (startPos + skip + jumper < MAX_TOKEN_LENGTH) {
+            if ((*tokens)[startPos + skip + jumper].type != _OP_ADD_ONE_
+                && (*tokens)[startPos + skip + jumper].type != _OP_SUBTRACT_ONE_) {
+                break;
+            }
+
+            jumper++;
+        }
+
+        skip += jumper;
     } else if ((int)SA_is_assignment_operator(crucialToken->value) == true
         || crucialToken->type == _OP_EQUALS_) {
         SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + skip + 1, false);
 
         if (isSimpleTerm.errorOccured == true) {
-            return SA_create_syntax_report(isSimpleTerm.token, 0, true, isSimpleTerm.expectedToken);
+            return isSimpleTerm;
         }
 
         skip += isSimpleTerm.tokensToSkip + 1;
@@ -800,11 +929,19 @@ SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
     return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the IF_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the if statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note if (a > 10) {}
+ * @note if (object.getName() == "Thread") {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) { 
     int skip = 0;
@@ -822,7 +959,7 @@ SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + ++skip, true);
 
     if (isChainedCond.errorOccured == true) {
-        return SA_create_syntax_report(isChainedCond.token, 0, true, isChainedCond.expectedToken);
+        return isChainedCond;
     }
 
     skip += isChainedCond.tokensToSkip;
@@ -835,18 +972,26 @@ SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     skip += isRunnable.tokensToSkip;
     return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the ELSE_IF_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the else-if statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note else if (a > 60) {}
+ * @note else if (b == 5 and c == 2 * 4) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_else_if_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_ELSE_) {
@@ -856,17 +1001,24 @@ SyntaxReport SA_is_else_if_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isIfStatement = SA_is_if_statement(tokens, startPos + 1);
 
     if (isIfStatement.errorOccured == true) {
-        return SA_create_syntax_report(isIfStatement.token, 0, true, isIfStatement.expectedToken);
+        return isIfStatement;
     }
 
     return SA_create_syntax_report(NULL, isIfStatement.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the ELSE_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the else statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note else {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_else_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_ELSE_) {
@@ -876,17 +1028,24 @@ SyntaxReport SA_is_else_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + 1, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the DO_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the do statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note do {} while (a == b);
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_do_statment(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_DO_) {
@@ -896,13 +1055,13 @@ SyntaxReport SA_is_do_statment(TOKEN **tokens, size_t startPos) {
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + 1, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     SyntaxReport isWhileCond = SA_is_while_condition(tokens, startPos + isRunnable.tokensToSkip + 1);
 
     if (isWhileCond.errorOccured == true) {
-        return SA_create_syntax_report(isWhileCond.token, 0, true, isWhileCond.expectedToken);
+        return isWhileCond;
     }
 
     if ((*tokens)[startPos + isWhileCond.tokensToSkip + isRunnable.tokensToSkip + 1].type != _OP_SEMICOLON_) {
@@ -912,33 +1071,48 @@ SyntaxReport SA_is_do_statment(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + isWhileCond.tokensToSkip + 2, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the WHILE_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the while statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note while (true) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_while_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isWhileCond = SA_is_while_condition(tokens, startPos);
 
     if (isWhileCond.errorOccured == true) {
-        return SA_create_syntax_report(isWhileCond.token, 0, true, isWhileCond.expectedToken);
+        return isWhileCond;
     }
 
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + isWhileCond.tokensToSkip, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     return SA_create_syntax_report(NULL, isWhileCond.tokensToSkip + isRunnable.tokensToSkip, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the WHILE_CONDITION rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence is a while condition.
+ *
+ * @note Examples:
+ * @note ```
+ * @note while (true)
+ * @note while (a < 2)
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_while_condition(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_WHILE_) {
@@ -952,7 +1126,7 @@ SyntaxReport SA_is_while_condition(TOKEN **tokens, size_t startPos) {
     SyntaxReport isChainedCondition = SA_is_chained_condition(tokens, startPos + 2, true);
 
     if (isChainedCondition.errorOccured == true) {
-        return SA_create_syntax_report(isChainedCondition.token, 0, true, isChainedCondition.expectedToken);
+        return isChainedCondition;
     }
 
     if ((*tokens)[startPos + isChainedCondition.tokensToSkip + 2].type != _OP_LEFT_BRACKET_) {
@@ -962,11 +1136,18 @@ SyntaxReport SA_is_while_condition(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isChainedCondition.tokensToSkip + 3, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the CHECK_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the check statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note check (a) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_check_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_CHECK_) {
@@ -980,7 +1161,7 @@ SyntaxReport SA_is_check_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isIdentifier = SA_is_identifier(tokens, startPos + 2);
 
     if (isIdentifier.errorOccured == true) {
-        return SA_create_syntax_report(isIdentifier.token, 0, true, isIdentifier.expectedToken);
+        return isIdentifier;
     }
 
     if ((*tokens)[startPos + isIdentifier.tokensToSkip + 2].type != _OP_LEFT_BRACKET_) {
@@ -1003,7 +1184,7 @@ SyntaxReport SA_is_check_statement(TOKEN **tokens, size_t startPos) {
         SyntaxReport isIsStatement = SA_is_is_statement(tokens, startPos + jumper);
 
         if (isIsStatement.errorOccured == true) {
-            return SA_create_syntax_report(isIsStatement.token, 0, true, isIsStatement.expectedToken);
+            return isIsStatement;
         }
 
         jumper += isIsStatement.tokensToSkip;
@@ -1012,11 +1193,18 @@ SyntaxReport SA_is_check_statement(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the IS_STATEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the is statement.
+ *
+ * @note Example:
+ * @note ```
+ * @note is true:
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_IS_) {
@@ -1042,7 +1230,8 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
         skip = isNumeralIdentifier.tokensToSkip;
     } else if ((int)SA_is_letter(crucialToken->value[0]) == true) {
         //THIS OPTION IS ONLY FOR CONSTANTS
-        if ((int)SA_is_root_identifier(crucialToken) == false) {
+        if ((int)SA_is_root_identifier(crucialToken) == false
+            && crucialToken->type != _KW_NULL_) {
             return SA_create_syntax_report(crucialToken, 0, true, "<CONSTANT>");
         }
 
@@ -1056,155 +1245,130 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip + 2, 2);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + skip + 2, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the VARIABLE rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a token sequence fulfills the variable definition rule.
+ *
+ * @note All variable definitions also support the type option and visibility.
+ * @note Examples:
+ * @note ```
+ * @note var a = 10;
+ * @note var b;
+ * @note var c[];
+ * @note var d[] = {1, 2, 3, 4};
+ * @note var obj = new Object();
+ * @note var obj = new Object(param1, param2, *ptr);
+ * @note const a = 10;
+ * @note const b;
+ * @note const d[] = {1, 2, 3, 4};
+ * @note const obj = new Object();
+ * @note const obj = new Object(param1, param2, *ptr);
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
-    int modifier = 0;
+    int skip = SA_skip_visibility_modifier(&(*tokens)[startPos]);
+    TOKEN *varTok = &(*tokens)[startPos + skip];
 
-    switch ((*tokens)[startPos].type) {
-    case _KW_GLOBAL_:
-    case _KW_SECURE_:
-    case _KW_PRIVATE_:
-        modifier = 1;
-        break;
-    default:
-        break;
-    }
+    if (varTok->type == _KW_VAR_
+        || varTok->type == _KW_CONST_) {
+        skip++;
 
-    if ((*tokens)[startPos + modifier].type == _KW_VAR_) {
-        if ((*tokens)[startPos + modifier + 1].type == _OP_COLON_) {
-            if ((int)SA_is_root_identifier(&(*tokens)[startPos + modifier + 2]) == false
-                && (int)is_primitive((*tokens)[startPos + modifier + 2].type) == false) {
-                return SA_create_syntax_report(&(*tokens)[startPos + modifier + 2], 0, true, "<IDENTIFIER>");
+        if ((*tokens)[startPos + skip].type == _OP_COLON_) {
+            SyntaxReport varTypeRep = SA_is_var_type_definition(tokens, startPos + skip + 1);
+            
+            if (varTypeRep.errorOccured == true) {
+                return varTypeRep;
             }
 
-            modifier += 2;
+            skip += varTypeRep.tokensToSkip;
         }
 
-        if ((int)SA_is_root_identifier(&(*tokens)[startPos + modifier + 1]) == false) {
-            return SA_create_syntax_report(&(*tokens)[startPos + modifier + 1], 0, true, "<IDENTIFIER>");
+        if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip]) == false) {
+            return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");
         }
 
-        TOKEN *crucialToken = &(*tokens)[startPos + modifier + 2];
-        int skip = 0;
+        skip++;
+        TOKEN *crucialToken = &(*tokens)[startPos + skip];
+        SyntaxReport report = {NULL, -1};
 
         if (crucialToken->type == _OP_RIGHT_EDGE_BRACKET_) {
-            SyntaxReport isArrayVar = SA_is_array_variable(tokens, startPos + modifier + 2);
-
-            if (isArrayVar.errorOccured == true) {
-                return SA_create_syntax_report(isArrayVar.token, 0, true, isArrayVar.expectedToken);
-            } else {
-                skip = isArrayVar.tokensToSkip;
-            }
-        } else if (crucialToken->type == _OP_SEMICOLON_) {
-            return SA_create_syntax_report(NULL, 3 + modifier, false, NULL);
-        } else if (crucialToken->type == _OP_COMMA_) {
-            SyntaxReport isMultipleVarDef = SA_is_multiple_variable_definition(tokens, startPos + modifier + 1);
-
-            if (isMultipleVarDef.errorOccured == true) {
-                return SA_create_syntax_report(isMultipleVarDef.token, 0, true, isMultipleVarDef.expectedToken);
-            } else {
-                //-1, because the identifier get's checked again in the is_multiple... function
-                skip = isMultipleVarDef.tokensToSkip - 1;
-            }
+            report = SA_is_array_variable(tokens, startPos + skip);
+        } else if (crucialToken->type == _OP_SEMICOLON_
+            && varTok->type != _KW_VAR_) {
+            return SA_create_syntax_report(NULL, skip + 1, false, NULL);
         } else if (crucialToken->type == _OP_EQUALS_) {
-            if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + modifier + 2) == true) {
-                SyntaxReport isCondAssignment = SA_is_conditional_assignment(tokens, startPos + modifier + 2);
-
-                if (isCondAssignment.errorOccured == true) {
-                    return SA_create_syntax_report(isCondAssignment.token, 0, true, isCondAssignment.expectedToken);
-                } else {
-                    skip = isCondAssignment.tokensToSkip;
-                }
-            } else if ((*tokens)[startPos + modifier + 3].type == _KW_NEW_) {
-                SyntaxReport isClassInstance = SA_is_class_instance(tokens, startPos + modifier + 4);
-
-                if (isClassInstance.errorOccured == true) {
-                    return SA_create_syntax_report(isClassInstance.token, 0, true, isClassInstance.expectedToken);
-                } else {
-                    skip = isClassInstance.tokensToSkip + 3;
-                }
+            if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+                report = SA_is_conditional_assignment(tokens, startPos + skip, false);
+            } else if ((*tokens)[startPos + skip + 1].type == _KW_NEW_) {
+                report = SA_is_class_instance(tokens, startPos + skip);
             } else {
-                SyntaxReport isAssignment = SA_is_assignment(tokens, startPos + modifier + 2);
-
-                if (isAssignment.errorOccured == true) {
-                    return SA_create_syntax_report(isAssignment.token, 0, true, isAssignment.expectedToken);
-                } else {
-                    skip = isAssignment.tokensToSkip;
-                }
+                report = SA_is_assignment(tokens, startPos + skip);
             }
         } else {
             return SA_create_syntax_report(crucialToken, 0, true, "[\", \";\", \",\", \"=\" or \"<IDENTIFIER>");
         }
-        
-        if ((*tokens)[startPos + skip + modifier + 1].type != _OP_SEMICOLON_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + skip + modifier + 1], 0, true, ";");
+
+        if (report.errorOccured == true) {
+            return report;
         }
 
-        return SA_create_syntax_report(NULL, skip + modifier + 2, false, NULL);
-    } else if ((*tokens)[startPos + modifier].type == _KW_CONST_) {
-        if ((int)SA_is_root_identifier(&(*tokens)[startPos + modifier + 1]) == true) {
-            if ((*tokens)[startPos + modifier + 3].type != _KW_NEW_) {
-                SyntaxReport isAssignment = SA_is_assignment(tokens, startPos + modifier + 2);
-
-                if (isAssignment.errorOccured == true) {
-                    return SA_create_syntax_report(isAssignment.token, 0, true, isAssignment.expectedToken);
-                } else {
-                    if ((*tokens)[startPos + modifier + isAssignment.tokensToSkip + 1].type != _OP_SEMICOLON_) {
-                        return SA_create_syntax_report(&(*tokens)[startPos + modifier + isAssignment.tokensToSkip + 1], 0, true, ";");
-                    } else {
-                        return SA_create_syntax_report(NULL, isAssignment.tokensToSkip + modifier + 2, false, NULL);
-                    }
-                }
-            } else {
-                SyntaxReport isClassInstance = SA_is_class_instance(tokens, startPos + modifier + 4);
-
-                if (isClassInstance.errorOccured == true) {
-                    return SA_create_syntax_report(isClassInstance.token, 0, true, isClassInstance.expectedToken);
-                } else {
-                    if ((*tokens)[startPos + modifier + isClassInstance.tokensToSkip + 4].type != _OP_SEMICOLON_) {
-                        return SA_create_syntax_report(&(*tokens)[startPos + modifier + isClassInstance.tokensToSkip + 4], 0, true, ";");
-                    } else {
-                        return SA_create_syntax_report(NULL, isClassInstance.tokensToSkip + modifier + 5, false, NULL);
-                    }
-                }
-            }
-        } else {
-            return SA_create_syntax_report(&(*tokens)[startPos + modifier + 1], 0, true, "<IDENTIFIER>");
-        }
+        skip += report.tokensToSkip;
+        return SA_create_syntax_report(NULL, skip, false, NULL);
     }
     
     return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "const\" or \"var");
 }
 
-/*
-Purpose: Checks if the current TOKEN array is a class instance
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Handles class instance variables.
+ *
+ * @note Examples:
+ * @note ```
+ * @note = new Object();
+ * @note = new Object(param1, param2, *ptr);
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos) {
-    if ((int)SA_is_root_identifier(&(*tokens)[startPos]) == false) {
-        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<IDENTIFIER>");    
+    int skip = 0;
+   
+    if ((*tokens)[startPos + skip].type != _OP_EQUALS_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "=");
     }
 
-    int skip = 1;
+    skip++;
+
+    if ((*tokens)[startPos + skip].type != _KW_NEW_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "new");
+    }
+
+    skip++;
+
+    if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip]) == false) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");    
+    }
+
+    skip++;
 
     if ((*tokens)[startPos + skip].type == _OP_RIGHT_BRACKET_) {
         SyntaxReport isParam = SA_is_parameter(tokens, startPos + skip + 1, _PARAM_FUNCTION_CALL_);
 
         if (isParam.errorOccured == true) {
-            return SA_create_syntax_report(isParam.token, 0, true, isParam.expectedToken);
+            return isParam;
         }
 
         skip += isParam.tokensToSkip + 1;
@@ -1215,31 +1379,37 @@ SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos) {
 
         skip++;
     } else if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
-        while (startPos + skip < MAX_TOKEN_LENGTH) {
-            SyntaxReport isArray = SA_is_array_element(tokens, startPos + skip);
+        SyntaxReport isArray = SA_is_array_element(tokens, startPos + skip);
 
-            if (isArray.errorOccured == true) {
-                if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
-                    return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<ARRAY_ELEMENT>");
-                }
-
-                break;
-            }
-
-            skip += isArray.tokensToSkip;
+        if (isArray.errorOccured == true) {
+            return isArray;
         }
+
+        skip += isArray.tokensToSkip;
     } else {
         return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "(\", \"[");
     }
+
+    if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
+    }
     
-    return SA_create_syntax_report(NULL, skip, false, NULL);
+    return SA_create_syntax_report(NULL, skip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array is an ASSIGNMENT
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Handles normal variable assignments.
+ *
+ * @note Examples:
+ * @note ```
+ * @note = b;
+ * @note = 10;
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _OP_EQUALS_) {
@@ -1259,98 +1429,99 @@ SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isTerm.tokensToSkip + 2, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array is a CONDITIONAL_ASSIGNMENT
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Handles conditional assignments.
+ *
+ * @note Examples:
+ * @note ```
+ * @note a == true ? 2 : 3;
+ * @note a == true ? b == true ? 2 : 4 : 5
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
-SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos) {
-    if ((*tokens)[startPos].type != _OP_EQUALS_) {
+SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int inDepth) {
+    int skip = inDepth == false ? 1 : 0;
+    
+    if ((*tokens)[startPos].type != _OP_EQUALS_
+        && inDepth == false) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "=");
     }
 
-    SyntaxReport isChainedCondition = SA_is_chained_condition(tokens, startPos + 1, false);
+    SyntaxReport isChainedCondition = SA_is_chained_condition(tokens, startPos + skip, false);
 
     if (isChainedCondition.errorOccured == true) {
-        return SA_create_syntax_report(isChainedCondition.token, 0, true, isChainedCondition.expectedToken);
+        return isChainedCondition;
     }
 
-    if ((*tokens)[startPos + isChainedCondition.tokensToSkip + 1].type != _OP_QUESTION_MARK_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isChainedCondition.tokensToSkip + 1], 0, true, "?");
+    skip += isChainedCondition.tokensToSkip;
+
+    if ((*tokens)[startPos + skip].type != _OP_QUESTION_MARK_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "?");
     }
 
-    SyntaxReport leftTerm = SA_is_simple_term(tokens, startPos + isChainedCondition.tokensToSkip + 2, false);
+    skip++;
+    SyntaxReport leftVal = {NULL, -1};
 
-    if (leftTerm.errorOccured == true) {
-        return SA_create_syntax_report(leftTerm.token, 0, true, leftTerm.expectedToken);
+    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+        leftVal = SA_is_conditional_assignment(tokens, startPos + skip, true);
+    } else {
+        leftVal = SA_is_simple_term(tokens, startPos + skip, false);
     }
 
-    int totalSkip = isChainedCondition.tokensToSkip + leftTerm.tokensToSkip;
-
-    if ((*tokens)[startPos + totalSkip + 2].type != _OP_COLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip + 2], 0, true, ":");
+    if (leftVal.errorOccured == true) {
+        return leftVal;
     }
 
-    SyntaxReport rightTerm = SA_is_simple_term(tokens, startPos + totalSkip + 3, false);
+    skip += leftVal.tokensToSkip;
 
-    if (rightTerm.errorOccured == true) {
-        return SA_create_syntax_report(rightTerm.token, 0, true, rightTerm.expectedToken);
+    if ((*tokens)[startPos + skip].type != _OP_COLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ":");
     }
 
-    totalSkip += rightTerm.tokensToSkip;
+    skip++;
+    SyntaxReport rightVal = {NULL, -1};
 
-    if ((*tokens)[startPos + totalSkip + 3].type != _OP_SEMICOLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip + 3], 0, true, ";");
+    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+        rightVal = SA_is_conditional_assignment(tokens, startPos + skip, true);
+    } else {
+        rightVal = SA_is_simple_term(tokens, startPos + skip, false);
     }
 
-    return SA_create_syntax_report(NULL, totalSkip + 4, false, NULL);
+    if (rightVal.errorOccured == true) {
+        return rightVal;
+    }
+
+    skip += rightVal.tokensToSkip;
+
+    if (inDepth == false) {
+        if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
+        }
+
+        skip++;
+    }
+
+    return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
-SyntaxReport SA_is_simple_conditional_assignment(TOKEN **tokens, size_t startPos) {
-    SyntaxReport isChainedCondition = SA_is_chained_condition(tokens, startPos, false);
-
-    if (isChainedCondition.errorOccured == true) {
-        return SA_create_syntax_report(isChainedCondition.token, 0, true, isChainedCondition.expectedToken);
-    }
-
-    if ((*tokens)[startPos + isChainedCondition.tokensToSkip].type != _OP_QUESTION_MARK_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isChainedCondition.tokensToSkip], 0, true, "?");
-    }
-
-    SyntaxReport leftTerm = SA_is_simple_term(tokens, startPos + isChainedCondition.tokensToSkip + 1, false);
-
-    if (leftTerm.errorOccured == true) {
-        return SA_create_syntax_report(leftTerm.token, 0, true, leftTerm.expectedToken);
-    }
-
-    int totalSkip = isChainedCondition.tokensToSkip + leftTerm.tokensToSkip;
-
-    if ((*tokens)[startPos + totalSkip + 1].type != _OP_COLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip + 1], 0, true, ":");
-    }
-
-    SyntaxReport rightTerm = SA_is_simple_term(tokens, startPos + totalSkip + 2, false);
-
-    if (rightTerm.errorOccured == true) {
-        return SA_create_syntax_report(rightTerm.token, 0, true, rightTerm.expectedToken);
-    }
-
-    totalSkip += rightTerm.tokensToSkip;
-
-    if ((*tokens)[startPos + totalSkip + 2].type != _OP_SEMICOLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip + 2], 0, true, ";");
-    }
-
-    return SA_create_syntax_report(NULL, totalSkip + 3, false, NULL);
-}
-
-/*
-Purpose: Checks if the current TOKEN array is a chained condition (condition with "and" and "or")
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int inParam => Flag if chainedCondition is in parameter
+/**
+ * @brief Checks if a token sequence is a chained condition or not.
+ *
+ * @note Examples:
+ * @note ```
+ * @note a == true and b == 2 or c == d
+ * @note (a == true and b == 2) or c == d
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+ * @param inParam   Flag if the chained condition is in a parameter or not
 */
 SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inParam) {
     int jumper = 0;
@@ -1413,12 +1584,21 @@ SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inPara
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array is a condition
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        int inParam => Flag if the condition is delivered as parameter
+/**
+ * @brief Checks if a given token sequence is a simple condition.
+ *
+ * @note Examples:
+ * @note ```
+ * @note a <= 2
+ * @note b == true
+ * @note c != 3
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+ * @param inParam   Flag if the condition is in a parameter
 */
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam) {
     if ((int)SA_is_bool((*tokens)[startPos].value) == false) {
@@ -1446,11 +1626,13 @@ SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam) {
     return SA_create_syntax_report(NULL, 1, false, NULL);
 }
 
-/*
-Purpose: Predict whether the next var option is a conditional assignment or not
-Return Type: int => true = is conditional assignment; false = not a conditional assignment
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Predicts if the next token sequence might be a conditional assignment.
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
     for (int i = startPos; i <  MAX_TOKEN_LENGTH; i++) {
@@ -1458,6 +1640,7 @@ int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
         case _OP_QUESTION_MARK_:
             return true;
         case _OP_SEMICOLON_:
+        case _OP_COLON_:
             return false;
         default: break;
         }
@@ -1466,138 +1649,89 @@ int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
     return false;
 }
 
-/*
-Purpose: Checks if the current TOKEN array is an array variable
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
-*/
-SyntaxReport SA_is_multiple_variable_definition(TOKEN **tokens, size_t startPos) {
-    SyntaxReport isMultiVarIdentifer = SA_is_multiple_variable_definition_identifier(tokens, startPos);
-
-    if (isMultiVarIdentifer.errorOccured == true) {
-        return SA_create_syntax_report(isMultiVarIdentifer.token, 0, true, isMultiVarIdentifer.expectedToken);
-    }
-
-    if ((*tokens)[startPos + isMultiVarIdentifer.tokensToSkip].type == _OP_EQUALS_) {
-        SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + isMultiVarIdentifer.tokensToSkip + 1, false);
-        int totalSkip = startPos + isSimpleTerm.tokensToSkip + isMultiVarIdentifer.tokensToSkip;
-
-        if (isSimpleTerm.errorOccured == true) {
-            return SA_create_syntax_report(&(*tokens)[totalSkip], 0, true, isSimpleTerm.expectedToken);
-        }
-
-        if ((*tokens)[totalSkip + 1].type != _OP_SEMICOLON_) {
-            return SA_create_syntax_report(&(*tokens)[totalSkip + 1], 0, true, ";");
-        }
-
-        return SA_create_syntax_report(NULL, totalSkip + 1, false, NULL);
-    } else {
-        if ((*tokens)[startPos + isMultiVarIdentifer.tokensToSkip].type != _OP_SEMICOLON_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + isMultiVarIdentifer.tokensToSkip], 0, true, ";");
-        }
-    }
-
-    return SA_create_syntax_report(NULL, isMultiVarIdentifer.tokensToSkip + 1, false, NULL);
-}
-
-/*
-Purpose: Checks if the current TOKEN array is a multiple variable identifier
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
-Layout: <IDENTIIFER>, <IDENTIFIER>, [...]
-*/
-SyntaxReport SA_is_multiple_variable_definition_identifier(TOKEN **tokens, size_t startPos) {
-    int hasToBeComma = false;
-    int jumper = 0;
-
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
-        && (*tokens)[startPos + jumper].type != __EOF__) {
-        TOKEN *currentToken = &(*tokens)[startPos + jumper];
-        
-        if ((int)SA_is_end_indicator(currentToken) == true
-            && currentToken->type != _OP_COMMA_) {
-            break;
-        }
-
-        switch (hasToBeComma) {
-        case false:
-            hasToBeComma = true;
-
-            if ((int)SA_is_root_identifier(currentToken) == false) {
-                return SA_create_syntax_report(currentToken, 0, true, "<IDENTIFIER>");
-            }
-
-            jumper++;
-            break;
-        case true:
-            if (currentToken->type != _OP_COMMA_) {
-                return SA_create_syntax_report(currentToken, 0, true, ",");
-            }
-
-            jumper++;
-            hasToBeComma = false;
-            break;
-        }
-    }
-
-    if (jumper <= 1) {
-        return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<MULTIPLE_DEFINITION>");
-    } else if (hasToBeComma == false) {
-        return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFIER>");
-    }
-
-    return SA_create_syntax_report(NULL, jumper, false, NULL);
-}
-
-/*
-Purpose: Checks if the current TOKEN array is an array variable
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Handles array variables.
+ *
+ * @note Examples:
+ * @note ```
+ * @note [] = {};
+ * @note [2] = {1, 2};
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
     SyntaxReport isArrayElement = SA_is_array_element(tokens, startPos);
 
     if (isArrayElement.errorOccured == true) {
-        return SA_create_syntax_report(isArrayElement.token, 0, true, isArrayElement.expectedToken);
+        return isArrayElement;
     }
     
-    if ((*tokens)[startPos + isArrayElement.tokensToSkip].type == _OP_EQUALS_) {
-        SyntaxReport isArrayAssignment = SA_is_array_assignment(tokens, startPos + isArrayElement.tokensToSkip);
+    skip += isArrayElement.tokensToSkip;
+
+    if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+        SyntaxReport isArrayAssignment = SA_is_array_assignment(tokens, startPos + skip);
         
         if (isArrayAssignment.errorOccured == true) {
-            return SA_create_syntax_report(isArrayAssignment.token, 0, true, isArrayAssignment.expectedToken);
+            return isArrayAssignment;
         }
-        
-        if ((*tokens)[startPos + isArrayElement.tokensToSkip + isArrayAssignment.tokensToSkip].type != _OP_SEMICOLON_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + isArrayElement.tokensToSkip + isArrayAssignment.tokensToSkip], 0, true, ";");
-        }
-        
-        return SA_create_syntax_report(NULL, isArrayElement.tokensToSkip + isArrayAssignment.tokensToSkip + 1, false, NULL);
+
+        skip += isArrayAssignment.tokensToSkip;
     }
 
-    if ((*tokens)[startPos + isArrayElement.tokensToSkip].type != _OP_SEMICOLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isArrayElement.tokensToSkip], 0, true, ";");
+    if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
     }
 
-    return SA_create_syntax_report(NULL, isArrayElement.tokensToSkip + 1, false, NULL);
+    return SA_create_syntax_report(NULL, skip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array is an array assignment
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Handles basic array assignments.
+ *
+ * @note Examples:
+ * @note ```
+ * @note = {1, 2}
+ * @note = {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _OP_EQUALS_) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "=");
     }
 
-    int jumper = 1;
-    int openBraces = 0;
+    if ((*tokens)[startPos + 1].type == _KW_NULL_) {
+        return SA_create_syntax_report(NULL, 2, false, NULL);
+    }
+
+    SyntaxReport arrayAssignmentElemReport = SA_is_array_assignment_element(tokens, startPos + 2, false);
+
+    if (arrayAssignmentElemReport.errorOccured == true) {
+        return arrayAssignmentElemReport;
+    }
+    
+    return SA_create_syntax_report(NULL, arrayAssignmentElemReport.tokensToSkip + 1, false, NULL);
+}
+
+/**
+ * @brief Handles single elements `{}` individually with recursion.
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int inDepth) {
+    int jumper = 0;
     int hasToBeComma = false;
 
     while (startPos + jumper <  MAX_TOKEN_LENGTH
@@ -1605,15 +1739,24 @@ SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
         if (currentToken->type == _OP_RIGHT_BRACE_) {
-            openBraces++;
-            jumper++;
+            SyntaxReport arrayAssignment = SA_is_array_assignment_element(tokens, startPos + jumper + 1, true);
+            
+            if (arrayAssignment.errorOccured == true) {
+                return arrayAssignment;
+            }
+            
+            jumper += arrayAssignment.tokensToSkip;
             continue;
         } else if (currentToken->type == _OP_LEFT_BRACE_) {
-            openBraces--;
+            if (inDepth == true) {
+                return SA_create_syntax_report(NULL, jumper, false, NULL);
+            }
+
             jumper++;
             continue;
         } else if ((int)SA_is_end_indicator(currentToken) == true
             && currentToken->type != _OP_COMMA_) {
+            jumper++;
             break;
         }
 
@@ -1643,12 +1786,6 @@ SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos) {
 
     if (hasToBeComma == false) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFIER>");
-    } else if (openBraces != 0) {
-        if (openBraces > 0) {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "}");
-        } else {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "{");
-        }
     } else if (jumper <= 1) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<ARRAY_ASSIGNMENT>");
     }
@@ -1656,14 +1793,21 @@ SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the ARRAY_ELEMENT rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches an array element.
+ *
+ * @note Examples:
+ * @note ```
+ * @note [2]
+ * @note [a + b * 3]
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_array_element(TOKEN **tokens, size_t startPos) {
-    int hasToBeClosingEdgeBracket = false;
     int jumper = 0;
 
     while (startPos + jumper <  MAX_TOKEN_LENGTH
@@ -1675,54 +1819,53 @@ SyntaxReport SA_is_array_element(TOKEN **tokens, size_t startPos) {
             break;
         }
 
-        switch (hasToBeClosingEdgeBracket) {
-        case false:
-            hasToBeClosingEdgeBracket = true;
+        if (currentToken->type != _OP_RIGHT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(currentToken, 0, true, "[");
+        }
+        
+        if ((*tokens)[startPos + jumper + 1].type != _OP_LEFT_EDGE_BRACKET_) {
+            SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper + 1, false);
 
-            if (currentToken->type != _OP_RIGHT_EDGE_BRACKET_) {
-                return SA_create_syntax_report(currentToken, 0, true, "[");
-            }
-            
-            if ((*tokens)[startPos + jumper + 1].type != _OP_LEFT_EDGE_BRACKET_) {
-                SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper + 1, false);
-
-                if (isSimpleTerm.errorOccured == true) {
-                    return SA_create_syntax_report(isSimpleTerm.token, 0, true, isSimpleTerm.expectedToken);
-                }
-
-                jumper += isSimpleTerm.tokensToSkip + 1;
-            } else {
-                jumper++;
+            if (isSimpleTerm.errorOccured == true) {
+                return isSimpleTerm;
             }
 
-            break;
-        case true:
-            if (currentToken->type != _OP_LEFT_EDGE_BRACKET_) {
+            jumper += isSimpleTerm.tokensToSkip + 1;
+
+            if ((*tokens)[startPos + jumper].type != _OP_LEFT_EDGE_BRACKET_) {
                 return SA_create_syntax_report(currentToken, 0, true, "]");
             }
-
+        } else {
             jumper++;
-            hasToBeClosingEdgeBracket = false;
-            break;
         }
+
+        jumper++;
     }
 
-    if (hasToBeClosingEdgeBracket == true) {
-        return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "]");
-    } else if (jumper == 0) {
+    if (jumper == 0) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<ARRAY_ELEMENT>");
     }
 
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the CLASS_CONSTRUCTOR rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the constructor statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note this::constructor() {}
+ * @note this::constructor(obj) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_class_constructor(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
+    
     if ((*tokens)[startPos].type != _KW_THIS_) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "this");
     }
@@ -1732,80 +1875,123 @@ SyntaxReport SA_is_class_constructor(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "::");
     }
 
-    if ((*tokens)[startPos + 3].type != _KW_CONSTRUCTOR_) {
+    skip += 3;
+
+    if ((*tokens)[startPos + skip].type != _KW_CONSTRUCTOR_) {
         return SA_create_syntax_report(&(*tokens)[startPos + 3], 0, true, "constructor");
     }
 
-    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + 4, 1);
+    skip++;
 
-    if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+    if ((*tokens)[startPos + skip].type != _OP_RIGHT_BRACKET_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + 3], 0, true, "(");
     }
 
-    return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + 4, false, NULL);
+    skip++;
+    SyntaxReport paramReport = SA_is_parameter(tokens, startPos + skip, _PARAM_FUNCTION_);
+
+    if (paramReport.errorOccured == true) {
+        return paramReport;
+    }
+
+    skip += paramReport.tokensToSkip;
+
+    if ((*tokens)[startPos + skip].type != _OP_LEFT_BRACKET_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
+    }
+
+    skip++;
+
+    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip, 1);
+
+    if (isRunnable.errorOccured == true) {
+        return isRunnable;
+    }
+
+    skip += isRunnable.tokensToSkip;
+    return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the CLASS rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the class statment.
+ *
+ * @note Examples:
+ * @note ```
+ * @note class Apple => {}
+ * @note class Form extends Line => {}
+ * @note class Window with EventListener => {}
+ * @note class Dice extends Cube with RollEvent => {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_class(TOKEN **tokens, size_t startPos) {
-    int modifier = 0;
+    int skip = 0;
+    skip += SA_skip_visibility_modifier(&(*tokens)[startPos]);
 
-    switch ((*tokens)[startPos].type) {
-    case _KW_GLOBAL_:
-    case _KW_SECURE_:
-    case _KW_PRIVATE_:
-        modifier = 1;
-        break;
-    default:
-        break;
+    if ((*tokens)[startPos + skip].type != _KW_CLASS_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "class");
     }
 
-    if ((*tokens)[startPos + modifier].type != _KW_CLASS_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + modifier], 0, true, "class");
+    skip++;
+    int rootIden = SA_is_root_identifier(&(*tokens)[startPos + skip]);
+
+    if (rootIden == 0) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");
     }
 
-    SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + modifier + 1, true);
+    skip++;
 
-    if (isFunctionCall.errorOccured == true) {
-        return SA_create_syntax_report(isFunctionCall.token, 0, true, isFunctionCall.expectedToken);
+    if ((*tokens)[startPos + skip].type == _KW_EXTENDS_) {
+        int rootIden = SA_is_root_identifier(&(*tokens)[startPos + skip + 1]);
+
+        if (rootIden == 0) {
+            return SA_create_syntax_report(&(*tokens)[startPos + skip + 1], 0, true, "<IDENTIFIER>");
+        }
+
+        skip += 2;
     }
 
-    int additionalWithSkip = 0;
-
-    if ((*tokens)[startPos + isFunctionCall.tokensToSkip + modifier + 1].type == _KW_WITH_) {
-        SyntaxReport isWith = SA_is_with_statement(tokens, startPos + isFunctionCall.tokensToSkip + modifier + 1);
+    if ((*tokens)[startPos + skip].type == _KW_WITH_) {
+        SyntaxReport isWith = SA_is_with_statement(tokens, startPos + skip);
 
         if (isWith.errorOccured == true) {
-            return SA_create_syntax_report(isWith.token, 0, true, isWith.expectedToken);
-        } else {
-            additionalWithSkip = isWith.tokensToSkip;
+            return isWith;
         }
+        
+        skip += isWith.tokensToSkip;
     }
 
-    int totalSkip = isFunctionCall.tokensToSkip + modifier + additionalWithSkip + 1;
-
-    if ((*tokens)[startPos + totalSkip].type != _OP_CLASS_CREATOR_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip], 0, true, "=>");
+    if ((*tokens)[startPos + skip].type != _OP_CLASS_CREATOR_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "=>");
     }
 
-    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + totalSkip + 1, true);
+    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip + 1, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
-    return SA_create_syntax_report(NULL, totalSkip + isRunnable.tokensToSkip + 1, false, NULL);
+    skip += isRunnable.tokensToSkip;
+    return SA_create_syntax_report(NULL, skip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if the current TOKEN array matches the WITH rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the with statment.
+ *
+ * @note Examples:
+ * @note ```
+ * @note with ActionListener
+ * @note with Math
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_with_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_WITH_) {
@@ -1815,17 +2001,24 @@ SyntaxReport SA_is_with_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isParameter = SA_is_parameter(tokens, startPos + 1, _PARAM_CLASS_);
 
     if (isParameter.errorOccured == true) {
-        return SA_create_syntax_report(isParameter.token, 0, true, isParameter.expectedToken);
+        return isParameter;
     }
     
     return SA_create_syntax_report(NULL, isParameter.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Check if a TOKEN array is written accordingly to the TRY rule
-Return Type: SyntaxReport => ErrorOccured = true, if error appears, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the try statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note try {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_try_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_TRY_) {
@@ -1835,17 +2028,24 @@ SyntaxReport SA_is_try_statement(TOKEN **tokens, size_t startPos) {
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + 1, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(isRunnable.token, 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
     return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + 1, false, NULL);
 }
 
-/*
-Purpose: Check if a TOKEN array is written accordingly to the CATCH rule
-Return Type: SyntaxReport => ErrorOccured = true, if error appears, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the catch statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note catch (Exception e) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_catch_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_CATCH_) {
@@ -1873,11 +2073,18 @@ SyntaxReport SA_is_catch_statement(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + 5, false, isRunnable.expectedToken);
 }
 
-/*
-Purpose: Check if a TOKEN array is written accordingly to the EXPORT rule
-Return Type: SyntaxReport => ErrorOccured = true, if error appears, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a given token sequence matches the export statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note export "package";
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_export(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_EXPORT_) {
@@ -1894,11 +2101,19 @@ SyntaxReport SA_is_export(TOKEN **tokens, size_t startPos) {
 
     return SA_create_syntax_report(NULL, 3, false, NULL);
 }
-/*
-Purpose: Check if a TOKEN array is written accordingly to the INCLUDE rule
-Return Type: SyntaxReport => ErrorOccured = true, if error appears, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking
+
+/**
+ * @brief Checks if a given token sequence matches the include statement.
+ *
+ * @note Examples:
+ * @note ```
+ * @note include "package";
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_include(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_INCLUDE_) {
@@ -1916,12 +2131,23 @@ SyntaxReport SA_is_include(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, 3, false, NULL);
 }
 
-/*
-Purpose: Checks if a given TOKEN array is an ENUM or not
-Return Type: SyntaxReport => ErrorOccured = true, when something is not written
-                            accordingly to the rule, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a tokens sequence starting from `startingPos` is written
+ * accordingly to the enum syntax.
+ * 
+ * @note Example:
+ * @note ```
+ * @note enum test {
+ * @note    a,
+ * @note    b : 10,
+ * @note    c
+ * @note }
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type != _KW_ENUM_) {
@@ -1939,7 +2165,7 @@ SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos) {
     SyntaxReport isEnumerator = SA_is_enumerator(tokens, startPos + 3);
     
     if (isEnumerator.errorOccured == true) {
-        return SA_create_syntax_report(isEnumerator.token, 0, true, isEnumerator.expectedToken);
+        return isEnumerator;
     }
 
     if ((*tokens)[startPos + isEnumerator.tokensToSkip + 3].type != _OP_LEFT_BRACE_) {
@@ -1949,18 +2175,25 @@ SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, isEnumerator.tokensToSkip + 4, false, NULL);
 }
 
-/*
-Purpose: Checks if a given TOKEN array is an enumerator or not
-Return Type: SyntaxReport => ErrorOccured = true, when something is not written
-                            accordingly to the rule, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if the token sequence initializes enumerators in an enum.
+ * 
+ * @note Examples:
+ * @note ```
+ * @note a
+ * @note b : 10
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_enumerator(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int hasToBeComma = false;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__
         && (*tokens)[startPos + jumper].type != _OP_LEFT_BRACE_) {
         switch (hasToBeComma) {
@@ -1997,102 +2230,100 @@ SyntaxReport SA_is_enumerator(TOKEN **tokens, size_t startPos) {
         }
     }
 
-    if (hasToBeComma == false) {
+    if (hasToBeComma == false && jumper > 0) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFIER>");
     }
 
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Check if a TOKEN array is matching the FUNCTION rule
-Return Type: SyntaxReport => ErrorOccured = false if everything works fine, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks whether the input tokens at the position `startPos` are aligned
+ * to a function definition.  
+ *   
+ * @note Examples:  
+ * @note ```
+ * @note function add(num1, num2) {}
+ * @note function:int add(num1, num2) {}
+ * @note function:int add(num1:int, num2:int) {}
+ * @note function:int add(*num1, (*num2)) {}
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_function(TOKEN **tokens, size_t startPos) {
     int skip = 0;
-
-    switch ((*tokens)[startPos].type) {
-    case _KW_GLOBAL_:
-    case _KW_SECURE_:
-    case _KW_PRIVATE_:
-        skip = 1;
-        break;
-    default:
-        break;
-    }
+    skip += SA_skip_visibility_modifier(&(*tokens)[startPos]);
 
     if ((*tokens)[startPos + skip].type != _KW_FUNCTION_) {
         return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "function");
     }
 
     if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
-        SyntaxReport isReturnSpecifier = SA_is_function_return_type_specifier(tokens, startPos + skip + 1);
+        SyntaxReport isTypeDefinition = SA_is_var_type_definition(tokens, startPos + skip + 1);
 
-        if (isReturnSpecifier.errorOccured == true) {
-            return SA_create_syntax_report(isReturnSpecifier.token, 0, true, isReturnSpecifier.expectedToken);
+        if (isTypeDefinition.errorOccured == true) {
+            return isTypeDefinition;
         }
 
-        skip += isReturnSpecifier.tokensToSkip;
+        skip += isTypeDefinition.tokensToSkip;
     }
 
     SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + skip + 1, true);
 
     if (isFunctionCall.errorOccured == true) {
-        return SA_create_syntax_report(isFunctionCall.token, 0, true, isFunctionCall.expectedToken);
+        return isFunctionCall;
     }
     
-    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip + isFunctionCall.tokensToSkip + 1, true);
+    skip += isFunctionCall.tokensToSkip;
+    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip + 1, true);
 
     if (isRunnable.errorOccured == true) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isFunctionCall.tokensToSkip + isRunnable.tokensToSkip + skip + 1], 0, true, isRunnable.expectedToken);
+        return isRunnable;
     }
 
-    return SA_create_syntax_report(NULL, skip + isFunctionCall.tokensToSkip + isRunnable.tokensToSkip + 1, false, NULL);
+    skip += isRunnable.tokensToSkip;
+    return SA_create_syntax_report(NULL, skip + 1, false, NULL);
 }
 
-/*
-Purpose: Checks if a TOKEN array is a return type definition for a function
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking;
-        int inFunctionCall => Flag if the functioncall is independent or from a function
+/**
+ * @brief Checks if a token is a visibility token or not.
+ * 
+ * @note Here is a list of visibility modifiers:
+ * @note - global
+ * @note - secure
+ * @note - private
+ * 
+ * @returns `True (1)`, when the token is a visibility modifier, else
+ * `false (0)`
 */
-SyntaxReport SA_is_function_return_type_specifier(TOKEN **tokens, size_t startPos) {
-    if ((*tokens)[startPos].type != _OP_COLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, ":");
+int SA_skip_visibility_modifier(TOKEN *token) {
+    switch (token->type) {
+    case _KW_GLOBAL_: case _KW_SECURE_: case _KW_PRIVATE_:
+        return 1;
+    default:
+        return 0;
     }
-
-    if ((int)SA_is_root_identifier(&(*tokens)[startPos + 1]) == false
-        && (*tokens)[startPos + 1].type != _KW_INT_
-        && (*tokens)[startPos + 1].type != _KW_CHAR_
-        && (*tokens)[startPos + 1].type != _KW_BOOLEAN_
-        && (*tokens)[startPos + 1].type != _KW_FLOAT_
-        && (*tokens)[startPos + 1].type != _KW_DOUBLE_
-        && (*tokens)[startPos + 1].type != _KW_STRING_
-        && (*tokens)[startPos + 1].type != _KW_SHORT_
-        && (*tokens)[startPos + 1].type != _KW_LONG_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<IDENTIFIER>");
-    }
-
-    if ((*tokens)[startPos + 2].type == _OP_RIGHT_EDGE_BRACKET_) {
-        if ((*tokens)[startPos + 3].type != _OP_LEFT_EDGE_BRACKET_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + 3], 0, true, "]");
-        }
-
-        return SA_create_syntax_report(NULL, 4, false, NULL);
-    }
-
-    return SA_create_syntax_report(NULL, 2, false, NULL);
 }
 
-/*
-Purpose: Checks if a TOKEN array is written accordingly to the FUNCTION CALL rule
-Return Type: SyntaxReport => ErrorOccured = true on error, else false
-Params: TOKEN **tokens => Token array to be checked;
-        size_t startPos => Position from where to start checking;
-        int inFunctionCall => Flag if the functioncall is independent or from a function
+/**
+ * @brief Checks if a tokens sequence starting from `startingPos` is written
+ * accordingly to the function call syntax.
+ * 
+ * @note Examples:
+ * @note ```
+ * @note add(num1, num2);
+ * @note add(&num1, *num2);
+ * @note add(2 + 3, 4 * 5 + a);
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_function_call(TOKEN **tokens, size_t startPos, int inFunction) {
     int isRootIdentifier = (int)SA_is_root_identifier(&(*tokens)[startPos]);
@@ -2105,14 +2336,8 @@ SyntaxReport SA_is_function_call(TOKEN **tokens, size_t startPos, int inFunction
         return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "(");
     }
     
-    SyntaxReport isParameter;
+    SyntaxReport isParameter = SA_is_parameter(tokens, startPos + 2, inFunction == true ? _PARAM_FUNCTION_ : _PARAM_FUNCTION_CALL_);
 
-    if (inFunction == true) {
-        isParameter = SA_is_parameter(tokens, startPos + 2, _PARAM_FUNCTION_);
-    } else {
-        isParameter = SA_is_parameter(tokens, startPos + 2, _PARAM_FUNCTION_CALL_);
-    }
-    
     if (isParameter.errorOccured == true) {
         return SA_create_syntax_report(isParameter.token, 0, true, isParameter.expectedToken);
     }
@@ -2124,18 +2349,28 @@ SyntaxReport SA_is_function_call(TOKEN **tokens, size_t startPos, int inFunction
     return SA_create_syntax_report(NULL, isRootIdentifier + isParameter.tokensToSkip + 2, false, NULL);
 }
 
-/*
-Purpose: Check if a Token array is a parameter or not
-Return Type: SyntaxReport => true if it is a parameter, else false
-Params: TOKEN **tokens => Tokens to be checked;
-        size_t startPos => Position from where to start checking;
-        enum ParameterType type => Determines the type of the parameter
+/**
+ * @brief Checks if a tokens sequence starting from `startingPos` is a
+ * parameter or not.
+ * 
+ * @note Examples:
+ * @note ```
+ * @note num1, num2
+ * @note &num1, *num2
+ * @note 2 + 3, 4 * 5 + a
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+ * @param type  Type of the param (function call, function, class)
 */
 SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType type) {
     int jumper = 0;
-    int hasToBeComma = false;
+    unsigned char hasToBeComma = false;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -2151,47 +2386,48 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
             hasToBeComma = true;
 
             switch (type) {
-            case _PARAM_FUNCTION_CALL_:
-                //Layout: *<POINTER>
-                if (currentToken->value[0] == '*') {
-                    if ((int)SA_is_pointer(currentToken) == true) {
-                        jumper++;
-                    } else {
-                        return SA_create_syntax_report(currentToken, 0, true, "<POINTER>");
-                    }
-                //Layout: &<IDENTIFIER> or &(*<IDENTIFIER>)
-                } else if (currentToken->value[0] == '&') {
-                    if ((int)SA_is_reference(currentToken) == true) {
-                        jumper++;
-                    } else {
-                        return SA_create_syntax_report(currentToken, 0, true, "<REFERENCE>");
-                    }
-                //Layout: <IDENTIFIER> or <NUMBER> or <SIMPLE_TERM>
-                } else {
-                    SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper, 1);
+            case _PARAM_FUNCTION_CALL_: {
+                SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper, 1);
 
-                    if (isSimpleTerm.errorOccured == false) {
-                        jumper += isSimpleTerm.tokensToSkip;
-                    } else {
-                        return SA_create_syntax_report(currentToken, 0, true, isSimpleTerm.expectedToken);
-                    }
+                if (isSimpleTerm.errorOccured == true) {
+                    return isSimpleTerm;
                 }
 
+                jumper += isSimpleTerm.tokensToSkip;
                 break;
+            }
             case _PARAM_CLASS_:
             case _PARAM_FUNCTION_:
                 if (currentToken->value[0] == '*') {
-                    if ((int)SA_is_pointer(currentToken) == true) {
-                        jumper++;
-                    } else {
+                    if ((int)SA_is_pointer(currentToken) == false) {
                         return SA_create_syntax_report(currentToken, 0, true, "<POINTER>");
                     }
                 } else if ((int)SA_is_letter(currentToken->value[0]) == true) {
-                    if ((int)SA_is_root_identifier(currentToken) == true) {
-                        jumper++;
-                    } else {
+                    if ((int)SA_is_root_identifier(currentToken) == false) {
                         return SA_create_syntax_report(currentToken, 0, true, "<IDENTIFIER>");
                     }
+
+                    if ((*tokens)[startPos + jumper + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
+                        SyntaxReport isDimDef = SA_is_array_dimension_definition(tokens, startPos + jumper + 1);
+                        
+                        if (isDimDef.errorOccured == true) {
+                            return isDimDef;
+                        }
+                        
+                        jumper += isDimDef.tokensToSkip;
+                    }
+                }
+
+                jumper++;
+
+                if ((*tokens)[startPos + jumper].type == _OP_COLON_) {
+                    SyntaxReport isTypeDefinition = SA_is_var_type_definition(tokens, startPos + jumper);
+
+                    if (isTypeDefinition.errorOccured == true) {
+                        return isTypeDefinition;
+                    }
+
+                    jumper += isTypeDefinition.tokensToSkip;
                 }
 
                 break;
@@ -2211,44 +2447,144 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
 
     if (hasToBeComma == false
         && (*tokens)[startPos + jumper - 1].type != _OP_RIGHT_BRACKET_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, ")");
+        return SA_create_syntax_report(&(*tokens)[startPos + jumper - 1], 0, true, ")");
     }
 
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Check if a TOKEN array is written accordingly to the simple term rule
-Return Type: SyntaxReport => Contains how many tokens to skip if TOKEN array match
-                            the SIMPLE_TERM rule, else errorOccured = true
-Params: TOKEN **tokens => TOKEN array to be checked;
-        size_t startPos => Position from where to start checking;
-        int inParameter => Determines if the simple term is called from a parameter
+/**
+ * @brief Checks if the following tokens are a valid dimension definition.
+ *
+ * @note Examples:
+ * @note ```
+ * @note []
+ * @note [][][][]
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_array_dimension_definition(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
+
+    while (startPos + skip < MAX_TOKEN_LENGTH) {
+        if ((*tokens)[startPos + skip].type != _OP_RIGHT_EDGE_BRACKET_) {
+            break;
+        }
+        
+        if ((*tokens)[startPos + skip + 1].type != _OP_LEFT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + skip + 1], 0, true, "]");
+        }
+
+        skip += 2;
+    }
+
+    return SA_create_syntax_report(NULL, skip, false, NULL);
+}
+
+/**
+ * @brief Checks if a sequence is a variable type definition (cast).
+ * 
+ * @note Examples:
+ * @note ```
+ * @note :int
+ * @note :char
+ * @note :double[]
+ * @note :Object[][]
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type != _OP_COLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, ":");
+    }
+
+    if ((int)is_primitive((*tokens)[startPos + 1].type) == false
+        && (int)SA_is_root_identifier(&(*tokens)[startPos + 1]) == false) {
+        return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<IDENTIFIER>\" or \"<PRIMITIVE>");
+    }
+
+    int jumper = 2;
+
+    while ((int)SA_is_root_identifier(&(*tokens)[startPos + jumper]) == false
+        && (int)SA_is_end_indicator(&(*tokens)[startPos + jumper]) == false) {
+        if ((*tokens)[startPos + jumper].type != _OP_RIGHT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "[");
+        }
+
+        if ((*tokens)[startPos + jumper].type != _OP_RIGHT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "]");
+        }
+
+        jumper += 2;
+    }
+
+    return SA_create_syntax_report(NULL, jumper, false, NULL);
+}
+
+/**
+ * @brief Checks if a tokens sequence starting from `startingPos` is a simple
+ * term or not.
+ * 
+ * @note Examples:
+ * @note ```
+ * @note 1 + 2
+ * @note 3 * 4
+ * @note a + b * c
+ * @note "Hello" + "World"
+ * @note getInteger() + 2
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+ * @param inParameter   Flag for whether the simple term is called from a
+ *                      parameter or not
 */
 SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
-    int openBrackets = 0;
     int jumper = 0;
-    int hasToBeArithmeticOperator = false;
+    unsigned char hasToBeArithmeticOperator = false;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
-        if (currentToken == NULL) {
-            (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
-        } else if (currentToken->type == _OP_RIGHT_BRACKET_) {
-            openBrackets++;
-            jumper++;
+        if (currentToken->type == _OP_RIGHT_BRACKET_) {
+            SyntaxReport isTerm = SA_is_simple_term(tokens, startPos + jumper + 1, true);
+
+            if (isTerm.errorOccured == true) {
+                return isTerm;
+            }
+
+            jumper += isTerm.tokensToSkip + 2;
+
+            if ((int)SA_predict_array_access(tokens, startPos + jumper) == true) {
+                SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + jumper);
+
+                if (isArrayAccess.errorOccured == false) {
+                    jumper += isArrayAccess.tokensToSkip;
+                } else {
+                    return isArrayAccess;
+                }
+            }
+            
+            hasToBeArithmeticOperator = true;
             continue;
         } else if (currentToken->type == _OP_LEFT_BRACKET_) {
-            if (inParameter == true && openBrackets <= 0) {
+            if (inParameter == true) {
                 break;
-            //If an operator is before the Bracket
-            } else if (hasToBeArithmeticOperator == false) {
+            } else if (hasToBeArithmeticOperator == false) { //If an operator is before the Bracket
                 return SA_create_syntax_report(&(*tokens)[startPos + jumper - 1], 0, true, ")");
             }
 
-            openBrackets--;
             jumper++;
             continue;
         } else if (currentToken->type == _OP_NOT_
@@ -2263,7 +2599,8 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
         case false:
             hasToBeArithmeticOperator = true;
 
-            if (currentToken->value[0] == '\"') {
+            if (currentToken->value[0] == '\"'
+                || currentToken->value[0] == '\'') {
                 if ((int)SA_is_string(currentToken) == true) {
                     jumper++;
                     continue;
@@ -2279,10 +2616,8 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
                     isIdentifier = SA_is_class_object_access(tokens, startPos + jumper, false);
                 } else if ((*tokens)[startPos + jumper + 1].type == _OP_RIGHT_BRACKET_) {
                     isIdentifier = SA_is_function_call(tokens, startPos + jumper, false);
-                } else if ((int)SA_is_bool((*tokens)[startPos].value) == true) {
-                    jumper++;
-                    continue;
-                } else if (currentToken->type == _KW_NULL_) {
+                } else if ((int)SA_is_bool((*tokens)[startPos].value) == true
+                    || currentToken->type == _KW_NULL_) {
                     jumper++;
                     continue;
                 } else {
@@ -2290,18 +2625,37 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
                 }
             } else if ((int)is_digit(currentToken->value[0]) == true) {
                 isIdentifier = SA_is_numeral_identifier(currentToken);
+            } else if ((int)SA_predict_term_expression(tokens, startPos + jumper)) {
+                isIdentifier = SA_is_term_expression(tokens, startPos + jumper);
+            } else {
+                if ((int)SA_is_pointer(currentToken) == true
+                    || (int)SA_is_reference(currentToken) == true) {
+                    if ((int)SA_predict_array_access(tokens, startPos + jumper + 1) == true) {
+                        SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + jumper + 1);
+
+                        if (isArrayAccess.errorOccured == false) {
+                            jumper += isArrayAccess.tokensToSkip;
+                        } else {
+                            return isArrayAccess;
+                        }
+                    }
+
+                    jumper++;
+                    continue;
+                }
+
+                return SA_create_syntax_report(currentToken, 0, true, "<POINTER>\" or \"<REFERENCE>");
             }
 
             if (isIdentifier.errorOccured == false) {
                 jumper += isIdentifier.tokensToSkip;
             } else {
-                return SA_create_syntax_report(currentToken, 0, true, isIdentifier.expectedToken);
+                return isIdentifier;
             }
 
             break;
         case true:
-            if ((int)SA_is_arithmetic_operator(currentToken) != true
-                && currentToken->type != _OP_MODULU_) {
+            if ((int)SA_is_arithmetic_operator(currentToken) != true) {
                 return SA_create_syntax_report(currentToken, 0, true, "+\", \"-\", \"*\", \"%\" or \"/");
             }
 
@@ -2313,12 +2667,6 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 
     if (hasToBeArithmeticOperator == false) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFIER>");
-    } else if (openBrackets != 0) {
-        if (openBrackets > 0) {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, ")");
-        } else {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "(");
-        }
     } else if (jumper == 0) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFER>\", \"<FUNCTION_CALL>\" or \"<CLASS_OBJECT_ACCESS>");
     }
@@ -2326,17 +2674,76 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
-/*
-Purpose: Check if the next tokens are an evidence for an object access out of a class
-Return Type: int => true = is object access; false = not an object access
-Params: TOKEN **tokens => Tokens to be checked for evidence;
-        size_t startPos => Position from where to start checking
+/**
+* @brief Handles operations like `p++`, `++p`, `p--`, `--p` or `p++++`.
+ *
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos) {
+    int jumper = 0;
+    unsigned char identifiers = 0;
+
+    while (startPos + jumper < MAX_TOKEN_LENGTH) {
+        TOKEN *currentToken = &(*tokens)[startPos + jumper];
+        int rootIden = SA_is_root_identifier(currentToken);
+        identifiers += rootIden;
+
+        if (identifiers > 1) {
+            return SA_create_syntax_report(currentToken, 0, true, "++\" or \"--");
+        } else if (currentToken->type != _OP_ADD_ONE_
+            && currentToken->type != _OP_SUBTRACT_ONE_
+            && rootIden == false) {
+            break;
+        }
+
+        if (tokens == 0) {
+            return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<IDENTIFIER>");
+        }
+
+        jumper++;
+    }
+
+    return SA_create_syntax_report(&(*tokens)[startPos], jumper, false, NULL);
+}
+
+/**
+ * @brief Predicts if the next operation is a term expression.
+ * 
+ * @note As a term expression counts everything like this:
+ * @note `p++`, `++p`, `p--`, `--p` or `p++++`.
+ * 
+ * @returns `True (1)` if the next operation is a term expression, else
+ * `false (0)`
+*/
+int SA_predict_term_expression(TOKEN **tokens, size_t startPos) {
+    for (int i = 0; i < MAX_TOKEN_LENGTH; i++) {
+        if ((*tokens)[startPos + i].type == _OP_ADD_ONE_
+            || (*tokens)[startPos + i].type == _OP_SUBTRACT_ONE_) {
+            return true;
+        } else if ((int)SA_is_end_indicator(&(*tokens)[startPos + i]) == true) {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Checks if the next tokens reference to a class access or not.
+ * 
+ * @returns `True` (1), when a class access is detected, else `false (0)`
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 int SA_predict_class_object_access(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     int openBrackets = 0;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         switch ((*tokens)[startPos + jumper].type) {
         case _OP_CLASS_ACCESSOR_:
@@ -2362,23 +2769,35 @@ int SA_predict_class_object_access(TOKEN **tokens, size_t startPos) {
     return false;
 }
 
-/*
-Purpose: Checks if a given TOKEN array is matching the possibilities of an IDENTIFIER
-Return Type: SyntaxReport => Contains how many tokens to skip if TOKEN array match
-                            the IDENTIFIER rule, else errorOccured = true
-Params: TOKEN **tokens => TOKEN array to be checked;
-        size_t startPos => Position from where to start checking
+/**
+ * @brief Checks if a token sequence is an IDENTIFIER or not.
+ * 
+ * @note An identifier is a token sequence that is seperated with a '.'.
+ * @note  
+ * @note Examples:
+ * @note ```
+ * @note token.name.getString().getBytes()[5]
+ * @note this.size
+ * @note getDefaultValue().getInteger()
+ * @note ```
+ *
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
-    int hasToBeDot = false;
+    unsigned char hasToBeDot = false;
 
     while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
         if ((int)SA_is_end_indicator(currentToken) == true
-            || (int)SA_is_arithmetic_operator(currentToken) == true) {
+            || (int)SA_is_arithmetic_operator(currentToken) == true
+            || currentToken->type == _OP_ADD_ONE_
+            || currentToken->type == _OP_SUBTRACT_ONE_) {
             break;
         }
 
@@ -2388,23 +2807,37 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
             int isRootIdentifier = SA_is_root_identifier(currentToken);
 
             if (isRootIdentifier == true) {
-                if ((*tokens)[startPos + jumper + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
-                    SyntaxReport isArrayIdentifier = SA_is_array_identifier(tokens, startPos + jumper + 1);
+                currentToken = &(*tokens)[startPos + jumper + 1];
+
+                if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
+                    SyntaxReport isArrayIdentifier = SA_is_array_identifier(tokens, startPos + jumper);
 
                     if (isArrayIdentifier.errorOccured == false) {
                         jumper += isArrayIdentifier.tokensToSkip + isRootIdentifier;
                         continue;
                     } else {
-                        return SA_create_syntax_report(isArrayIdentifier.token, 0, true, isArrayIdentifier.expectedToken);
+                        return isArrayIdentifier;
                     }
-                } else if ((*tokens)[startPos + jumper + 1].type == _OP_RIGHT_BRACKET_) {
+                } else if (currentToken->type == _OP_RIGHT_BRACKET_) {
                     SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + jumper, false);
 
                     if (isFunctionCall.errorOccured == false) {
                         jumper += isFunctionCall.tokensToSkip;
+
+                        if ((int)SA_predict_array_access(tokens, startPos + jumper) == true) {
+                            SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + jumper);
+
+                            if (isArrayAccess.errorOccured == false) {
+                                jumper += isArrayAccess.tokensToSkip;
+                                continue;
+                            } else {
+                                return isArrayAccess;
+                            }
+                        }
+
                         continue;
                     } else {
-                        return SA_create_syntax_report(isFunctionCall.token, 0, true, isFunctionCall.expectedToken);
+                        return isFunctionCall;
                     }
                 }
 
@@ -2433,6 +2866,70 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
+/**
+ * @brief Predicts whether the next tokens are an array access or not.
+ * 
+ * @returns `True (1)` if there will be an array access, else
+ * `false (0)`
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start predicting
+*/
+int SA_predict_array_access(TOKEN **tokens, size_t startPos) {
+    for (int i = startPos; i < MAX_TOKEN_LENGTH; i++) {
+        TOKEN *currentToken = &(*tokens)[i];
+
+        if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
+            return true;
+        } else {
+            break;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Checks if an input matches the array acces sequence or not.
+ *
+ * @note Examples:
+ * @note ```
+ * @note [0]
+ * @note [index + offset]
+ * @note ```
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos) {
+    if ((*tokens)[startPos].type != _OP_RIGHT_EDGE_BRACKET_) {
+        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "[");
+    }
+
+    int jumper = 0;
+
+    while ((*tokens)[startPos + jumper].type == _OP_RIGHT_EDGE_BRACKET_
+        && startPos + jumper < MAX_TOKEN_LENGTH) {
+        SyntaxReport term = SA_is_simple_term(tokens, startPos + (++jumper), false);
+
+        if (term.errorOccured == true) {
+            return term;
+        }
+
+        jumper += term.tokensToSkip;
+
+        if ((*tokens)[startPos + jumper].type != _OP_LEFT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "]");
+        }
+
+        jumper++;
+    }
+
+    return SA_create_syntax_report(NULL, jumper, false, NULL);
+}
+
 /*
 Purpose: Checks if a given TOKEN array is an array identifier
 Return Type: SyntaxReport => Contains how many tokens to skip if TOKEN array match
@@ -2441,27 +2938,19 @@ Params: TOKEN **tokens => TOKEN array to be checked;
         size_t startPos => Position from where to start checking
 */
 SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos) {
-    if ((*tokens)[startPos].type != _OP_RIGHT_EDGE_BRACKET_) {
-        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "[");
+    int rootIden = SA_is_root_identifier(&(*tokens)[startPos]);
+
+    if (rootIden == 0) {
+        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<IDENTIFIER>");
     }
     
-    int jumper = 0;
+    SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + 1);
 
-    while ((*tokens)[startPos + jumper].type == _OP_RIGHT_EDGE_BRACKET_) {
-        SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper + 1, 0);
-
-        if (isSimpleTerm.errorOccured == true) {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper + 1], 0, true, isSimpleTerm.expectedToken);
-        }
-
-        if ((*tokens)[startPos + isSimpleTerm.tokensToSkip + jumper + 1].type != _OP_LEFT_EDGE_BRACKET_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + isSimpleTerm.tokensToSkip + jumper + 1], 0, true, "]");
-        }
-
-        jumper += isSimpleTerm.tokensToSkip + 2;
+    if (isArrayAccess.errorOccured == true) {
+        return isArrayAccess;
     }
     
-    return SA_create_syntax_report(NULL, jumper, 0, NULL);
+    return SA_create_syntax_report(NULL, isArrayAccess.tokensToSkip, 0, NULL);
 }
 
 /*
@@ -2472,9 +2961,7 @@ Params: TOKEN *token => Token to be checked
 int SA_is_root_identifier(TOKEN *token) {
     if (token == NULL) {
         return false;
-    }
-
-    if ((int)SA_is_keyword(token) == true
+    } else if ((int)SA_is_keyword(token) == true
         && token->type != _KW_THIS_) {
         return false;
     }
@@ -2508,7 +2995,7 @@ SyntaxReport SA_is_numeral_identifier(TOKEN *token) {
         (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
     }
 
-    int dots = 0;
+    unsigned char dots = 0;
 
     for (int i = 0; i < token->size; i++) {
         char currentCharacter = token->value[i];
@@ -2516,7 +3003,7 @@ SyntaxReport SA_is_numeral_identifier(TOKEN *token) {
         if (currentCharacter == '\0') {
             break;
         } else if (currentCharacter == '.') {
-            if (dots >= 1) {
+            if (dots >= 1) { //Two dots in one number
                 return SA_create_syntax_report(token, 0, true, "<NUMBER>");
             }
 
@@ -2542,7 +3029,7 @@ _OP_EQUALS_, _OP_SEMICOLON_, _OP_LEFT_EDGE_BRACKET_, _OP_SMALLER_CONDITION_,
 _OP_GREATER_CONDITION_, _OP_SMALLER_OR_EQUAL_CONDITION_, _OP_GREATER_OR_EQUAL_CONDITION_,
 _OP_NOT_EQUALS_CONDITION_, _OP_EQUALS_CONDITION_, _OP_COLON_, _KW_AND_, _KW_OR_,
 _OP_MINUS_EQUALS_, _OP_PLUS_EQUALS_, _OP_MULTIPLY_EQUALS_, _OP_DIVIDE_EQUALS_,
-_OP_ADD_ONE_, _OP_SUBTRACT_ONE_, _OP_LEFT_BRACKET_, _OP_COMMA_, _OP_CLASS_CREATOR_,
+_OP_LEFT_BRACKET_, _OP_COMMA_, _OP_CLASS_CREATOR_,
 _OP_LEFT_BRACE_, _OP_QUESTION_MARK_, _OP_CLASS_ACCESSOR_};
 
 int SA_is_end_indicator(const TOKEN *token) {
@@ -2550,7 +3037,9 @@ int SA_is_end_indicator(const TOKEN *token) {
         return true;
     }
 
-    for (int i = 0; i < (sizeof(endIndicators) / sizeof(endIndicators[0])); i++) {
+    unsigned char length = (sizeof(endIndicators) / sizeof(endIndicators[0]));
+
+    for (unsigned char i = 0; i < length; i++) {
         if (token->type == endIndicators[i]) {
             return true;
         }
@@ -2602,7 +3091,7 @@ TOKENTYPES KeywordLookupTable[] = {
     _KW_CHECK_, _KW_IS_, _KW_TRY_, _KW_CATCH_, _KW_CONTINUE_, _KW_CONST_, _KW_INCLUDE_,
     _KW_AND_, _KW_OR_, _KW_GLOBAL_, _KW_SECURE_, _KW_PRIVATE_, _KW_EXPORT_, _KW_FOR_,
     _KW_THIS_, _KW_ELSE_, _KW_INT_, _KW_DOUBLE_, _KW_FLOAT_, _KW_CHAR_, _KW_STRING_,
-    _KW_SHORT_, _KW_LONG_, _KW_CONSTRUCTOR_
+    _KW_SHORT_, _KW_LONG_, _KW_CONSTRUCTOR_, _KW_EXTENDS_
 };
 
 int SA_is_keyword(TOKEN *token) {
@@ -2699,7 +3188,7 @@ Return Type: int => true = is an assignment operator; false = not an assignment 
 Params: const char *sequence => Sequence to be checked
 */
 int SA_is_assignment_operator(const char *sequence) {
-    char assignmentOperator[][3] = {"+=", "-=", "*=", "/="};
+    char assignmentOperator[][3] = {"+=", "-=", "*=", "/=", "++", "--"};
     int lengthOfAssignmentOperators = (sizeof(assignmentOperator) / sizeof(assignmentOperator[0]));
 
     for (int i = 0; i < lengthOfAssignmentOperators; i++) {
@@ -2752,13 +3241,15 @@ int SA_is_logic_operator(const char *sequence) {
             || (int)strcmp(sequence, "!") == 0) ? true : false;
 }
 
-/*
-Purpose: Creates a SyntaxReport based on the given Params
-Return Type: SyntaxReport => Containing all important information for an error
-Params: TOKEN *token => Error token;
-        int tokensToSkip => How many tokens should be skipped till the next step;
-        int errorOccured => Was there an error or not;
-        char *expectedToken => Token that was expected, when an error occures
+/**
+ * Creates a SyntaxReport structure containing all data to throw an error.
+ * The SyntaxReport contains the error token, how many tokens to skip, if
+ * a run was successful and the expected token.
+ * 
+ * @param *token    Pointer to the TOKEN array
+ * @param tokensToSkip  Number of tokens to skip after the check
+ * @param errorOccured  Flag for whether an error occured or not
+ * @param *expectedToken    The token that is expected instead of the error token
 */
 SyntaxReport SA_create_syntax_report(TOKEN *token, int tokensToSkip, int errorOccured, char *expectedToken) {
     SyntaxReport report;

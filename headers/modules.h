@@ -28,7 +28,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define LEXER_DEBUG_MODE 1
 #define LEXER_DISPLAY_USED_TIME 1
 
-#define SYNTAX_ANALYZER_DEBUG_MODE 0
+#define SYNTAX_ANALYZER_DEBUG_MODE 1
 #define SYNTAX_ANALYZER_DISPLAY_USED_TIME 1
 
 #define PARSETREE_GENERATOR_DEBUG_MODE 1

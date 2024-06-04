@@ -172,13 +172,17 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
 
     //Tree generation process
     NodeReport runnable = PG_create_runnable_tree(tokens, 0, false);
-    
+
     if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
         end = (clock_t)clock();            
     }
     
     if (PARSETREE_GENERATOR_DEBUG_MODE == 1) {
-        PG_print_from_top_node(runnable.node, 0, 0);
+        if (runnable.node == NULL) {
+            printf("Something went wrong in the parsetree generation step.");
+        } else {
+            (void)PG_print_from_top_node(runnable.node, 0, 0);
+        }
     }
 
     if (PARSETREE_GENERATOR_DISPLAY_USED_TIME == 1) {
@@ -527,14 +531,17 @@ NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos) {
     NodeReport chainedReport = PG_create_chained_condition_tree(tokens, startPos + skip);
     topNode->details[0] = chainedReport.node;
     skip += chainedReport.tokensToSkip;
-
+    printf("Here!\n");
     NodeReport expressionReport = PG_create_simple_assignment_tree(tokens, startPos + skip);
+    printf("Here!\n");
     topNode->details[1] = expressionReport.node;
     skip += expressionReport.tokensToSkip + 2;
-
+    printf("Here!\n");
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     topNode->rightNode = runnableReport.node;
     skip += runnableReport.tokensToSkip;
+
+    printf("TOK: %s\n", (*tokens)[startPos + skip].value);
 
     return PG_create_node_report(topNode, skip);
 }
@@ -1485,17 +1492,16 @@ _______________________________
 Layout:
 
      [VAR]
-   /   |  \
-[MOD] [T] [VAL]
+   /      \
+[MOD]    [VAL]
 
 To the [VAR] appended are the modifier
 ([MOD]: ´´´node->leftNode´´´) and the value
 ([VAL]: ´´´´node->rightNode´´´).
 
-[VAR]: Contains the variable name
+[VAR]: Contains the variable name and primitive type if assigned
 [MOD]: Contains the var modifier
 [VAL]: Value of the variable
-[T]: Type of the variable (optional)
 _______________________________
 */
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
@@ -1516,7 +1522,6 @@ NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
 
     if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
         NodeReport typeReport = PG_create_varType_tree(&(*tokens)[startPos + skip + 2]);
-        (void)PG_allocate_node_details(varNode, 1, false);
         varNode->details[0] = typeReport.node;
         skip += 2;
     }

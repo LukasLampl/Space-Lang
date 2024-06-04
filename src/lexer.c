@@ -43,7 +43,7 @@ void LX_set_line_number(TOKEN *token, size_t lineNumber);
 int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
 int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber);
-int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character, size_t *lineNumber, const char **fileName);
+int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucial_character, size_t *lineNumber, const char **fileName);
 int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber);
@@ -87,7 +87,7 @@ struct kwLookup KeywordTable[] = {
     {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
     {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
     {"char", _KW_CHAR_},           {"String", _KW_STRING_},   {"short", _KW_SHORT_},
-    {"long", _KW_LONG_},           {"constructor", _KW_CONSTRUCTOR_}
+    {"long", _KW_LONG_},           {"extends", _KW_EXTENDS_}, {"constructor", _KW_CONSTRUCTOR_}
 };
 
 /*
@@ -145,6 +145,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
 
         // Check if the Size is bigger than the expected, if true, then increase the size of the token value
         if (storageIndex > TOKENS[storagePointer].size) {
+            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
             (void)LX_resize_tokens_value(&TOKENS[storagePointer], TOKENS[storagePointer].size);
         } else if (storageIndex == 0) {
             TOKENS[storagePointer].tokenStart = i;
@@ -155,15 +156,15 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
         int isOperator = isWhiteSpace != 1 ? (int)check_for_operator((*input)[i]) : 0; //Checks if input at i is an operator from above
         // Check if the input character at index i is the beginning of an string or character array
         if ((*input)[i] == '"' || (*input)[i] == '\'') {
-            storagePointer += (int)LX_token_clearance_check(&(TOKENS[storagePointer]), lineNumber);
-            i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, &(*input)[i], &lineNumber, &fileName);
+            storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
+            i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, (*input)[i], &lineNumber, &fileName);
             (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
             storagePointer++;
             storageIndex = 0;
             continue;
         }
 
-        if (i + 1 == fileLength) {
+        if (i + 1 >= fileLength) {
             (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
             (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
         }
@@ -191,7 +192,8 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
         } else if (isOperator) {
             // Check if the TOKEN could be a FLOAT or not
             if ((*input)[i] == '.' 
-                && ((int)is_digit((*input)[i - 1]) && (int)is_digit((*input)[i + 1]))) {
+                && ((int)is_digit((*input)[i - 1])
+                && (int)is_digit((*input)[i + 1]))) {
                 (void)LX_put_type_float_in_token(&TOKENS[storagePointer], storageIndex);
                 storageIndex++;
                 continue;
@@ -526,11 +528,11 @@ Return Type: int => How many chars to skip
 Params: TOKEN *token => Current Token to write in; const char *input => Source code;
         char **input => Content of the source file;
         const size_t currentInputIndex => Index at where to start writing the string;
-        const char *crucial_character => Character: ' or ";
+        const char crucial_character => Character: ' or ";
         size_t lineNumber => Current line number;
         const char **fileName => Name of the currently processed file
 */
-int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char *crucial_character, size_t *lineNumber, const char **fileName) {
+int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucial_character, size_t *lineNumber, const char **fileName) {
     int jumpForward = 1;
 
     if (input != NULL && token != NULL && token->value != NULL) {
@@ -538,8 +540,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
 
         // write the current character into the current token value
         // while the input is not the crucial character again the input gets set into the current token value
-        while (((*input)[currentInputIndex + jumpForward] != *crucial_character
-            || (*input)[currentInputIndex + jumpForward - 1] == '\\')
+        while (((*input)[currentInputIndex + jumpForward] != crucial_character)
             && (currentInputIndex + jumpForward) < maxlength) {
             // If the string size is bigger than size, resize the token
             if (jumpForward + 1 >= (((token->size * currentIncremental) - 1))) {
@@ -558,30 +559,30 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
             jumpForward++;
         }
 
-        if ((*input)[currentInputIndex + jumpForward] != '"') {
+        if ((*input)[currentInputIndex + jumpForward] != crucial_character) {
             (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber, fileName);
         }
 
         // Set the current tokentype to _STRING_ and add the quotes
-        if (*crucial_character == '"') {
+        if (crucial_character == '"') {
             token->type = _STRING_;
-            token->value[0] = *crucial_character;
+            token->value[0] = crucial_character;
 
             if (token->size > jumpForward) {
-                token->value[jumpForward] = *crucial_character;
+                token->value[jumpForward] = crucial_character;
             } else {
-                token->value[token->size - 1] = *crucial_character;
+                token->value[token->size - 1] = crucial_character;
             }
 
         // Same as the _STRING_ here, just for the _CHARACTER_ARRAY_
-        } else if (*crucial_character == '\'') {
+        } else if (crucial_character == '\'') {
             token->type = _CHARACTER_ARRAY_;
-            token->value[0] = *crucial_character;
+            token->value[0] = crucial_character;
 
             if (token->size > jumpForward) {
-                token->value[jumpForward] = *crucial_character;
+                token->value[jumpForward] = crucial_character;
             } else {
-                token->value[token->size - 1] = *crucial_character;
+                token->value[token->size - 1] = crucial_character;
             }
         }
 
@@ -589,7 +590,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
         if (token->size >= jumpForward + 1) {
             token->value[jumpForward + 1] = '\0';
         } else {
-            token->value[token->size - 1] = *crucial_character;
+            token->value[token->size - 1] = crucial_character;
         }
     }
 
