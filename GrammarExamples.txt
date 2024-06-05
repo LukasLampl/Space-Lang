@@ -19,78 +19,78 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-### VARIABLES ###                      ALREADY MADE IN PG
-var a = 10;                                     x
-var a[5][10] = {{10}};                          x
-var a,b;                                        x
-const a = 15;                                   x
-var a = (a < 10) ? a : b;                       x
-var obj = new Object();                         x
+### VARIABLES ###
+var a = 10;
+var a[5][10] = {{10}};
+const a = 15;
+var a = (a < 10) ? a : b;
+var obj = new Object();
 
 ### FUNCTION ###
-function test(param1, param2) {}                x
-function test(*param1, param2) {}               x
-function:int add(num1, num2);                   x
-function:String greet() {}                      x
-global function test(param1, param2) {}         x
-global function test(param1, *param2) {}        x
+function test(param1, param2) {}
+function test(*param1, param2) {}
+function:int add(num1, num2);
+function:String greet() {}
+global function test(param1, param2) {}
+global function test(param1, *param2) {}
 
 ### IF ###
-if (a < 10 and b == 20 or c >= 30) {            x
-} else if (c < 10 and b > 30) {                 x
-} else {}                                       x
+if (a < 10 and b == 20 or c >= 30) {
+} else if (c < 10 and b > 30) {
+} else {}
 
 ### WHILE ###
-while (a < 10 and b == 20) {}                   x
+while (a < 10 and b == 20) {}
 
 ### DO ###
-do {} while (a < 10 and b == 20);               x
+do {} while (a < 10 and b == 20);
 
 ### TRY ###
-try {} catch (Exception e) {}                   x
+try {} catch (Exception e) {}
 
 ### FOR ###
-for (var i = 0; i < 5; i++) {}                  x
+for (var i = 0; i < 5; i++) {}
 
 ### CHECK ###
-check (a) {                                     x
+check (a) {
     is 10:
     is 20:
 }
 
 ### INCLUDE ###
-include "myTest.lib";                           x
+include "myTest.lib";
 
 ### EXPORT ###
-export "File.spc";                              x
+export "File.spc";
 
 ### CLASS ###
-class obj(param1, param2) => {}                 x
-class Obj() with Object => {}                   x
+class obj(param1, param2) => {}
+class Obj() with Object => {}
 
-this::constructor {}                            x
+this::constructor() {}
+this::constructor(param1, param2) {}
 
 ### ENUM ###
-enum Test {                                     x
+enum Test {
     a : 10,
     b,
     c
 }
 
 ### FUNCTION CALL ###
-a(param1, param2);                              x
-a(param1, *param2);                             x
-a(&param1, param2);                             x
+a(param1, param2);
+a(param1, *param2);
+a(&param1, param2);
 
 ### RETURN ###
-return a + b;                                   x
-return a;                                       x
-return 1 + 2 * 3;                               x
-return a == 0 ? a : b;                          x
-return new Object();                            x
+return a + b;
+return a;
+return 1 + 2 * 3;
+return a == 0 ? a : b;
+return new Object();
 
 ### BREAK ###
-break;  	                                    x
+break;
 
 ### CONTINUE ###
-continue;                                       x
+continue;

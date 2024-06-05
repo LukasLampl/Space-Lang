@@ -43,6 +43,8 @@ int is_space(char character);
 int is_empty_string(const char* string);
 int is_digit(char character);
 int is_primitive(TOKENTYPES type);
+int is_end_indicator(const TOKEN *token);
+int is_keyword(TOKEN *token);
 
 //Input reader
 struct InputReaderResults {

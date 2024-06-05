@@ -135,11 +135,9 @@ SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos);
 int SA_is_root_identifier(TOKEN *token);
 SyntaxReport SA_is_numeral_identifier(TOKEN *token);
 
-int SA_is_end_indicator(const TOKEN *token);
 int SA_is_string(TOKEN *token);
 int SA_is_reference(TOKEN *token);
 int SA_is_pointer(const TOKEN *token);
-int SA_is_keyword(TOKEN *token);
 int SA_is_letter(const char character);
 int SA_is_number(const char character);
 int SA_is_rational_operator(const char *sequence);
@@ -253,7 +251,7 @@ int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) 
             } else if (currentToken->type == _OP_RIGHT_BRACE_) {
                 panicModeOpenBraces++;
             }
-        } else if ((int)SA_is_keyword(currentToken) == true) {
+        } else if ((int)is_keyword(currentToken) == true) {
             switch (currentToken->type) {
             case _KW_NEW_:
             case _KW_WHILE_:
@@ -1284,7 +1282,7 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
         skip++;
 
         if ((*tokens)[startPos + skip].type == _OP_COLON_) {
-            SyntaxReport varTypeRep = SA_is_var_type_definition(tokens, startPos + skip + 1);
+            SyntaxReport varTypeRep = SA_is_var_type_definition(tokens, startPos + skip);
             
             if (varTypeRep.errorOccured == true) {
                 return varTypeRep;
@@ -1545,7 +1543,7 @@ SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inPara
 
             jumper++;
             continue;
-        } else if ((int)SA_is_end_indicator(currentToken) == true
+        } else if ((int)is_end_indicator(currentToken) == true
             && currentToken->type != _KW_AND_
             && currentToken->type != _KW_OR_) {
             break;
@@ -1635,7 +1633,7 @@ SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam) {
  * @param startPos  Position from where to start checking
 */
 int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
-    for (int i = startPos; i <  MAX_TOKEN_LENGTH; i++) {
+    for (int i = startPos; i < MAX_TOKEN_LENGTH; i++) {
         switch ((*tokens)[i].type) {
         case _OP_QUESTION_MARK_:
             return true;
@@ -1734,7 +1732,7 @@ SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int
     int jumper = 0;
     int hasToBeComma = false;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -1754,7 +1752,7 @@ SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int
 
             jumper++;
             continue;
-        } else if ((int)SA_is_end_indicator(currentToken) == true
+        } else if ((int)is_end_indicator(currentToken) == true
             && currentToken->type != _OP_COMMA_) {
             jumper++;
             break;
@@ -1810,11 +1808,11 @@ SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int
 SyntaxReport SA_is_array_element(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
+    while (startPos + jumper < MAX_TOKEN_LENGTH
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
-        if ((int)SA_is_end_indicator(currentToken)
+        if ((int)is_end_indicator(currentToken)
             && currentToken->type != _OP_LEFT_EDGE_BRACKET_) {
             break;
         }
@@ -2376,7 +2374,7 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
 
         if (currentToken == NULL) {
             (void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
-        } else if ((int)SA_is_end_indicator(currentToken) == true
+        } else if ((int)is_end_indicator(currentToken) == true
             && currentToken->type != _OP_COMMA_) {
             break;
         }
@@ -2514,13 +2512,13 @@ SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos) {
     int jumper = 2;
 
     while ((int)SA_is_root_identifier(&(*tokens)[startPos + jumper]) == false
-        && (int)SA_is_end_indicator(&(*tokens)[startPos + jumper]) == false) {
+        && (int)is_end_indicator(&(*tokens)[startPos + jumper]) == false) {
         if ((*tokens)[startPos + jumper].type != _OP_RIGHT_EDGE_BRACKET_) {
             return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "[");
         }
 
-        if ((*tokens)[startPos + jumper].type != _OP_RIGHT_EDGE_BRACKET_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "]");
+        if ((*tokens)[startPos + jumper + 1].type != _OP_LEFT_EDGE_BRACKET_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + jumper + 1], 0, true, "]");
         }
 
         jumper += 2;
@@ -2591,7 +2589,7 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
             && hasToBeArithmeticOperator == false) {
             jumper++;
             continue;
-        } else if ((int)SA_is_end_indicator(currentToken) == true) {
+        } else if ((int)is_end_indicator(currentToken) == true) {
             break;
         }
 
@@ -2723,7 +2721,7 @@ int SA_predict_term_expression(TOKEN **tokens, size_t startPos) {
         if ((*tokens)[startPos + i].type == _OP_ADD_ONE_
             || (*tokens)[startPos + i].type == _OP_SUBTRACT_ONE_) {
             return true;
-        } else if ((int)SA_is_end_indicator(&(*tokens)[startPos + i]) == true) {
+        } else if ((int)is_end_indicator(&(*tokens)[startPos + i]) == true) {
             return false;
         }
     }
@@ -2794,7 +2792,7 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
-        if ((int)SA_is_end_indicator(currentToken) == true
+        if ((int)is_end_indicator(currentToken) == true
             || (int)SA_is_arithmetic_operator(currentToken) == true
             || currentToken->type == _OP_ADD_ONE_
             || currentToken->type == _OP_SUBTRACT_ONE_) {
@@ -2961,7 +2959,7 @@ Params: TOKEN *token => Token to be checked
 int SA_is_root_identifier(TOKEN *token) {
     if (token == NULL) {
         return false;
-    } else if ((int)SA_is_keyword(token) == true
+    } else if ((int)is_keyword(token) == true
         && token->type != _KW_THIS_) {
         return false;
     }
@@ -3020,35 +3018,6 @@ SyntaxReport SA_is_numeral_identifier(TOKEN *token) {
 }
 
 /*
-Purpose: Check if a given TOKEN matches an "end of statement" indicator ("=", ";", "]", "}", "?", ")", "," ...)
-Return Type: int => true = is end indicator; false = is not an end indicator
-Params: const TOKEN *token -> Token to be checked
-*/
-const TOKENTYPES endIndicators[] = {
-_OP_EQUALS_, _OP_SEMICOLON_, _OP_LEFT_EDGE_BRACKET_, _OP_SMALLER_CONDITION_,
-_OP_GREATER_CONDITION_, _OP_SMALLER_OR_EQUAL_CONDITION_, _OP_GREATER_OR_EQUAL_CONDITION_,
-_OP_NOT_EQUALS_CONDITION_, _OP_EQUALS_CONDITION_, _OP_COLON_, _KW_AND_, _KW_OR_,
-_OP_MINUS_EQUALS_, _OP_PLUS_EQUALS_, _OP_MULTIPLY_EQUALS_, _OP_DIVIDE_EQUALS_,
-_OP_LEFT_BRACKET_, _OP_COMMA_, _OP_CLASS_CREATOR_,
-_OP_LEFT_BRACE_, _OP_QUESTION_MARK_, _OP_CLASS_ACCESSOR_};
-
-int SA_is_end_indicator(const TOKEN *token) {
-    if (token->type == __EOF__) {
-        return true;
-    }
-
-    unsigned char length = (sizeof(endIndicators) / sizeof(endIndicators[0]));
-
-    for (unsigned char i = 0; i < length; i++) {
-        if (token->type == endIndicators[i]) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/*
 Purpose: Checks if a token is a string or not
 Return Type: int => true = is string; false = not a string
 Params: TOKEN *token => Token to be checked
@@ -3078,30 +3047,6 @@ Params: const TOKEN *token => Token to be checked
 */
 int SA_is_pointer(const TOKEN *token) {
     return token->type == _POINTER_ ? true : false;
-}
-
-/*
-Purpose: Check if a given TOKEN is a keyword or not
-Return Type: int => true = is keyword; false = not a keyword
-Params: TOKEN *token => TOKEN to be checked
-*/
-TOKENTYPES KeywordLookupTable[] = {
-    _KW_WHILE_, _KW_IF_, _KW_FUNCTION_, _KW_VAR_, _KW_BREAK_, _KW_BREAK_, _KW_RETURN_,
-    _KW_DO_, _KW_CLASS_, _KW_WITH_, _KW_NEW_, _KW_TRUE_, _KW_FALSE_, _KW_NULL_, _KW_ENUM_,
-    _KW_CHECK_, _KW_IS_, _KW_TRY_, _KW_CATCH_, _KW_CONTINUE_, _KW_CONST_, _KW_INCLUDE_,
-    _KW_AND_, _KW_OR_, _KW_GLOBAL_, _KW_SECURE_, _KW_PRIVATE_, _KW_EXPORT_, _KW_FOR_,
-    _KW_THIS_, _KW_ELSE_, _KW_INT_, _KW_DOUBLE_, _KW_FLOAT_, _KW_CHAR_, _KW_STRING_,
-    _KW_SHORT_, _KW_LONG_, _KW_CONSTRUCTOR_, _KW_EXTENDS_
-};
-
-int SA_is_keyword(TOKEN *token) {
-    for (int i = 0; i < sizeof(KeywordLookupTable) / sizeof(KeywordLookupTable[0]); i++) {
-        if (token->type == KeywordLookupTable[i]) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 //////////////////////////////////////////////////
