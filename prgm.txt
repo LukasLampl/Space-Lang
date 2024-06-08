@@ -1,3 +1,1 @@
-this::constructor(param1) {
-    return 0;
-}
+var ptr = 0;

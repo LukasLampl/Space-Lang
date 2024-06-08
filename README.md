@@ -8,9 +8,9 @@ This project is a compiler for my own programming language.
 The program basically reads in an input file and converts it into tokens, then a parsetree and finally in an intermediate language.
 
 For more details:
-- [Input module](../SPACE/main/input.md)
-- [Lexer module](../SPACE/src/lexer.md)
-- [Parsetree generator module](../SPACE/src/parsetreeGenerator.md)
+- [Input module](/docs/input.md)
+- [Lexer module](/docs/lexer.md)
+- [Parsetree generator module](/docs/parsetreeGenerator.md)
 
 # Table of contents #
 1. Requirements

@@ -169,7 +169,6 @@ size_t PG_add_params_to_node(struct Node *node, TOKEN **tokens, size_t startPos,
 int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos);
 enum NodeType PG_get_node_type_by_value(char **value);
 NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries);
-int PG_handle_internal_simple_term(TOKEN **tokens, size_t startPos, struct Node *cache, struct Node *temp, int waitingToEndPlusOrMinus);
 NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos);
 size_t PG_go_backwards_till_operator(TOKEN **tokens, size_t startPos);
 int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
@@ -252,9 +251,6 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
     }
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
-
-    /*NodeReport iden = PG_create_class_constructor_tree(tokens, 0);
-    PG_print_from_top_node(iden.node, 0, 0);*/
 
     return 1;
 }
@@ -850,13 +846,7 @@ NodeReport PG_create_return_statement_tree(TOKEN **tokens, size_t startPos) {
         topNode->leftNode = condReport.node;
         skip += condReport.tokensToSkip;
     } else {
-        int bounds = 0;
-        
-        while ((*tokens)[startPos + bounds + 1].type != __EOF__
-            && (*tokens)[startPos + bounds + 1].type != _OP_SEMICOLON_) {
-            bounds++;
-        }
-        
+        int bounds = (int)PG_get_term_bounds(tokens, startPos + 1);
         NodeReport termReport = PG_create_simple_term_node(tokens, startPos + 1, bounds);
         topNode->leftNode = termReport.node;
         skip += termReport.tokensToSkip + 1;
@@ -2460,8 +2450,9 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
     struct Node *temp = NULL;
     size_t lastIdenPos = UNINITIALZED;
     int waitingToEndPlusOrMinus = false;
+    int length = startPos + boundaries;
 
-    for (size_t i = startPos; i < startPos + boundaries; i++) {
+    for (size_t i = startPos; i < length; i++) {
         TOKEN *currentToken = &(*tokens)[i];
 
         if (currentToken->type == __EOF__) {
@@ -2474,13 +2465,27 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
         switch (currentToken->type) {
         case _OP_RIGHT_BRACKET_: {
-            int ret = PG_handle_internal_simple_term(tokens, i, cache, temp, waitingToEndPlusOrMinus);
-            
-            if (ret == -1) {
+            struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
+
+            if ((int)PG_is_function_call(tokens, startPos) > 0) {
                 break;
             }
 
-            i += ret;
+            int bounds = (int)PG_determine_bounds_for_capsulated_term(tokens, startPos);
+            NodeReport ret = PG_create_simple_term_node(tokens, startPos + 1, bounds);
+
+            if (target != NULL) {
+                if (target->leftNode == NULL) {
+                    target->leftNode = ret.node;
+                } else {
+                    target->rightNode = ret.node;
+                }
+            } else {
+                cache = ret.node;
+            }
+
+            i += ret.tokensToSkip;
+            continue;
         }
         case _OP_PLUS_:
         case _OP_MINUS_: {
@@ -2574,31 +2579,6 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
     }
 
     return PG_create_node_report(cache, boundaries);
-}
-
-int PG_handle_internal_simple_term(TOKEN **tokens, size_t startPos, struct Node *cache, struct Node *temp, int waitingToEndPlusOrMinus) {
-    struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
-    NodeReport report = {NULL, UNINITIALZED};
-    int ret = 0;
-
-    if ((int)PG_is_function_call(tokens, startPos) > 0) {
-        return -1;
-    } else {
-        ret = (size_t)PG_determine_bounds_for_capsulated_term(tokens, startPos);
-        report = PG_create_simple_term_node(tokens, startPos + 1, ret - 1);
-    }
-
-    if (target != NULL) {
-        if (target->leftNode == NULL) {
-            target->leftNode = report.node;
-        } else {
-            target->rightNode = report.node;
-        }
-    } else {
-        cache = report.node;
-    }
-
-    return ret;
 }
 
 /*

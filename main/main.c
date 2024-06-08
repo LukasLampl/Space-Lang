@@ -60,8 +60,6 @@ int main() {
         (int)Generate_Parsetree(&tokens, requiredTokenNumber);
     }
 
-    //(int)Generate_Parsetree(&tokens, requiredTokenNumber);
-
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", path);
 }

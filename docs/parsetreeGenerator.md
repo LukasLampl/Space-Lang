@@ -33,15 +33,23 @@ by Lukas Lampl  (08.06.2024)
 ----------------------------
 
 ### 1. Brief Description ###
-The file `parsetreeGenerator.c` processes the already checked tokens from the syntax analyzer and creates a parsetree.
+The parsetree generation process is the third step or in other compilers the second step for code evaluation. In that step the previously checked tokens are converted into a tree structure, that represents a hierachy in order to check the code for semantic errors.
 
-The parsetree is essential for further processing, since all scopes and values are in a more "controllable" structure.
+The syntax analyzer module checks for syntax errors and throws an error, if detected. After that the validated tokens are fed to this module. Like in the syntax analyzer the parsetree generation process in the SPACE compiler is based on prediction (often by lookahead).
 
-The parsetree generator takes the checked tokens and predicts what the code is trying to achieve and builds a tree based on the prediction.
+Let's say I have two variables:
+```JS
+var a = 10;
+var arr[] = {1, 2};
+```
+
+Now for the prediction we just have to look for dissimilarities and the first is the '[', which only occures at array creation. That's basically the whole system of the parsetree generator and how it predicts the next rule.
+
+The conversion to a tree is an important step, since all scopes are getting visible and tokens, that are unnecessary are thrown out.
 
 ### 2. Tree Layouts ###
 #### 2.1. Member access tree ###
-A memeber access tree is responsible for representing identifiers, function calls within them and array accesses. The memeber access is preditable by the '.' and '->' operator. Recursion on the value branches is allowed.
+A member access tree is responsible for representing identifiers, function calls within them and array accesses. The memeber access is preditable by the '.' and '->' operator. Recursion on the value branches is allowed.
 
 ```
    [OPERATOR]
@@ -51,6 +59,13 @@ A memeber access tree is responsible for representing identifiers, function call
 [OPERATOR]  := Whether the '.' or '->' was used
 [lVal]      := Left value of the tree
 [rVal]      := Right value of the tree
+```
+
+Examples:
+```JS
+this.book.getPages()[0]
+image.getPixel(x, y)
+myVariable
 ```
 
 #### 2.2. Variable tree ####
@@ -68,8 +83,15 @@ The term normal variable is defined as a variable that is directly assigned to a
 [VAL]       := Value of the variable
 ```
 
+Examples:
+```JS
+var a = 10;
+var b = "String";
+var:double c = 3.14159;
+```
+
 ##### 2.2.2. Array Variable #####
-As an array variable tree counts every variable, that has a '[' after its name.
+Storing data in a nomal variable might be complex, if you have a lot of data that has an order. For this case there are arrays, or array variables. Those are defined as variables, that have an '[' after the name.
 
 ```
      [ARR_VAR]
@@ -84,8 +106,14 @@ As an array variable tree counts every variable, that has a '[' after its name.
 [DIMEN]     := Array dimensions
 ```
 
+Examples:
+```JS
+var arr[] = {1, 2, 3};
+var data[][];
+```
+
 ##### 2.2.3. Condition Variable #####
-A condition variable is a variable that is assgined with the use of an decision tree, typically indicated with the '?' operator.
+Sometimes it is easier and simpler to assign a condition to a variable that returns a value. For this SPACE supports condition assignments, that can be identified by the '?'.
 
 ```
      [COND_VAR]
@@ -102,8 +130,15 @@ A condition variable is a variable that is assgined with the use of an decision 
 [fVal]      := False branch
 ```
 
+Examples:
+```JS
+var offset = a > 2 ? 1 : 0;
+var bool = b < 0 ? true : false;
+var pointer = position == 0 ? 0 : offset == 1 ? 16 : 1;
+```
+
 ##### 2.2.4. Instance Variable #####
-Every variable that holds an Object as its value is an instance variable. Those are identified by the 'new' keyword.
+In SPACE an instance variable is an object / class instance. That means every variable that contains the "new" keyword counts as an instance. Those can be useful for isolating data and functions.
 
 ```
      [INS_VAR]
@@ -114,6 +149,12 @@ Every variable that holds an Object as its value is an instance variable. Those 
 [MOD]       := Visibility modifier (global, secure or private)
 [T]         := Optional type (":int", ":char", ":Object", ...)
 [VAL]       := Value of the variable
+```
+
+Examples:
+```JS
+var object = new Object();
+var cube = new 3DShape(_CUBE_)
 ```
 
 #### 2.3. Chained Condition tree ####
@@ -172,8 +213,15 @@ In SPACE every expression containing either a '+', '-', '*' or '/' counts as an 
 [rVal]      := Right Value
 ```
 
+Example:
+```JS
+2 + 3 * 4
+((a + b) * c) / d
+3.14159 * r * r * h
+```
+
 #### 2.5. Fuction tree ####
-A function is a code block, that executes a smaller code bock and can be called whenever wanted. It is identified using the 'function' keyword.
+A function comes in handy, when a code section should be either abstracted or made adaptive. The advantage is, that it can be called whenever needed and then executes the block code inside of it.
 
 ```
      [FNC]
@@ -188,8 +236,13 @@ A function is a code block, that executes a smaller code bock and can be called 
 [P]         := Params of the function
 ```
 
+Example:
+```JS
+function pow(num, exp) {}
+```
+
 #### 2.6. Enum tree ####
-An enum is typically a structure, that defines constants with help of names and assigns a value to them.
+Imagine you're developing a piece of software, that indicates the direction of a conveyor belt. the easiest and most intuitive way would be to say "0 = Left, 1 = Stay, 2 = Right", even though you might find it readable, others don't have to and that's where the enums add their functionality.
 
 ```
   [ENUM]
@@ -201,6 +254,15 @@ An enum is typically a structure, that defines constants with help of names and 
 [ENUM]      := Enum's name
 [ENUMER]    := A single enumerator element
 [VAL]       := Value of the enumerator element
+```
+
+Example:
+```JS
+enum DIRECTION {
+   LEFT = 0,
+   STAY,
+   RIGHT
+}
 ```
 
 #### 2.7. Include / Export tree ####
@@ -256,7 +318,7 @@ Classes are an important part, allowing OOP in SPACE. Those have the ability to 
 ```
 
 ### 2.10. Class constructor tree ####
-Constructors are useful, when a class has unitialized values, that have to be initialized before further processing.
+Think about a book. Every book has some pages. Those pages have text on them. Now think about this question: Have you ever seen a book without any pages? Well, the answer should be no (or else it would be concerning :P) and you can represent the concept with constructors. Let's say you have a class _Book_ and it contains the function _.getPage()_, how would it return somethin, if no page or textwas initialized? That's what the constructor does.
 
 ```
 [CONSTRUCTOR]
@@ -266,6 +328,13 @@ Constructors are useful, when a class has unitialized values, that have to be in
 [CONSTRUCTOR]   := Indicator for the constructor statment
 [PARAM]         := Params of the constructor
 [R]             := Runnable in the constructor
+```
+
+Example:
+```JS
+this::constructor(text) {
+   this.text = text;
+}
 ```
 
 ### 2.11. Array element tree ###
@@ -299,7 +368,7 @@ The check-is statement is like the classical switch-case statement.
 ```
 
 ### 2.13. While statement tree ###
-While loops can be used for infinite loops or conditional loops.
+The while loop is like the mother of the other loops. It is really simple and the programmer has to implement an exit condition by himself. It is very practical in situations, where reapeated code is written.
 
 ```
    [WHILE_STMT]
@@ -311,8 +380,13 @@ While loops can be used for infinite loops or conditional loops.
 [RUNNABLE]      := Block in the while statment
 ```
 
+Example:
+```JS
+while (a < 10) {}
+```
+
 ### 2.14. Do statement tree ###
-Do loops can be used for infinite loops or conditional loops, but it executes the code in it at least once.
+Do loops are also like the while loop. They function the same way, but one key difference is, that the do statement executes the block code inside of it at least once, even if the condition is not met.
 
 ```
     [DO_STMT]
@@ -324,8 +398,13 @@ Do loops can be used for infinite loops or conditional loops, but it executes th
 [RUNNABLE]      := Block in the do statment
 ```
 
+Example:
+```JS
+do {} while (input.isFinished == false);
+```
+
 ### 2.15. If / else if / else statement tree ###
-If, else if and else can be used for executing code blocks based on met conditions.
+If, else if and else statements are a crucial part, because they allow code executions based on met conditions. Imagine you have a log in form and only want to redirect the user, if the field is filled, else you mark it red. Easily done with if and else statement!
 
 *If - Statement:*
 ```
@@ -360,8 +439,15 @@ If, else if and else can be used for executing code blocks based on met conditio
 [RUNNABLE]      := Runnable of the else statement
 ```
 
+Example:
+```JS
+if (username.length == 0) {
+} else {
+}
+```
+
 ### 2.16. for statement tree ###
-For loops are an essential part in the language, since it provides direct codition handling and incrementing the counter.
+The for loop itself is basically a while loop, just with a direct counter, which makes it to a one-liner. The functionality is the same.
 
 ```
    [FOR_STMT]
@@ -376,8 +462,13 @@ For loops are an essential part in the language, since it provides direct coditi
 [RUNNABLE]  := Runnable in the the loop itself
 ```
 
+Example:
+```JS
+for (var i = 0; i < 10; i += 2) {}
+```
+
 ### 2.17. break / continue statement tree ###
-Break and continue can either be used to break out of a control flow statment or skipping the code below it.
+The break and continue statements are as useful as all the other statements, since they allow to exit / skip a loop without a whole iteration through it.
 
 ```
 [BREAK]
@@ -388,8 +479,14 @@ Break and continue can either be used to break out of a control flow statment or
 [CONTINUE]  := Indicates a continue
 ```
 
+Examples:
+```JS
+break;
+continue;
+```
+
 ### 2.18. Return statement tree ###
-The return statment returns the result of the function, like a number, string, object etc.
+Imagine you have a function that calculates a high complex formula and now you want the result, it would be really hard and bad if you'd use a global variable for that purpose. The better solution to that is the return statement. That statement can be used to return a value, string, boolean, etc.
 
 ```
     [RET_STMT]
@@ -398,6 +495,14 @@ The return statment returns the result of the function, like a number, string, o
 
 [RET_STMT]  := Indicator for the return statement
 [RET]       := Return value
+```
+
+Examples:
+```JS
+return a * b + c;
+return 0;
+return true;
+return "MyString";
 ```
 
 ### 2.19. Runnable tree ###
