@@ -42,7 +42,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  * RUNNABLE (main) -> VARIABLE -> ARRAY VARIABLE -> INIT ARRAY VARIABLE
  * -> INIT 1 DIMENSIOT
  * 
- * @version 1.0     04.06.2024
+ * @version 1.0     06.06.2024
  * @author Lukas Nian En Lampl
 */
 
@@ -103,7 +103,6 @@ SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int inDepth);
 SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inParam);
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam);
-int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int inDepth);
@@ -881,7 +880,7 @@ SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
     TOKEN *crucialToken = &(*tokens)[startPos + isIdentifier.tokensToSkip];
     skip += isIdentifier.tokensToSkip;
 
-    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+    if ((int)predict_is_conditional_assignment_type(tokens, startPos + skip, MAX_TOKEN_LENGTH) == true) {
         SyntaxReport isConditionAssignment = SA_is_conditional_assignment(tokens, startPos + skip, false);
 
         if (isConditionAssignment.errorOccured == true) {
@@ -1302,10 +1301,10 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
         if (crucialToken->type == _OP_RIGHT_EDGE_BRACKET_) {
             report = SA_is_array_variable(tokens, startPos + skip);
         } else if (crucialToken->type == _OP_SEMICOLON_
-            && varTok->type != _KW_VAR_) {
+            && varTok->type != _KW_CONST_) {
             return SA_create_syntax_report(NULL, skip + 1, false, NULL);
         } else if (crucialToken->type == _OP_EQUALS_) {
-            if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+            if ((int)predict_is_conditional_assignment_type(tokens, startPos + skip, MAX_TOKEN_LENGTH) == true) {
                 report = SA_is_conditional_assignment(tokens, startPos + skip, false);
             } else if ((*tokens)[startPos + skip + 1].type == _KW_NEW_) {
                 report = SA_is_class_instance(tokens, startPos + skip);
@@ -1440,6 +1439,7 @@ SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos) {
  * 
  * @param **tokens  Pointer to the TOKEN array
  * @param startPos  Position from where to start checking
+ * @param inDepth   Flag whether the conditional assignment needs an "="
 */
 SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int inDepth) {
     int skip = inDepth == false ? 1 : 0;
@@ -1464,10 +1464,10 @@ SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int i
     skip++;
     SyntaxReport leftVal = {NULL, -1};
 
-    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+    if ((int)predict_is_conditional_assignment_type(tokens, startPos + skip, MAX_TOKEN_LENGTH) == true) {
         leftVal = SA_is_conditional_assignment(tokens, startPos + skip, true);
     } else {
-        leftVal = SA_is_simple_term(tokens, startPos + skip, false);
+        leftVal = SA_is_simple_term(tokens, startPos + skip, true);
     }
 
     if (leftVal.errorOccured == true) {
@@ -1483,10 +1483,10 @@ SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int i
     skip++;
     SyntaxReport rightVal = {NULL, -1};
 
-    if ((int)SA_predict_is_conditional_variable_type(tokens, startPos + skip) == true) {
+    if ((int)predict_is_conditional_assignment_type(tokens, startPos + skip, MAX_TOKEN_LENGTH) == true) {
         rightVal = SA_is_conditional_assignment(tokens, startPos + skip, true);
     } else {
-        rightVal = SA_is_simple_term(tokens, startPos + skip, false);
+        rightVal = SA_is_simple_term(tokens, startPos + skip, true);
     }
 
     if (rightVal.errorOccured == true) {
@@ -1622,29 +1622,6 @@ SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam) {
     }
 
     return SA_create_syntax_report(NULL, 1, false, NULL);
-}
-
-/**
- * @brief Predicts if the next token sequence might be a conditional assignment.
- * 
- * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
- * 
- * @param **tokens  Pointer to the TOKEN array
- * @param startPos  Position from where to start checking
-*/
-int SA_predict_is_conditional_variable_type(TOKEN **tokens, size_t startPos) {
-    for (int i = startPos; i < MAX_TOKEN_LENGTH; i++) {
-        switch ((*tokens)[i].type) {
-        case _OP_QUESTION_MARK_:
-            return true;
-        case _OP_SEMICOLON_:
-        case _OP_COLON_:
-            return false;
-        default: break;
-        }
-    }
-
-    return false;
 }
 
 /**
@@ -2385,13 +2362,19 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
 
             switch (type) {
             case _PARAM_FUNCTION_CALL_: {
-                SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + jumper, 1);
+                SyntaxReport rep = {NULL, -1};
 
-                if (isSimpleTerm.errorOccured == true) {
-                    return isSimpleTerm;
+                if ((int)predict_is_conditional_assignment_type(tokens, startPos + jumper, MAX_TOKEN_LENGTH) == true) {
+                    rep = SA_is_conditional_assignment(tokens, startPos + jumper, true);
+                } else {
+                    rep = SA_is_simple_term(tokens, startPos + jumper, true);
                 }
 
-                jumper += isSimpleTerm.tokensToSkip;
+                if (rep.errorOccured == true) {
+                    return rep;
+                }
+
+                jumper += rep.tokensToSkip;
                 break;
             }
             case _PARAM_CLASS_:
@@ -2612,8 +2595,6 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
             if ((int)SA_is_letter(currentToken->value[0]) == true) {
                 if ((int)SA_predict_class_object_access(tokens, startPos + jumper) == true) {
                     isIdentifier = SA_is_class_object_access(tokens, startPos + jumper, false);
-                } else if ((*tokens)[startPos + jumper + 1].type == _OP_RIGHT_BRACKET_) {
-                    isIdentifier = SA_is_function_call(tokens, startPos + jumper, false);
                 } else if ((int)SA_is_bool((*tokens)[startPos].value) == true
                     || currentToken->type == _KW_NULL_) {
                     jumper++;
@@ -3098,7 +3079,9 @@ Params: const char *sequence => Sequence to be checked
 const char rationalOperators[][3] = {"==", "<=", ">=", "!=", "<", ">"};
 
 int SA_is_rational_operator(const char *sequence) {
-    for (int i = 0; i < (sizeof(rationalOperators) / sizeof(rationalOperators[0])); i++) {
+    int size = (sizeof(rationalOperators) / sizeof(rationalOperators[0]));
+
+    for (int i = 0; i < size; i++) {
         if ((int)strcmp(sequence, rationalOperators[i]) == 0) {
             return true;
         }
@@ -3213,19 +3196,21 @@ Params: TOKEN *errorToken => Token that caused the issue;
 */
 void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     FILE_CONTAINS_ERRORS = true;
+    int errorWindow = 32;
 
     if (SOURCE_CODE == NULL) {
         (void)printf("Source code pointer = NULL!");
         return;
     }
 
-    (void)printf("SYNTAX ERROR: An error occured at line %li (%s).\n", (errorToken->line + 1), FILE_NAME);
+    (void)printf("SYNTAX ERROR: An error occured on line %li (%s).\n", (errorToken->line + 1), FILE_NAME);
     (void)printf("-------------------------------------------------------\n");
 
-    int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorToken->tokenStart;
+    int errorLine = errorToken->line + 1;
+    int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorLine;
 
-    for (int i = printPosition; i > 0; i--) {
-        if ((*SOURCE_CODE)[i] == '\n') {
+    for (int i = printPosition, step = 0; i > 0; i--, step++) {
+        if ((*SOURCE_CODE)[i] == '\n' || step == errorWindow) {
             break;
         }
 
@@ -3234,12 +3219,11 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     
     char buffer[32];
     int tokPos = ((errorToken->tokenStart + 1) - printPosition);
-    int blankLength = (int)snprintf(buffer, 32, "%li : %i | ", (errorToken->line + 1), tokPos);
-
+    int blankLength = (int)snprintf(buffer, 32, "%i : %i | ", errorLine, tokPos);
     (void)printf("%s", buffer);
 
-    for (int i = printPosition; i < SOURCE_LENGTH; i++) {
-        if ((*SOURCE_CODE)[i] == '\n') {
+    for (int i = printPosition, step = 0; i < SOURCE_LENGTH; i++, step++) {
+        if ((*SOURCE_CODE)[i] == '\n' || step == errorWindow) {
             printPosition = i + 1;
             continue;
         } else if ((*SOURCE_CODE)[i] == '\0') {

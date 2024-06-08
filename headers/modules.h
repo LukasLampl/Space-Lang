@@ -45,6 +45,7 @@ int is_digit(char character);
 int is_primitive(TOKENTYPES type);
 int is_end_indicator(const TOKEN *token);
 int is_keyword(TOKEN *token);
+int predict_is_conditional_assignment_type(TOKEN **tokens, size_t startPos, int maxToks);
 
 //Input reader
 struct InputReaderResults {

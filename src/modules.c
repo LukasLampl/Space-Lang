@@ -153,3 +153,28 @@ int is_keyword(TOKEN *token) {
 
     return 0;
 }
+
+/**
+ * @brief Predicts if the next token sequence might be a conditional assignment.
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+int predict_is_conditional_assignment_type(TOKEN **tokens, size_t startPos, int maxToks) {
+    for (int i = startPos; i < maxToks; i++) {
+        switch ((*tokens)[i].type) {
+        case _OP_QUESTION_MARK_:
+            return 1;
+        case _OP_SEMICOLON_:
+        case _OP_COLON_:
+        case _KW_NEW_:
+        case _OP_COMMA_:
+            return 0;
+        default: break;
+        }
+    }
+
+    return 0;
+}

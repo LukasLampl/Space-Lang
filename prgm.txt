@@ -1,1 +1,1 @@
-var:int a = a == true ? 2 : a == true ? 4 : 5;
+var:int a = b == true ? 2 : 1;
