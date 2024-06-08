@@ -50,7 +50,6 @@ int main() {
     /////     CHECK SYNTAX FUNCTION     ////
     ////////////////////////////////////////
 
-    /*
     //0 = no errors, 1 = with errors
     int containsSyntaxErrors = (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength, fileName);
 
@@ -59,9 +58,9 @@ int main() {
     /////////////////////////////////////////
     if (containsSyntaxErrors == 0) {
         (int)Generate_Parsetree(&tokens, requiredTokenNumber);
-    }*/
+    }
 
-    (int)Generate_Parsetree(&tokens, requiredTokenNumber);
+    //(int)Generate_Parsetree(&tokens, requiredTokenNumber);
 
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", path);

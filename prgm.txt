@@ -1,1 +1,3 @@
-var:int a = b == true ? 2 : 1;
+this::constructor(param1) {
+    return 0;
+}

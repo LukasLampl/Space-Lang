@@ -35,6 +35,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  * procedure is equal to the procedure used in the
  * {@code SPACE.src.syntaxAnalyzer}.
  * 
+ * @see SPACE.src.parseTreeGenerator.md
+ * 
  * @version 1.0     06.06.2024
  * @author Lukas Nian En Lampl
 */
@@ -167,6 +169,7 @@ size_t PG_add_params_to_node(struct Node *node, TOKEN **tokens, size_t startPos,
 int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos);
 enum NodeType PG_get_node_type_by_value(char **value);
 NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries);
+int PG_handle_internal_simple_term(TOKEN **tokens, size_t startPos, struct Node *cache, struct Node *temp, int waitingToEndPlusOrMinus);
 NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos);
 size_t PG_go_backwards_till_operator(TOKEN **tokens, size_t startPos);
 int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
@@ -250,7 +253,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
-    /*NodeReport iden = PG_create_simple_term_node(tokens, 0, TOKENLENGTH);
+    /*NodeReport iden = PG_create_class_constructor_tree(tokens, 0);
     PG_print_from_top_node(iden.node, 0, 0);*/
 
     return 1;
@@ -555,6 +558,7 @@ Layout:
    /    |   \
 [VAR] [COND] [RUNNABLE]
      [ACTION]
+
 The [FOR_STMT] contains the var to count for at
 ```node->leftNode``` and the conditions at
 ```node->details[0]``` and action to fulfill (incrementing)
@@ -1705,18 +1709,17 @@ NodeReport PG_create_class_constructor_tree(TOKEN **tokens, size_t startPos) {
     //not tree generation.
     /*
     > this::constructor(param) {}
-    >                   ^
+    >                  ^
     >         (*tokens)[startPos + 5]
     */
     if ((*tokens)[startPos + skip].type == _OP_LEFT_BRACKET_) {
-        skip++;
+        skip += 2;
     } else {
         int arguments = (int)PG_predict_argument_count(tokens, startPos + skip, false);
         (void)PG_allocate_node_details(topNode, arguments, false);
-        skip += PG_add_params_to_node(topNode, tokens, startPos + skip, 0, _PARAM_NODE_);
-        skip += 2;
+        skip += PG_add_params_to_node(topNode, tokens, startPos + skip, 0, _PARAM_NODE_) + 1;
     }
-
+    
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     topNode->rightNode = runnableReport.node;
     skip += runnableReport.tokensToSkip;
@@ -2471,28 +2474,13 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
         switch (currentToken->type) {
         case _OP_RIGHT_BRACKET_: {
-            struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
-            NodeReport report = {NULL, UNINITIALZED};
-
-            if ((int)PG_is_function_call(tokens, i) > 0) {
-                break;
-            } else {
-                size_t bounds = (size_t)PG_determine_bounds_for_capsulated_term(tokens, i);
-                report = PG_create_simple_term_node(tokens, i + 1, bounds - 1);
-                i += bounds;
-            }
-
-            if (target != NULL) {
-                if (target->leftNode == NULL) {
-                    target->leftNode = report.node;
-                } else {
-                    target->rightNode = report.node;
-                }
-            } else {
-                cache = report.node;
-            }
+            int ret = PG_handle_internal_simple_term(tokens, i, cache, temp, waitingToEndPlusOrMinus);
             
-            break;
+            if (ret == -1) {
+                break;
+            }
+
+            i += ret;
         }
         case _OP_PLUS_:
         case _OP_MINUS_: {
@@ -2586,6 +2574,31 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
     }
 
     return PG_create_node_report(cache, boundaries);
+}
+
+int PG_handle_internal_simple_term(TOKEN **tokens, size_t startPos, struct Node *cache, struct Node *temp, int waitingToEndPlusOrMinus) {
+    struct Node *target = waitingToEndPlusOrMinus == true ? temp : cache;
+    NodeReport report = {NULL, UNINITIALZED};
+    int ret = 0;
+
+    if ((int)PG_is_function_call(tokens, startPos) > 0) {
+        return -1;
+    } else {
+        ret = (size_t)PG_determine_bounds_for_capsulated_term(tokens, startPos);
+        report = PG_create_simple_term_node(tokens, startPos + 1, ret - 1);
+    }
+
+    if (target != NULL) {
+        if (target->leftNode == NULL) {
+            target->leftNode = report.node;
+        } else {
+            target->rightNode = report.node;
+        }
+    } else {
+        cache = report.node;
+    }
+
+    return ret;
 }
 
 /*
@@ -2810,21 +2823,26 @@ NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, 
     struct Node *topNode = NULL;
 
     if ((int)PG_is_function_call(tokens, internalSkip) == true) {
-        int nextIden = direction == LEFT ? internalSkip - PG_propagate_back_till_iden(tokens, internalSkip) : internalSkip;
+        int nextIden = direction == LEFT ? internalSkip - (int)PG_propagate_back_till_iden(tokens, internalSkip) : internalSkip;
         NodeReport functionCallReport = PG_create_function_call_tree(tokens, nextIden);
         topNode = functionCallReport.node;
         internalSkip = direction == LEFT ? nextIden + functionCallReport.tokensToSkip : internalSkip + functionCallReport.tokensToSkip;
     } else {
         TOKEN *token = &(*tokens)[internalSkip];
-        struct idenValRet lvalRet = PG_get_identifier_by_index(tokens, internalSkip);
-        topNode = PG_create_node(lvalRet.value, PG_get_node_type_by_value(&lvalRet.value), token->line, token->tokenStart);
-        internalSkip += lvalRet.movedTokens;
+        struct idenValRet valRet = PG_get_identifier_by_index(tokens, internalSkip);
+        topNode = PG_create_node(valRet.value, PG_get_node_type_by_value(&valRet.value), token->line, token->tokenStart);
+        internalSkip += valRet.movedTokens;
     }
 
     if ((*tokens)[internalSkip].type == _OP_RIGHT_EDGE_BRACKET_) {
         NodeReport arrayRep = PG_create_array_access_tree(tokens, internalSkip);
         internalSkip += arrayRep.tokensToSkip;
         topNode->leftNode = arrayRep.node;
+    }
+
+    if ((*tokens)[internalSkip].type == _OP_COLON_) {
+        (void)PG_allocate_node_details(topNode, 1, false);
+        internalSkip += (int)PG_add_params_to_node(topNode, tokens, internalSkip + 1, 0, _NULL_);
     }
 
     int actualSkip = internalSkip - startPos;
@@ -2910,7 +2928,6 @@ struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos) {
 
     if ((*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_
         && (*tokens)[startPos - 1].type == _OP_RIGHT_BRACKET_) {
-        idenStartPos = startPos;
         idenEndPos = startPos + 1;
         nullParam = true;
     }
@@ -2936,6 +2953,8 @@ struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos) {
             cache = (char*)calloc(currentToken->size, sizeof(char));
 
             if (cache == NULL) {
+                free(cache);
+                FREE_MEMORY();
                 (void)printf("ERROR! (CACHE CALLOC)\n");
             }
             //currentToken->value already has '\0'
@@ -3091,11 +3110,15 @@ struct Node *PG_create_modifier_node(TOKEN *token, int *skip) {
     return NULL;
 }
 
-/*
-Purpose: Create a node based on the params
-Return Type: struct Node * => Pointer to the Node
-Params: char *value => Value of the node;
-        enum NodeType type => Type of the Node
+/**
+ * @brief Creates a Node structure on invokation with all the provided data.
+ * 
+ * @returns A Node with all the provided data
+ * 
+ * @param *value    Value of the node
+ * @param type  Type of the Node (e.g. _VAR_NODE_ or _FUNCTION_CALL_NODE_, etc.)
+ * @param line  Line of the token
+ * @param pos   Position of the token
 */
 struct Node *PG_create_node(char *value, enum NodeType type, int line, int pos) {
     struct Node *node = (struct Node*)calloc(1, sizeof(struct Node));
@@ -3115,10 +3138,8 @@ struct Node *PG_create_node(char *value, enum NodeType type, int line, int pos) 
     return node;
 }
 
-/*
-Purpose: Check if a given TOKEN is an operator or not
-Return Type: int => true = is operator; false = not an operator
-Params: const TOKEN *token => Token to be checked
+/**
+ * This is an array containing all "mark worthy" operators.
 */
 const TOKENTYPES operators[] = {
 _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
@@ -3127,6 +3148,13 @@ _OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_, _OP_RIGHT_EDGE_BRACKET_,
 _OP_LEFT_EDGE_BRACKET_, _OP_COLON_, _OP_PLUS_EQUALS_, _OP_MINUS_EQUALS_,
 _OP_MULTIPLY_EQUALS_, _OP_DIVIDE_EQUALS_, _OP_CLASS_ACCESSOR_};
 
+/**
+ * @brief Check if a given token is an operator or not.
+ * 
+ * @returns `True (1)` if the token is an operator, else `False (0)`
+ * 
+ * @param *token    Token to check
+*/
 int PG_is_operator(const TOKEN *token) {
     if (token->type == __EOF__) {
         return true;
@@ -3142,11 +3170,14 @@ int PG_is_operator(const TOKEN *token) {
     return false;
 }
 
-/*
-Purpose: Creates a NodeReport containing the topNode and how many tokens got processed
-Return Type: NodeReport => Created NodeReport
-Params: struct Node *topNode => TopNode;
-        int tokensToSkip => How many tokens should be skipped
+/**
+ * @brief Creates a NodeReport structure, which contains the root node of the
+ * subtree as well as the token count tht got processed and can now be skipped.
+ * 
+ * @returns Created NodeReport with all the provided data
+ * 
+ * @param *topNode  Root node of the subtree
+ * @param tokensToSkip  Number of tokens, that can be skipped
 */
 NodeReport PG_create_node_report(struct Node *topNode, int tokensToSkip) {
     NodeReport report;
@@ -3155,10 +3186,12 @@ NodeReport PG_create_node_report(struct Node *topNode, int tokensToSkip) {
     return report;
 }
 
-/*
-Purpose: Appends a Node to the RootNode
-Return Type: void
-Params: struct Node *node => Node to be appended
+/**
+ * @brief Appends a Node to the RootNode.
+ * 
+ * @param *node Pointer to the node to append
+ * 
+ * @throws PARSE_TREE_NODE_RESERVATION_EXCEPTION    When the nodes of the RootNode is NULL
 */
 void PG_append_node_to_root_node(struct Node *node) {
     RootNode.nodeCount++;
