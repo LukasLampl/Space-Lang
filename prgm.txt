@@ -1,1 +1,13 @@
-var ptr = 0;
+class Printer => {
+    check (book) {
+    is 0:
+        return 0;
+    is 1:
+        return 2 + 3;
+    }
+}
+
+var text = "This is an text.";
+
+var p = new Printer();
+p.print(text);

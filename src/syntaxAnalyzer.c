@@ -1226,13 +1226,13 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
 
         skip = isNumeralIdentifier.tokensToSkip;
     } else if ((int)SA_is_letter(crucialToken->value[0]) == true) {
-        //THIS OPTION IS ONLY FOR CONSTANTS
-        if ((int)SA_is_root_identifier(crucialToken) == false
-            && crucialToken->type != _KW_NULL_) {
-            return SA_create_syntax_report(crucialToken, 0, true, "<CONSTANT>");
+        SyntaxReport idenReport = SA_is_identifier(tokens, startPos + 1);
+
+        if (idenReport.errorOccured == true) {
+            return idenReport;
         }
 
-        skip = 1;
+        skip = idenReport.tokensToSkip;
     }
 
     if ((*tokens)[startPos + skip + 1].type != _OP_COLON_) {
@@ -1648,7 +1648,8 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
     
     skip += isArrayElement.tokensToSkip;
 
-    if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+    if ((*tokens)[startPos + skip].type == _OP_EQUALS_
+        && (*tokens)[startPos + skip + 1].type == _OP_RIGHT_BRACE_) {
         SyntaxReport isArrayAssignment = SA_is_array_assignment(tokens, startPos + skip);
         
         if (isArrayAssignment.errorOccured == true) {

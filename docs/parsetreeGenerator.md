@@ -154,7 +154,7 @@ In SPACE an instance variable is an object / class instance. That means every va
 Examples:
 ```JS
 var object = new Object();
-var cube = new 3DShape(_CUBE_)
+var cube = new _3DShape(_CUBE_)
 ```
 
 #### 2.3. Chained Condition tree ####
@@ -356,15 +356,16 @@ Array elements occur at different positions in the code, but often after functio
 The check-is statement is like the classical switch-case statement.
 
 ```
-[CHECK]
-   |
-  [IS]
-   |
-  [R]
+  [CHECK]
+  /     \
+[V]     [IS]
+        /  \
+      [V]  [R]
 
 [CHECK]     := Value to check
 [IS]        := One of multiple branch options
 [R]         := Runnable in the is-statement
+[V]         := Value to check (member access tree)
 ```
 
 ### 2.13. While statement tree ###
