@@ -1648,15 +1648,21 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
     
     skip += isArrayElement.tokensToSkip;
 
-    if ((*tokens)[startPos + skip].type == _OP_EQUALS_
-        && (*tokens)[startPos + skip + 1].type == _OP_RIGHT_BRACE_) {
-        SyntaxReport isArrayAssignment = SA_is_array_assignment(tokens, startPos + skip);
+    if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
+        SyntaxReport rep = {NULL, -1};
         
-        if (isArrayAssignment.errorOccured == true) {
-            return isArrayAssignment;
+        if ((*tokens)[startPos + skip + 1].type == _OP_RIGHT_BRACE_) {
+            rep = SA_is_array_assignment(tokens, startPos + skip);
+        } else {
+            rep = SA_is_identifier(tokens, startPos + skip + 1);
+            rep.tokensToSkip++;
         }
 
-        skip += isArrayAssignment.tokensToSkip;
+        if (rep.errorOccured == true) {
+            return rep;
+        }
+
+        skip += rep.tokensToSkip;
     }
 
     if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {

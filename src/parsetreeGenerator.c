@@ -1458,15 +1458,23 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
     topNode->value = varName.value;
     skip++;
 
-    //DIMENSION HANDLING
+    //DIMENSION HANDLING '_' on undefined dimension
     int dimCount = PG_get_dimension_count(tokens, startPos + skip);
     (void)PG_allocate_node_details(topNode, dimCount + 1, true);
     skip += (int)PG_add_dimensions_to_var_node(topNode, tokens, startPos + skip, 1);
 
     if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
-        NodeReport arrayInit = PG_create_array_init_tree(tokens, startPos + skip, 0);
-        skip += arrayInit.tokensToSkip + 1;
-        topNode->rightNode = arrayInit.node;
+        NodeReport rep = {NULL, UNINITIALZED};
+        
+        if ((*tokens)[startPos + skip + 1].type == _OP_RIGHT_BRACE_) {
+            rep = PG_create_array_init_tree(tokens, startPos + skip, 0);
+            rep.tokensToSkip++;
+        } else {
+            rep = PG_create_member_access_tree(tokens, startPos + skip + 1, false);
+        }
+
+        skip += rep.tokensToSkip;
+        topNode->rightNode = rep.node;
     }
 
     return PG_create_node_report(topNode, skip);
