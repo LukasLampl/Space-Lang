@@ -322,7 +322,7 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
         if (currentToken->type == _OP_LEFT_BRACE_) {
-            if (type != Main && type != CheckStatement) {
+            if (type == Main || type == InBlock) {
                 jumper++;
             }
             
@@ -378,6 +378,10 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
  * @param type      Type of the parent runnable (only for Check statement)
  */
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type) {
+    if (type == CheckStatement) {
+        return PG_create_is_statement_tree(tokens, startPos);
+    }
+    
     switch ((*tokens)[startPos].type) {
     case _KW_VAR_:
     case _KW_CONST_:
@@ -404,11 +408,6 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
         return PG_create_do_statement_tree(tokens, startPos);
     case _KW_CHECK_:
         return PG_create_check_statement_tree(tokens, startPos);
-    case _KW_IS_:
-        if (type == CheckStatement) {
-            return PG_create_is_statement_tree(tokens, startPos);
-        }
-        break;
     case _KW_IF_:
         return PG_create_if_statement_tree(tokens, startPos);
     case _KW_ELSE_:
@@ -993,8 +992,7 @@ NodeReport PG_create_check_statement_tree(TOKEN **tokens, size_t startPos) {
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, CheckStatement);
     topNode->rightNode = runnableReport.node;
-    skip += runnableReport.tokensToSkip;
-
+    skip += runnableReport.tokensToSkip + 1;
     return PG_create_node_report(topNode, skip);
 }
 
@@ -1987,7 +1985,6 @@ NodeReport PG_create_class_tree(TOKEN **tokens, size_t startPos) {
 
         (void)PG_allocate_node_details(classNode, offset + arguments, true);
         skip += PG_add_params_to_node(classNode, tokens, startPos + skip + 1, offset, _INTERFACE_NODE_);
-        skip++;
     }
 
     skip += 2;
@@ -2024,8 +2021,7 @@ NodeReport PG_create_try_tree(TOKEN **tokens, size_t startPos) {
     struct Node *tryNode = runnableReport.node;
     tryNode->type = _TRY_NODE_;
     tryNode->value = "TRY";
-
-    return PG_create_node_report(tryNode, runnableReport.tokensToSkip + 1);
+    return PG_create_node_report(tryNode, runnableReport.tokensToSkip + 2);
 }
 
 /*

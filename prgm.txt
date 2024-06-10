@@ -1,2 +1,16 @@
-var arr[] = this.arr;
 var a = 10;
+
+class Obj => {}
+class Obj extends Base with Object => {
+    var b = 20;
+}
+class Obj with Object => {}
+
+this::constructor() {}
+this::constructor(param1, param2) {}
+
+enum Test {
+    a : 10,
+    b,
+    c
+}
