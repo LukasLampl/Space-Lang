@@ -182,8 +182,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ### CLASS ###
 <CLASS>:
-    | "class" -> <FUNCTION_CALL> -> "=>" -> "{" -> <RUNNABLE> -> "}"
-    | "class" -> <FUNCTION_CALL> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNNABLE> -> "}"
+    | "class" -> <IDENTIFIER> -> "=>" -> "{" -> <RUNNABLE> -> "}"
+    | "class" -> <IDENTIFIER> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNNABLE> -> "}"
+    | "class" -> <IDENTIFIER> -> <EXTENDS_STATEMENT> -> <WITH_STATEMENT> -> "=>" -> "{" -> <RUNNABLE> -> "}"
 
 ### CLASS OBJECT ACCESS ###
 <CLASS_OBJECT_ACCESS>:
@@ -193,6 +194,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ### WITH STATEMENT ###
 <WITH_STATEMENT>:
     | "with" -> <PARAMETER>
+
+### EXTENDS STATEMENT ###
+<EXTENDS_STATEMENT>:
+    | "extends" -> <IDENTIFIER>
 
 ### ENUM ###
 <ENUM>:
@@ -213,7 +218,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ### CLASS CONSTRUCTOR ###
 <CLASS_CONSTRUCTOR>:
-    | "this" -> ":" -> ":" -> "constructor" -> <RUNNABLE>
+    | "this" -> ":" -> ":" -> "constructor" -> "(" -> <PARAMETER> -> ")" -> <RUNNABLE>
 
 ### RUNNABLE ###
 <RUNNABLE>:

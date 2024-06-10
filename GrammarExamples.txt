@@ -64,8 +64,9 @@ include "myTest.lib";
 export "File.spc";
 
 ### CLASS ###
-class obj(param1, param2) => {}
-class Obj() with Object => {}
+class Obj => {}
+class Obj with Object => {}
+class Obj extends Base with Object => {}
 
 this::constructor() {}
 this::constructor(param1, param2) {}
