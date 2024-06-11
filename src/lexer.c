@@ -28,13 +28,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/errors.h"
 #include "../headers/Token.h"
 
-//--------- ALL DEFINITIONS IN "modules.h", ERRORS in "erros.h" TOKEN definitions in "TOKEN.h"! ---------//
+/** 
+ * The subprogram {@code SPACE/src/lexer.} was created
+ * to provide a lxecal analysis module for the SPACE language.
+ * The lexer can handle around 1.3 million tokens in 0.313 seconds
+ * on an intel i7 - 7700 HQ (Around 5 million characters).
+ * 
+ * The lexer works by checking character by character and reads an lookahead
+ * character (character that follows after the current character) if necessary.
+ * 
+ * A token is defined as a token, when an operator is detected, a string starts,
+ * a whitespace (-sequence) starts or the EOF is reached.
+ * 
+ * For ressource friendlyness, the sizes of the tokens are precalculated using the
+ * {@code SPACE/main/input.c} module.
+ * 
+ * @see SPACE/main/input.c
+ * 
+ * @version 1.0     11.06.2024
+ * @author Lukas Nian En Lampl
+*/
 
-////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////     Lexer     ////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////
-
-// Functions
 void LX_set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray);
 void LX_resize_tokens_value(TOKEN *token, size_t oldSize);
 int LX_eof_token_clearance_check(TOKEN *token, size_t lineNumber);
@@ -47,7 +61,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
 int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
 void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber);
-int LX_write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffer, size_t currentBufferCharPos);
+int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferCharPos);
 void LX_write_reference_in_token(TOKEN *token);
 int LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar);
 int LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber);
@@ -64,48 +78,73 @@ void LX_print_cpu_time(float cpu_time_used);
 TOKENTYPES LX_fill_operator_type(char *value);
 TOKENTYPES LX_fill_condition_type(char *value);
 
-size_t maxlength = 0;
+/**
+ * <p>
+ * This variable is invoked on the Tokenize() function and is set
+ * to the buffer length.
+ * </p>
+ */
+size_t maxBufferLength = 0;
+
+/**
+ * <p>
+ * This holds the maximum length of the precalculated tokens.
+ * </p>
+ */
 size_t maxTokensLength = 0;
+
+/**
+ * <p>
+ * A flag whether the token array is already / was already reserved
+ * or not. (Important for freeing memory afterwards)
+ * </p>
+ */
 int tokensreserved = 0;
 
-// Keywords [CHANGES ALSO HAVE TO BE APPLIED IN THE SYNTAX ANALYZER]
+/**
+ * <p>
+ * A structure for a keyword lookup table.
+ * </p>
+ * <p>
+ * The kwName holds the string, that indicates the keyword.
+ * The kwValue holds the corresponding TOKENTYPES
+ * </p>
+ */
 struct kwLookup {
     char kwName[12];
     TOKENTYPES kwValue;
 };
 
-struct kwLookup KeywordTable[] = {
-    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
-    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
-    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
-    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
-    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
-    {"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
-    {"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
-    {"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
-    {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
-    {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
-    {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
-    {"char", _KW_CHAR_},           {"String", _KW_STRING_},   {"short", _KW_SHORT_},
-    {"long", _KW_LONG_},           {"extends", _KW_EXTENDS_}, {"constructor", _KW_CONSTRUCTOR_}
-};
-
-/*
-Purpose: Tokenize the passed input
-Return Type: TOKEN ** => Lexed tokens
-Params: char **buffer => Input to tokenize;
-        int **arrayOfIndividualTokenSizes => Length of the individual tokens;
-        const size_t fileLength => input length;
-        const size_t requiredTokenLength => Required tokens to tokenize the whole input;
-        const char *fileName => Name of the file that gets processed
-
-*/
+/**
+ * <p>
+ * The future token array.
+ * </p>
+ */
 TOKEN *TOKENS = NULL;
 
+/**
+ * <p>
+ * The function start the lexing process by first initializing the
+ * tokens array and finally lexing the input.
+ * </p>
+ * <p>
+ * A token is a own token, if an operator start, a string starts or
+ * a whitespace was found. The lexer only uses 1 character at a time,
+ * but for identifiying double operators like '++' or '+=' etc. another
+ * character is loaded.
+ * </p>
+ * @returns The final token array with all tokens
+ * 
+ * @param **input                           Pointer to the input
+ * @param **arrayOfIndividualTokenSizes     Sizes of the indiviual tokens
+ * @param fileLength                        Length of the buffer
+ * @param requiredTokenLength               Length of the predicted tokens
+ * @param *fileName                         Name of the code source file
+ */
 TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName) {
     // TOKEN defined in modules.h
     TOKENS = (struct TOKEN*)calloc((requiredTokenLength + 2), sizeof(struct TOKEN));
-    maxlength = fileLength;
+    maxBufferLength = fileLength;
     maxTokensLength = requiredTokenLength + 1;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
@@ -200,7 +239,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
             } else if ((*input)[i] == '*') {
                 if ((int)is_space((*input)[i + 1]) == 0
                     && (int)is_digit((*input)[i + 1]) == 0) {
-                    int ptrRet = (int)LX_write_pointer_in_token(&TOKENS[storagePointer], storageIndex, input, i);
+                    int ptrRet = (int)LX_write_pointer_in_token(&TOKENS[storagePointer], input, i);
 
                     if (ptrRet > 0) {
                         i += ptrRet - 1;
@@ -262,17 +301,19 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
             storageIndex = 0;
             continue;
         } else {
-            if (TOKENS[storagePointer].size > storageIndex + 1) {
-                // Sets the rest as IDENTIFIER. Adding the current input to the current token value
-                TOKENS[storagePointer].value[storageIndex++] = (*input)[i];
-                TOKENS[storagePointer].line = lineNumber;
-                (void)LX_check_for_number(&TOKENS[storagePointer]);
+            TOKEN token = TOKENS[storagePointer];
 
-                if (TOKENS[storagePointer].type != _FLOAT_
-                    && TOKENS[storagePointer].type != _NUMBER_
-                    && TOKENS[storagePointer].type != _REFERENCE_
-                    && TOKENS[storagePointer].type != _POINTER_) {
-                    TOKENS[storagePointer].type = _IDENTIFIER_;
+            if (token.size > storageIndex + 1) {
+                // Sets the rest as IDENTIFIER. Adding the current input to the current token value
+                token.value[storageIndex++] = (*input)[i];
+                token.line = lineNumber;
+                (void)LX_check_for_number(&token);
+
+                if (token.type != _FLOAT_
+                    && token.type != _NUMBER_
+                    && token.type != _REFERENCE_
+                    && token.type != _POINTER_) {
+                    token.type = _IDENTIFIER_;
                 }
             }
         }
@@ -303,12 +344,20 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
     return TOKENS;
 }
 
-/*
-Purpose: Check if the last token is used or not
-Return Type: int => 1 = true; 0 = false;
-Params: TOKEN *token => Token to check its value;
-        size_t *lineNumber => The line number of the token;
-*/
+/**
+ * <p>
+ * Checks whether the provided token is used or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li> true - Token is indeed not used
+ * <li> false - Token is already used
+ * </ul>
+ * 
+ * @param *token        Token to check
+ * @param lineNumber    Variable that holds the current line number
+ */
 int LX_eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
     if (token != NULL && token->value != NULL) {
         if (token->type > _LII_ || token->size == 0 || token->type == __EOF__) {
@@ -323,13 +372,18 @@ int LX_eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
     return 0;
 }
 
-/*
-Purpose: Write a possible reference from a pointer into the token
-Return Type: int => > 0 = how many chars to skip; 0 = something went wrong
-Params: TOKEN *token => Token to be written in;
-        char **buffer => Buffer with the file content;
-        size_t currentSymbolIndex => Position of the current character in the buffer
-*/
+/**
+ * <p>
+ * Writes a possible reference from a pointer into the provided
+ * token. (e.g. `&(*ptr)`)
+ * </p>
+ * 
+ * @returns Characters to skip
+ * 
+ * @param *token                Token to write into
+ * @param **buffer              Input (source file)
+ * @param currentSymbolIndex    Current index at the buffer
+ */
 int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex) {
     if ((*buffer)[currentSymbolIndex + 1] != '(') {
         return 0;
@@ -339,7 +393,7 @@ int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbol
 
     while ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')'
         && (int)is_space((*buffer)[currentSymbolIndex + symbolsToSkip + 1]) == 0
-        && currentSymbolIndex + symbolsToSkip + 1 < maxlength) {
+        && currentSymbolIndex + symbolsToSkip + 1 < maxBufferLength) {
         if (token->size > symbolsToSkip + 2) {
             token->value[symbolsToSkip + 2] = (*buffer)[currentSymbolIndex + symbolsToSkip + 2];
         }
@@ -363,17 +417,20 @@ int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbol
     return symbolsToSkip + 1;
 }
 
-/*
-Purpose: Write the pointer operator into the token and sets the type, so the later process is easier to handle
-Return Type: void
-Params: TOKEN *token => Token to be set as pointer;
-        size_t currentSymbolIndex => Position of the current character pointer in the value field of the token
-*/
-int LX_write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **buffer, size_t currentBufferCharPos) {
+/**
+ * <p>
+ * Writes a pointer into the provided token.
+ * </p>
+ * 
+ * @param *token                Token to write into
+ * @param currentBufferCharPos  Index of the current buffer symbol
+ * @param **buffer              Source code buffer
+ */
+int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferCharPos) {
     if (token != NULL) {
         int pointers = 0;
 
-        for (size_t i = 0; i + currentBufferCharPos < maxlength; i++) {
+        for (size_t i = 0; i + currentBufferCharPos < maxBufferLength; i++) {
             if ((*buffer)[currentBufferCharPos + i] == '*') {
                 pointers++;
                 continue;
@@ -405,11 +462,13 @@ int LX_write_pointer_in_token(TOKEN *token, size_t currentSymbolIndex, char **bu
     return 0;
 }
 
-/*
-Purpose: Write the reference operator into the token and sets the type, so the later process is easier to handle
-Return Type: void
-Params: TOKEN *token => Token to be set as reference
-*/
+/**
+ * <p>
+ * Writes a reference operator into the provided token.
+ * </p>
+ * 
+ * @param *token    Token to write into
+ */
 void LX_write_reference_in_token(TOKEN *token) {
     if (token != NULL) {
         token->type = _REFERENCE_;
@@ -421,21 +480,31 @@ void LX_write_reference_in_token(TOKEN *token) {
     }
 }
 
-/*
-Purpose: Set the line number and token number of the given token
-Return Type: void
-Params: TOKEN *token => Token to which the numbers are getting set;
-        size_t lineNumber => Current line;
-*/
+/**
+ * <p>
+ * Sets the current line number to the provided token.
+ * </p>
+ * 
+ * @param *token        Token to set the line to
+ * @param lineNumber    Line number to set
+ */
 void LX_set_line_number(TOKEN *token, size_t lineNumber) {
     token->line = lineNumber;
 }
 
-/*
-Purpose: Allocate memory for the individual tokens by the tokenLengths to minimize memory usage
-Return Type: void
-Params: TOKEN **tokens => Pointer to the clear token array; int **tokenLengths => Length of the individual tokens
-*/
+/**
+ * <p>
+ * Allocates the memory to the predicted size from the
+ * input module.
+ * </p>
+ * 
+ * <p>
+ * Calloc is used, in order to have 0 values only.
+ * </p>
+ * 
+ * @param **tokens              Pointer to the token array to calloc
+ * @param **tokenLengthsArray   Sizes of the individual tokens
+ */
 void LX_set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray) {
     if (*tokens != NULL && tokenLengthsArray != NULL) {
         for (int i = 0; i < maxTokensLength; i++) {
@@ -501,7 +570,7 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
     // The index of how much characters has to be skipped
     int jumpForward = 1;
     // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
-    while ((jumpForward + currentIndex) < maxlength) {
+    while ((jumpForward + currentIndex) < maxBufferLength) {
         if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
             (*lineNumber)++;
         }
@@ -541,7 +610,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
         // write the current character into the current token value
         // while the input is not the crucial character again the input gets set into the current token value
         while (((*input)[currentInputIndex + jumpForward] != crucial_character)
-            && (currentInputIndex + jumpForward) < maxlength) {
+            && (currentInputIndex + jumpForward) < maxBufferLength) {
             // If the string size is bigger than size, resize the token
             if (jumpForward + 1 >= (((token->size * currentIncremental) - 1))) {
                 (void)LX_resize_tokens_value(token, ((token->size * currentIncremental) - 1));
@@ -937,6 +1006,22 @@ Purpose: Returns the keyword type based on the passed value
 Return Type: TOKENTYPES => Keyword in TOKENTYPES enum
 Params: char *value => Value to be scanned for keyword
 */
+struct kwLookup KeywordTable[] = {
+    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
+    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
+    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
+    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
+    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
+    {"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
+    {"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
+    {"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
+    {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
+    {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
+    {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
+    {"char", _KW_CHAR_},           {"String", _KW_STRING_},   {"short", _KW_SHORT_},
+    {"long", _KW_LONG_},           {"extends", _KW_EXTENDS_}, {"constructor", _KW_CONSTRUCTOR_}
+};
+
 TOKENTYPES LX_get_keyword_type(const char *value) {
     if (value == NULL || (int)is_empty_string(value) == 1) {
         return _UNDEF_;
