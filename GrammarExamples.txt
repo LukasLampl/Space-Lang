@@ -20,19 +20,29 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 ### VARIABLES ###
-var a = 10;
-var a[5][10] = {{10}};
-const a = 15;
-var a = (a < 10) ? a : b;
+var myNum = 10;
+var 2DArray[5][10] = {{10}};
+var 1DArray[4] = {1, 2, 3, 4};
+const myConstant = 15;
+var conditional = (a < 10) ? a : b;
 var obj = new Object();
+
+var:int a = 10;
+var:long typed2DArray[5][10] = {{10}};
+var:double typedAss = (a < 10) ? a : b;
+var:Object typedObj = new Object();
 
 ### FUNCTION ###
 function test(param1, param2) {}
 function test(*param1, param2) {}
-function:int add(num1, num2);
+function:int add(num1, num2) {}
 function:String greet() {}
 global function test(param1, param2) {}
 global function test(param1, *param2) {}
+
+function:int add(num1:int, num2:int) {}
+function print(text:String) {}
+function:double getPi() {}
 
 ### IF ###
 if (a < 10 and b == 20 or c >= 30) {
@@ -50,11 +60,18 @@ try {} catch (Exception e) {}
 
 ### FOR ###
 for (var i = 0; i < 5; i++) {}
+for (var:int i = 0; i < 5; i++) {}
 
 ### CHECK ###
 check (a) {
     is 10:
     is 20:
+}
+
+check (direction) {
+    is direction.LEFT:
+    is direction.STAY:
+    is direction.RIGHT:
 }
 
 ### INCLUDE ###
@@ -70,6 +87,7 @@ class Obj extends Base with Object => {}
 
 this::constructor() {}
 this::constructor(param1, param2) {}
+this::constructor(data:char[]) {}
 
 ### ENUM ###
 enum Test {
@@ -79,9 +97,13 @@ enum Test {
 }
 
 ### FUNCTION CALL ###
-a(param1, param2);
-a(param1, *param2);
-a(&param1, param2);
+test(param1, param2);
+test2(param1, *param2);
+test3(&param1, param2);
+pass(getCurrentVal(), true);
+
+this.getValue();
+this.getRGB(x, y);
 
 ### RETURN ###
 return a + b;
