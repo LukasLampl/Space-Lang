@@ -1,5 +1,9 @@
-if (this.charAt(i) < 97 and i < this.length) {
-    temp[i] = 2;//this->charAt(i) + this.ASCII_OFFSET;
+for (var:int i = startPos; i < endPos; i++) {
+    if (counter >= this.length) {
+        break;
+    }
+
+    temp[counter++] = this->charAt(i);
 }
 
 /*class String => {

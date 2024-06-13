@@ -185,7 +185,7 @@ int PG_get_dimension_count(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_conditional_assignment_tree(TOKEN **tokens, size_t startPos);
-NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPos);
+NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPos, int inDepth);
 int PG_is_logic_operator_bracket(TOKEN **tokens, size_t startPos);
 int PG_contains_logical_operator(TOKEN **tokens, size_t startPos);
 int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos);
@@ -578,7 +578,7 @@ NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos) {
     struct Node *node = PG_create_node(token->value, _ELSE_IF_STMT_NODE_, token->line, token->tokenStart);
     int skip = 0;
 
-    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 3);
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 3, false);
     node->leftNode = chainedCondReport.node;
     skip += chainedCondReport.tokensToSkip + 4;
 
@@ -615,11 +615,11 @@ NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos) {
 NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
     TOKEN *token = &(*tokens)[startPos];
     struct Node *node = PG_create_node(token->value, _IF_STMT_NODE_, token->line, token->tokenStart);
-    int skip = 0;
+    int skip = 2;
 
-    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 2);
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
     node->leftNode = chainedCondReport.node;
-    skip += chainedCondReport.tokensToSkip + 4;
+    skip += chainedCondReport.tokensToSkip + 2;
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     node->rightNode = runnableReport.node;
@@ -668,7 +668,7 @@ NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos) {
     topNode->leftNode = varReport.node;
     skip += varReport.tokensToSkip + 1; //+1 for ';'
     
-    NodeReport chainedReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    NodeReport chainedReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
     topNode->details[0] = chainedReport.node;
     skip += chainedReport.tokensToSkip;
     
@@ -1211,7 +1211,7 @@ NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos) {
     >  (*tokens)[startPos + skip + 2]
     */
 
-    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
     topNode->leftNode = chainedCondReport.node;
     skip += chainedCondReport.tokensToSkip + 1; //Skip the ';'
     return PG_create_node_report(topNode, skip);
@@ -1248,7 +1248,7 @@ NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos) {
     >   (*tokens)[startPos + skip]
     */
 
-    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip);
+    NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
     topNode->leftNode = chainedCondReport.node;
     skip += chainedCondReport.tokensToSkip + 1; //Skip the '{'
 
@@ -1413,7 +1413,7 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
 }
 
 NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) {
-    NodeReport conditionReport = PG_create_chained_condition_tree(tokens, startPos);
+    NodeReport conditionReport = PG_create_chained_condition_tree(tokens, startPos, false);
     int skip = 0;
     TOKEN *token = &(*tokens)[startPos];
 
@@ -1869,15 +1869,15 @@ The conditions can be found in ´´´node->leftNode´´´ and
 [CHCOND]: Chained condition holding multiple [COND]s
 _______________________________
 */
-NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPos) {
+NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPos, int inDepth) {
     struct Node *cache = NULL;
     size_t lastCondStart = startPos;
-    size_t skip = startPos;
+    size_t skip = 0;
     int openBrackets = 0;
     int hasLogicOperators = (int)PG_contains_logical_operator(tokens, startPos);
 
     while (skip < TOKENLENGTH && hasLogicOperators == true) {
-        TOKEN *currentToken = &(*tokens)[skip];
+        TOKEN *currentToken = &(*tokens)[startPos + skip];
 
         if (currentToken->type == _OP_QUESTION_MARK_
             || currentToken->type == _OP_SEMICOLON_) {
@@ -1888,11 +1888,11 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
         case _OP_RIGHT_BRACKET_: {
             openBrackets++;
 
-            if ((int)PG_is_logic_operator_bracket(tokens, skip) == false) {
+            if ((int)PG_is_logic_operator_bracket(tokens, startPos + skip) == false) {
                 break;
             }
 
-            NodeReport report = PG_create_chained_condition_tree(tokens, skip + 1);
+            NodeReport report = PG_create_chained_condition_tree(tokens, startPos + skip + 1, true);
             skip += report.tokensToSkip;
 
             if (cache == NULL) {
@@ -1912,6 +1912,8 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
 
             if (openBrackets < 0) {
                 hasLogicOperators = false;
+                skip += inDepth == true ? 1 : 0;
+                continue;
             }
 
             break;
@@ -1930,10 +1932,10 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
             NodeReport rightReport = {NULL, UNINITIALZED};
 
             if ((*tokens)[skip + 1].type == _OP_RIGHT_BRACKET_
-                && (int)PG_is_logic_operator_bracket(tokens, skip + 2) == true) {
-                rightReport = PG_create_chained_condition_tree(tokens, skip + 2);
+                && (int)PG_is_logic_operator_bracket(tokens, startPos + skip + 2) == true) {
+                rightReport = PG_create_chained_condition_tree(tokens, startPos + skip + 2, true);
             } else {
-                rightReport = PG_create_condition_tree(tokens, skip + 1);
+                rightReport = PG_create_condition_tree(tokens, startPos + skip + 1);
             }
 
             skip += rightReport.tokensToSkip;
@@ -1952,10 +1954,10 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
     if (cache == NULL) {
         NodeReport condRep = PG_create_condition_tree(tokens, startPos);
         cache = condRep.node;
-        skip = condRep.tokensToSkip + 1;
+        skip = condRep.tokensToSkip;
     }
 
-    return PG_create_node_report(cache, skip - startPos + 1);
+    return PG_create_node_report(cache, skip);
 }
 
 int PG_is_logic_operator_bracket(TOKEN **tokens, size_t startPos) {
@@ -2025,7 +2027,7 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
             conditionNode->leftNode = leftTermReport.node;
             conditionNode->rightNode = rightTermReport.node;
 
-            skip += rightTermReport.tokensToSkip;
+            skip += rightBounds + 1;
             return PG_create_node_report(conditionNode, skip);
         } else if ((currentToken->type == _KW_TRUE_
             || currentToken->type == _KW_FALSE_)
