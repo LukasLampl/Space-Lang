@@ -1250,7 +1250,7 @@ NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos) {
 
     NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
     topNode->leftNode = chainedCondReport.node;
-    skip += chainedCondReport.tokensToSkip + 1; //Skip the '{'
+    skip += chainedCondReport.tokensToSkip + 2; //Skip the ')' and '{'
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     topNode->rightNode = runnableReport.node;
@@ -2726,7 +2726,11 @@ void PG_print_from_top_node(struct Node *topNode, int depth, int pos) {
     }
 
     for (int i = 0; i < depth; ++i) {
-        printf("  ");
+        if (i + 1 == depth) {
+            printf("+-- ");
+        } else {
+            printf("|   ");
+        }
     }
 
     if (pos == 0) {
@@ -2739,8 +2743,12 @@ void PG_print_from_top_node(struct Node *topNode, int depth, int pos) {
 
     for (int i = 0; i < topNode->detailsCount; i++) {
         if (topNode->details[i] != NULL) {
-            for (int i = 0; i < depth + 1; ++i) {
-                printf("  ");
+            for (int n = 0; n < depth + 1; n++) {
+                if (n + 1 == depth + 1) {
+                    printf("+-- ");
+                } else {
+                    printf("|   ");
+                }
             }
 
             printf("(%s) detail: %s -> %i\n", topNode->value, topNode->details[i]->value, topNode->details[i]->type);
