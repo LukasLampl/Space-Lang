@@ -667,11 +667,11 @@ NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos) {
     NodeReport varReport = PG_create_variable_tree(tokens, startPos + 2);
     topNode->leftNode = varReport.node;
     skip += varReport.tokensToSkip + 1; //+1 for ';'
-    
+
     NodeReport chainedReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
     topNode->details[0] = chainedReport.node;
-    skip += chainedReport.tokensToSkip;
-    
+    skip += chainedReport.tokensToSkip + 1; //+1 for ';'
+
     NodeReport expressionReport = PG_create_simple_assignment_tree(tokens, startPos + skip);
     topNode->details[1] = expressionReport.node;
     skip += expressionReport.tokensToSkip + 2; //+2 for ')' and '{'
@@ -1879,11 +1879,6 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
     while (skip < TOKENLENGTH && hasLogicOperators == true) {
         TOKEN *currentToken = &(*tokens)[startPos + skip];
 
-        if (currentToken->type == _OP_QUESTION_MARK_
-            || currentToken->type == _OP_SEMICOLON_) {
-            break;
-        }
-
         switch (currentToken->type) {
         case _OP_RIGHT_BRACKET_: {
             openBrackets++;
@@ -1917,6 +1912,10 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
             }
 
             break;
+        case _OP_SEMICOLON_:
+        case _OP_QUESTION_MARK_:
+            hasLogicOperators = false;
+            continue;
         case _KW_OR_:
         case _KW_AND_: {
             enum NodeType type = currentToken->type == _KW_AND_ ? _AND_NODE_ : _OR_NODE_;
@@ -2048,6 +2047,8 @@ int PG_get_condition_iden_length(TOKEN **tokens, size_t startPos) {
 
     while (startPos + counter < TOKENLENGTH) {
         if ((int)PG_is_condition_operator((*tokens)[startPos + counter].type) == true) {
+            break;
+        } else if ((*tokens)[startPos + counter].type == _OP_SEMICOLON_) {
             break;
         } else if ((*tokens)[startPos + counter].type == _OP_LEFT_BRACKET_) {
             openBrackets--;

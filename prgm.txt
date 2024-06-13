@@ -1,12 +1,4 @@
-for (var:int i = startPos; i < endPos; i++) {
-    if (counter >= this.length) {
-        break;
-    }
-
-    temp[counter++] = this->charAt(i);
-}
-
-/*class String => {
+class String => {
     private const ASCII_OFFSET = 32;
 
     global var length = 0;
@@ -53,4 +45,4 @@ for (var:int i = startPos; i < endPos; i++) {
 
         return new String(temp);
     }
-}*/
+}
