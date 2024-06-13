@@ -1212,7 +1212,8 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
     TOKEN *crucialToken = &(*tokens)[startPos + 1];
     int skip = 0;
 
-    if (crucialToken->value[0] == '\"') {
+    if (crucialToken->value[0] == '\"'
+        || crucialToken->value[0] == '\'') {
         if ((int)SA_is_string(crucialToken) == true) {
             skip = 1;
         } else {
