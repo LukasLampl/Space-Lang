@@ -57,8 +57,8 @@ void LX_set_line_number(TOKEN *token, size_t lineNumber);
 int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
 int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber);
-int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucial_character, size_t *lineNumber, const char **fileName);
-int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber);
+int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber, const char **fileName);
+int LX_skip_whitespaces(char **input, size_t currentInputIndex, size_t *lineNumber);
 void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber);
 int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferCharPos);
@@ -223,7 +223,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
                 storagePointer++;
             }
 
-            i += (int)LX_skip_whitespaces(input, fileLength, i, &lineNumber);
+            i += (int)LX_skip_whitespaces(input, i, &lineNumber);
             storageIndex = 0;
             continue;
 
@@ -301,19 +301,19 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
             storageIndex = 0;
             continue;
         } else {
-            TOKEN token = TOKENS[storagePointer];
+            TOKEN *token = &TOKENS[storagePointer];
 
-            if (token.size > storageIndex + 1) {
+            if (token->size > storageIndex + 1) {
                 // Sets the rest as IDENTIFIER. Adding the current input to the current token value
-                token.value[storageIndex++] = (*input)[i];
-                token.line = lineNumber;
-                (void)LX_check_for_number(&token);
+                token->value[storageIndex++] = (*input)[i];
+                token->line = lineNumber;
+                (void)LX_check_for_number(token);
 
-                if (token.type != _FLOAT_
-                    && token.type != _NUMBER_
-                    && token.type != _REFERENCE_
-                    && token.type != _POINTER_) {
-                    token.type = _IDENTIFIER_;
+                if (token->type != _FLOAT_
+                    && token->type != _NUMBER_
+                    && token->type != _REFERENCE_
+                    && token->type != _POINTER_) {
+                    token->type = _IDENTIFIER_;
                 }
             }
         }
@@ -346,13 +346,13 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
 
 /**
  * <p>
- * Checks whether the provided token is used or not.
+ * Checks whether the provided token (last token) is used or not.
  * </p>
  * 
  * @returns
  * <ul>
- * <li> true - Token is indeed not used
- * <li> false - Token is already used
+ * <li> 1 - Token is indeed not used
+ * <li> 0 - Token is already used
  * </ul>
  * 
  * @param *token        Token to check
@@ -520,33 +520,52 @@ void LX_set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray)
     }
 }
 
-/*
-Purpose: Resize the value of a token
-Return Type: void
-Params: TOKEN *token => Token to resize its value; size_t oldSize => current size / length of the value memeber
-*/
+/**
+ * <p>
+ * Resizes a tokens value to the 125% of its old size.
+ * </p>
+ * 
+ * <p>
+ * The occurance of wrong determined token sizes is rare, but
+ * for the case it increments by 25%, in order to provide more
+ * space if needed without reserving each by each. This
+ * results in better performance but in less ressource friendlyness.
+ * </p>
+ * 
+ * @param *token    Token to resize
+ * @param oldSize   Size of the token before the resize
+ */
 void LX_resize_tokens_value(TOKEN *token, size_t oldSize) {
-    char *newValue = (char*)realloc(token->value, sizeof(char) * (oldSize * 2));
+    int newSize = (int)(oldSize * 1.25);
+    char *newValue = (char*)realloc(token->value, sizeof(char) * newSize);
 
     if (token->value == NULL) {
         (void)IO_BUFFER_RESERVATION_EXCEPTION();
     }
 
     token->value = newValue;
-    token->size = oldSize * 2;
+    token->size = newSize;
 
     // Set the new allocated memory to '0'
     if (token->value != NULL) {
-        (void)memset(token->value + oldSize, 0, sizeof(char) * oldSize);
+        (void)memset(token->value + oldSize, 0, sizeof(char) * (oldSize * 0.25));
     }
 }
 
-/*
-Purpose: Check if the current token is used or not
-Return Type: int => 1 = true; 0 = false;
-Params: TOKEN *token => Token to check its value;
-        size_t *lineNumber => The line number of the token;
-*/
+/**
+ * <p>
+ * Checks whether the provided token is used or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li> 1 - Token is indeed not used
+ * <li> 0 - Token is already used
+ * </ul>
+ * 
+ * @param *token        Token to check
+ * @param lineNumber    Variable that holds the current line number
+ */
 int LX_token_clearance_check(TOKEN *token, size_t lineNumber) {
     if (token != NULL && token->value != NULL) {
         if (token->value[0] != 0) {
@@ -558,19 +577,31 @@ int LX_token_clearance_check(TOKEN *token, size_t lineNumber) {
     return 0;
 }
 
-/*
-Purpose: Skip the input until a second '#' appears
-Return Type: int => How many characters got skipped
-Params: char **input => The whole input;
-        const size_t currentIndex => Position from where to start to search for another '#';
-        size_t *lineNumber => The current line number of the file
-*/
+/**
+ * <p>
+ * Skips a comment.
+ * </p>
+ * 
+ * <p>
+ * Based on the "crucial" part the skip is defined. By crucial a double slash
+ * or a slash-star is meant. For the first option the comment
+ * goes till the next line. For the slash-start the skip happens, until the counterpart
+ * was found.
+ * </p>
+ * 
+ * @returns How many characters can be skipped
+ * 
+ * @param **input       Pointer to the input
+ * @param currentIndex  Index of the current char in the buffer
+ * @param *lineNumber   Pointer to the lineNumber
+ */
 int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber) {
     char crucialChar = (*input)[currentIndex + 1];
     // The index of how much characters has to be skipped
     int jumpForward = 1;
     // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
     while ((jumpForward + currentIndex) < maxBufferLength) {
+        //Check for '\n'
         if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
             (*lineNumber)++;
         }
@@ -591,30 +622,36 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
     return jumpForward;
 }
 
-/*
-Purpose: Put a string into the current token
-Return Type: int => How many chars to skip
-Params: TOKEN *token => Current Token to write in; const char *input => Source code;
-        char **input => Content of the source file;
-        const size_t currentInputIndex => Index at where to start writing the string;
-        const char crucial_character => Character: ' or ";
-        size_t lineNumber => Current line number;
-        const char **fileName => Name of the currently processed file
-*/
-int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucial_character, size_t *lineNumber, const char **fileName) {
+/**
+ * <p>
+ * Put a string into a provided token.
+ * </p>
+ * 
+ * @returns How many chars can be skipped
+ * 
+ * @param *token                Token to write into
+ * @param **input               Input (Source code)
+ * @param currentInputIndex     Index of the input character
+ * @param crucialCharacter      Type of the string ("'" or '"')
+ * @param *lineNumber           Current line number
+ * @param **fileName            Name of the source code file
+ */
+int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber, const char **fileName) {
     int jumpForward = 1;
 
     if (input != NULL && token != NULL && token->value != NULL) {
         int currentIncremental = 1;
+        int currentTokenSize = (((token->size * currentIncremental) - 1));
 
         // write the current character into the current token value
         // while the input is not the crucial character again the input gets set into the current token value
-        while (((*input)[currentInputIndex + jumpForward] != crucial_character)
+        while (((*input)[currentInputIndex + jumpForward] != crucialCharacter)
             && (currentInputIndex + jumpForward) < maxBufferLength) {
             // If the string size is bigger than size, resize the token
-            if (jumpForward + 1 >= (((token->size * currentIncremental) - 1))) {
-                (void)LX_resize_tokens_value(token, ((token->size * currentIncremental) - 1));
+            if (jumpForward + 1 >= currentTokenSize) {
+                (void)LX_resize_tokens_value(token, currentTokenSize);
                 currentIncremental++;
+                currentTokenSize = (((token->size * currentIncremental) - 1));
             }
 
             if (token->size > jumpForward) {
@@ -628,55 +665,50 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
             jumpForward++;
         }
 
-        if ((*input)[currentInputIndex + jumpForward] != crucial_character) {
+        if ((*input)[currentInputIndex + jumpForward] != crucialCharacter) {
             (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber, fileName);
         }
 
-        // Set the current tokentype to _STRING_ and add the quotes
-        if (crucial_character == '"') {
+        if (crucialCharacter == '"') {
             token->type = _STRING_;
-            token->value[0] = crucial_character;
-
-            if (token->size > jumpForward) {
-                token->value[jumpForward] = crucial_character;
-            } else {
-                token->value[token->size - 1] = crucial_character;
-            }
-
-        // Same as the _STRING_ here, just for the _CHARACTER_ARRAY_
-        } else if (crucial_character == '\'') {
+        } else if (crucialCharacter == '\'') {
             token->type = _CHARACTER_ARRAY_;
-            token->value[0] = crucial_character;
+        }
 
-            if (token->size > jumpForward) {
-                token->value[jumpForward] = crucial_character;
-            } else {
-                token->value[token->size - 1] = crucial_character;
-            }
+        token->value[0] = crucialCharacter;
+
+        if (token->size > jumpForward) {
+            token->value[jumpForward] = crucialCharacter;
+        } else {
+            token->value[token->size - 1] = crucialCharacter;
         }
 
         // End the whole token with the '\0' character
         if (token->size >= jumpForward + 1) {
             token->value[jumpForward + 1] = '\0';
         } else {
-            token->value[token->size - 1] = crucial_character;
+            token->value[token->size - 1] = crucialCharacter;
         }
     }
 
     return jumpForward;
 }
 
-/*
-Purpose: Skip all whitespaces to the next possible token
-Return Type: int => Characters to skip over
-Params: char **input => Input to be processed; int maxLength => Length of the buffer;
-        size_t currentInputIndex => Current character position;
-        size_t *lineNumber => Current line number to be increased if nesseccarry
-*/
-int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, size_t *lineNumber) {
+/**
+ * <p>
+ * Skips all whitespace characters to the next possible token.
+ * </p>
+ * 
+ * @returns Characters that can be skipped
+ * 
+ * @param **input               Source code with the whitespaces
+ * @param currentInputIndex     Index of the current character in the buffer
+ * @param *lineNumber           Current line number
+ */
+int LX_skip_whitespaces(char **input, size_t currentInputIndex, size_t *lineNumber) {
     int jumpForward = 0;
 
-    while ((currentInputIndex + jumpForward) < maxLength) {
+    while ((currentInputIndex + jumpForward) < maxBufferLength) {
         int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward)]);
         
         if (whitespaceChar == 0) {
@@ -693,11 +725,14 @@ int LX_skip_whitespaces(char **input, int maxLength, size_t currentInputIndex, s
     return jumpForward - 1;
 }
 
-/*
-Purpose: Put the type _FLOAT_ into the token type
-Return Type: void
-Params: TOKEN *token => Token to set its type to _FLOAT_; const size_t symbolIndex => current token value symbol position
-*/
+/**
+ * <p>
+ * Puts the _FLOAT_ type into the token and adds the '.'.
+ * </p>
+ * 
+ * @param *token        Token to add the type and dot to
+ * @param symbolIndex   Position of the dot in the buffer
+ */
 void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
     if (token != NULL && token->value != NULL) {
         token->type = _FLOAT_;
@@ -708,13 +743,19 @@ void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
     }
 }
 
-/*
-Purpose: Write a class accessor or class creator symbol to the current token
-Return Type: void
-Params: TOKEN *token => Token to which the symbol should be written to;
-        char crucialChar => Character, that determines which of the accsessor or creator gets written;
-        size_t lineNumber => Line number on which the token can be found
-*/
+/**
+ * <p>
+ * Writes a class accessor or class creator operator into the provided token.
+ * </p>
+ * 
+ * <p>
+ * If the size of the token should be to small, the token is resized.
+ * </p>
+ * 
+ * @param *token        Token to write the operation into
+ * @param cruacialChar  Character that determines the operator type
+ * @param lineNumber    Current line number
+ */
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber) {
     if (token != NULL && token->value != NULL) {
         char src[3];
@@ -724,7 +765,7 @@ void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar,
         
         // Check for possible buffer overflow (important when changes occour)
         if (strlen(src) <= token->size) {
-            (void)strcpy(token->value, src);
+            (void)strncpy(token->value, src, token->size);
         } else {
             int length = (int)strlen(src) * sizeof(char) + sizeof(char);
             token->value = (char*)realloc(token->value, length);
@@ -733,7 +774,7 @@ void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar,
                 (void)IO_BUFFER_RESERVATION_EXCEPTION();
             }
 
-            (void)strcpy(token->value, src);
+            (void)strncpy(token->value, src, token->size);
             token->size = length;
         }
         
@@ -1018,8 +1059,8 @@ struct kwLookup KeywordTable[] = {
     {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
     {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
     {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
-    {"char", _KW_CHAR_},           {"String", _KW_STRING_},   {"short", _KW_SHORT_},
-    {"long", _KW_LONG_},           {"extends", _KW_EXTENDS_}, {"constructor", _KW_CONSTRUCTOR_}
+    {"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},
+    {"long", _KW_LONG_},           {"constructor", _KW_CONSTRUCTOR_}
 };
 
 TOKENTYPES LX_get_keyword_type(const char *value) {

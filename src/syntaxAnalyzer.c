@@ -102,6 +102,7 @@ SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int inDepth);
 SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inParam);
+int SA_is_logic_operator_bracket(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam);
 SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos);
@@ -157,7 +158,7 @@ size_t SOURCE_LENGTH = 0;
 char *FILE_NAME = NULL;
 
 /**
- * @brief Checks the token sequence received by the
+ * Checks the token sequence received by the
  * lexer and checks for syntax errors that might have been
  * introduced by the programmer.
  * 
@@ -207,7 +208,7 @@ int panicModeOpenBraces = 0;
 int panicModeLastStartPos = 0;
 
 /**
- * @brief Enters the syntax analyzer into a "panic mode" and thus skips
+ * Enters the syntax analyzer into a "panic mode" and thus skips
  * all tokens, till a recover might be possible.
  * 
  * @param **tokens  Pointer to the tokens array
@@ -265,7 +266,7 @@ int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock) 
 }
 
 /**
- * @brief Checks if the passed tokens are written accordingly to the runnable
+ * Checks if the passed tokens are written accordingly to the runnable
  * rule
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
@@ -358,14 +359,14 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 }
 
 /**
- * @brief Predicts the programmers target based on expression prediction.
+ * Predicts the programmers target based on expression prediction.
  *
- * @note Examples:
- * @note ```
- * @note print("Text");
- * @note a = a + 4;
- * @note b = getData();
- * @note ```
+ * Examples:
+ * ```
+ * print("Text");
+ * a = a + 4;
+ * b = getData();
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -373,33 +374,37 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
  * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
+    SyntaxReport rep = {NULL, -1};
+    
     if ((int)SA_predict_expression(tokens, startPos) == true) {
-        SyntaxReport isExpression = SA_is_expression(tokens, startPos, true);
+        rep = SA_is_expression(tokens, startPos, true);
 
-        if (isExpression.errorOccured == false) {
-            return isExpression;
+        if (rep.errorOccured == false) {
+            return rep;
         }
         
-        SyntaxReport isNullAssignementToClassInstance = SA_is_null_assigned_class_instance(tokens, startPos);
+        rep = SA_is_null_assigned_class_instance(tokens, startPos);
         
-        if (isNullAssignementToClassInstance.errorOccured == false) {
-            return isNullAssignementToClassInstance;
+        if (rep.errorOccured == false) {
+            return rep;
         }
     } else if ((int)SA_predict_class_object_access(tokens, startPos) == true) {
         return SA_is_class_object_access(tokens, startPos, true);
     } else {
-        SyntaxReport isRunnableFunctionCall = SA_is_runnable_function_call(tokens, startPos);
+        rep = SA_is_runnable_function_call(tokens, startPos);
         
-        if (isRunnableFunctionCall.errorOccured == false) {
-            return isRunnableFunctionCall;
+        if (rep.errorOccured == false) {
+            return rep;
         }
     }
 
-    return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<EXPRESSION>\" or \"<CLASS_OBJECT_ACCESS>");
+    char *buffer = (char*)calloc(128, sizeof(char));
+    snprintf(buffer, 128, "<EXPRESSION>\" or \"<CLASS_INSTANCE>\" at \"%s", rep.expectedToken);
+    return SA_create_syntax_report(rep.token, 0, true, buffer);
 }
 
 /**
- * @brief Checks if a class instance is set to null.
+ * Checks if a class instance is set to null.
  *
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -415,19 +420,12 @@ SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos)
     }
 
     if ((*tokens)[startPos + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
-        while (startPos + skip < MAX_TOKEN_LENGTH) {
-            if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
-                SyntaxReport isArrayIdentifier = SA_is_array_identifier(tokens, startPos + skip);
+        SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + 1);
 
-                if (isArrayIdentifier.errorOccured == false) {
-                    skip += isArrayIdentifier.tokensToSkip;
-                    continue;
-                } else {
-                    return isArrayIdentifier;
-                }
-            }
-
-            break;
+        if (isArrayAccess.errorOccured == false) {
+            skip += isArrayAccess.tokensToSkip;
+        } else {
+            return isArrayAccess;
         }
     }
 
@@ -454,7 +452,7 @@ SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos)
 }
 
 /**
- * @brief If no expression could be predicted the runnable function
+ * If no expression could be predicted the runnable function
  * call is executed as a "replacement". It is also called if it is
  * an intended function call.
  *
@@ -482,7 +480,7 @@ SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Tries to predict if the current token array sequence is a class sequence
+ * Tries to predict if the current token array sequence is a class sequence
  * or not.
  * 
  * @returns `True (1)` if it is a class instance, else `false (0)`
@@ -511,7 +509,7 @@ int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Tries to predict if the current token sequence is an expression or not.
+ * Tries to predict if the current token sequence is an expression or not.
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -525,26 +523,29 @@ int SA_predict_expression(TOKEN **tokens, size_t startPos) {
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
-        if ((int)SA_is_assignment_operator(currentToken->value) == true
-            || currentToken->type == _OP_EQUALS_
-            || currentToken->type == _OP_ADD_ONE_
-            || currentToken->type == _OP_SUBTRACT_ONE_) {
+        switch (currentToken->type) {
+        case _OP_EQUALS_:
+        case _OP_ADD_ONE_:
+        case _OP_SUBTRACT_ONE_:
             return true;
-        }
+        case _OP_SEMICOLON_:
+        case _OP_RIGHT_BRACE_:
+            return false; 
+        default:
+            if ((int)SA_is_assignment_operator(currentToken->value) == true) {
+                return true;
+            }
 
-        if (currentToken->type == _OP_SEMICOLON_
-            || currentToken->type == _OP_RIGHT_BRACE_) {
-            return false;
+            jumper++;
+            break;
         }
-
-        jumper++;
     }
 
     return false;
 }
 
 /**
- * @brief Predicts the intended operation by the programmer and invokes
+ * Predicts the intended operation by the programmer and invokes
  * the predicted function.
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
@@ -622,12 +623,12 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the class object access rule.
+ * Checks if a given token sequence matches the class object access rule.
  *
- * @note Example:
- * @note ```
- * @note iden->iden2;
- * @note ```
+ * Example:
+ * ```
+ * iden->iden2;
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -663,16 +664,16 @@ SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int inde
 }
 
 /**
- * @brief Checks if a given token sequence matches the return statement.
+ * Checks if a given token sequence matches the return statement.
  *
- * @note Examples:
- * @note ```
- * @note return null;
- * @note return 2 + a * b;
- * @note return "Hello world!";
- * @note return new Object();
- * @note return a < -1 ? b : c;
- * @note ```
+ * Examples:
+ * ```
+ * return null;
+ * return 2 + a * b;
+ * return "Hello world!";
+ * return new Object();
+ * return a < -1 ? b : c;
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -714,13 +715,13 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence is a class instance creation that is
+ * Checks if a given token sequence is a class instance creation that is
  * directly returned.
  *
- * @note Example:
- * @note ```
- * @note return new Object();
- * @note ```
+ * Example:
+ * ```
+ * return new Object();
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -746,12 +747,12 @@ SyntaxReport SA_is_return_class_instance(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the continue statement.
+ * Checks if a given token sequence matches the continue statement.
  *
- * @note Example:
- * @note ```
- * @note continue;
- * @note ```
+ * Example:
+ * ```
+ * continue;
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -771,12 +772,12 @@ SyntaxReport SA_is_continue_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the break statement.
+ * Checks if a given token sequence matches the break statement.
  *
- * @note Example:
- * @note ```
- * @note break;
- * @note ```
+ * Example:
+ * ```
+ * break;
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -796,12 +797,12 @@ SyntaxReport SA_is_break_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the for statement.
+ * Checks if a given token sequence matches the for statement.
  *
- * @note Example:
- * @note ```
- * @note for (var i = 0; i < 10; i++) {}
- * @note ```
+ * Example:
+ * ```
+ * for (var i = 0; i < 10; i++) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -856,7 +857,7 @@ SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches an expression.
+ * Checks if a given token sequence matches an expression.
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -927,13 +928,13 @@ SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the if statement.
+ * Checks if a given token sequence matches the if statement.
  *
- * @note Examples:
- * @note ```
- * @note if (a > 10) {}
- * @note if (object.getName() == "Thread") {}
- * @note ```
+ * Examples:
+ * ```
+ * if (a > 10) {}
+ * if (object.getName() == "Thread") {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -977,13 +978,13 @@ SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the else-if statement.
+ * Checks if a given token sequence matches the else-if statement.
  *
- * @note Examples:
- * @note ```
- * @note else if (a > 60) {}
- * @note else if (b == 5 and c == 2 * 4) {}
- * @note ```
+ * Examples:
+ * ```
+ * else if (a > 60) {}
+ * else if (b == 5 and c == 2 * 4) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1005,12 +1006,12 @@ SyntaxReport SA_is_else_if_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the else statement.
+ * Checks if a given token sequence matches the else statement.
  *
- * @note Example:
- * @note ```
- * @note else {}
- * @note ```
+ * Example:
+ * ```
+ * else {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1032,12 +1033,12 @@ SyntaxReport SA_is_else_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the do statement.
+ * Checks if a given token sequence matches the do statement.
  *
- * @note Example:
- * @note ```
- * @note do {} while (a == b);
- * @note ```
+ * Example:
+ * ```
+ * do {} while (a == b);
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1069,12 +1070,12 @@ SyntaxReport SA_is_do_statment(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the while statement.
+ * Checks if a given token sequence matches the while statement.
  *
- * @note Example:
- * @note ```
- * @note while (true) {}
- * @note ```
+ * Example:
+ * ```
+ * while (true) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1098,13 +1099,13 @@ SyntaxReport SA_is_while_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence is a while condition.
+ * Checks if a given token sequence is a while condition.
  *
- * @note Examples:
- * @note ```
- * @note while (true)
- * @note while (a < 2)
- * @note ```
+ * Examples:
+ * ```
+ * while (true)
+ * while (a < 2)
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1134,12 +1135,12 @@ SyntaxReport SA_is_while_condition(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the check statement.
+ * Checks if a given token sequence matches the check statement.
  *
- * @note Example:
- * @note ```
- * @note check (a) {}
- * @note ```
+ * Example:
+ * ```
+ * check (a) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1191,12 +1192,12 @@ SyntaxReport SA_is_check_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the is statement.
+ * Checks if a given token sequence matches the is statement.
  *
- * @note Example:
- * @note ```
- * @note is true:
- * @note ```
+ * Example:
+ * ```
+ * is true:
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1249,23 +1250,23 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a token sequence fulfills the variable definition rule.
+ * Checks if a token sequence fulfills the variable definition rule.
  *
- * @note All variable definitions also support the type option and visibility.
- * @note Examples:
- * @note ```
- * @note var a = 10;
- * @note var b;
- * @note var c[];
- * @note var d[] = {1, 2, 3, 4};
- * @note var obj = new Object();
- * @note var obj = new Object(param1, param2, *ptr);
- * @note const a = 10;
- * @note const b;
- * @note const d[] = {1, 2, 3, 4};
- * @note const obj = new Object();
- * @note const obj = new Object(param1, param2, *ptr);
- * @note ```
+ * All variable definitions also support the type option and visibility.
+ * Examples:
+ * ```
+ * var a = 10;
+ * var b;
+ * var c[];
+ * var d[] = {1, 2, 3, 4};
+ * var obj = new Object();
+ * var obj = new Object(param1, param2, *ptr);
+ * const a = 10;
+ * const b;
+ * const d[] = {1, 2, 3, 4};
+ * const obj = new Object();
+ * const obj = new Object(param1, param2, *ptr);
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1327,13 +1328,13 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Handles class instance variables.
+ * Handles class instance variables.
  *
- * @note Examples:
- * @note ```
- * @note = new Object();
- * @note = new Object(param1, param2, *ptr);
- * @note ```
+ * Examples:
+ * ```
+ * = new Object();
+ * = new Object(param1, param2, *ptr);
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1395,13 +1396,13 @@ SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Handles normal variable assignments.
+ * Handles normal variable assignments.
  *
- * @note Examples:
- * @note ```
- * @note = b;
- * @note = 10;
- * @note ```
+ * Examples:
+ * ```
+ * = b;
+ * = 10;
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1427,13 +1428,13 @@ SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Handles conditional assignments.
+ * Handles conditional assignments.
  *
- * @note Examples:
- * @note ```
- * @note a == true ? 2 : 3;
- * @note a == true ? b == true ? 2 : 4 : 5
- * @note ```
+ * Examples:
+ * ```
+ * a == true ? 2 : 3;
+ * a == true ? b == true ? 2 : 4 : 5
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1507,13 +1508,13 @@ SyntaxReport SA_is_conditional_assignment(TOKEN **tokens, size_t startPos, int i
 }
 
 /**
- * @brief Checks if a token sequence is a chained condition or not.
+ * Checks if a token sequence is a chained condition or not.
  *
- * @note Examples:
- * @note ```
- * @note a == true and b == 2 or c == d
- * @note (a == true and b == 2) or c == d
- * @note ```
+ * Examples:
+ * ```
+ * a == true and b == 2 or c == d
+ * (a == true and b == 2) or c == d
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1530,7 +1531,8 @@ SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inPara
         && (*tokens)[startPos + jumper].type != __EOF__) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
         
-        if (currentToken->type == _OP_RIGHT_BRACKET_) {
+        if (currentToken->type == _OP_RIGHT_BRACKET_
+            && (int)SA_is_logic_operator_bracket(tokens, startPos + jumper) == true) {
             openBrackets++;
             jumper++;
             continue;
@@ -1582,15 +1584,44 @@ SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inPara
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
+int SA_is_logic_operator_bracket(TOKEN **tokens, size_t startPos) {
+    int openBrackets = 0;
+    
+    for (int i = startPos; i < MAX_TOKEN_LENGTH; i++) {
+        switch ((*tokens)[i].type) {
+        case _KW_AND_:
+        case _KW_OR_:
+            return true;
+        case _OP_LEFT_BRACKET_:
+            openBrackets--;
+
+            if (openBrackets <= 0) {
+                return false;
+            }
+
+            break;
+        case _OP_RIGHT_BRACKET_:
+            openBrackets++;
+            break;
+        case _OP_SEMICOLON_:
+        case _OP_RIGHT_BRACE_:
+            return false;
+        default: break;
+        }
+    }
+
+    return false;
+}
+
 /**
- * @brief Checks if a given token sequence is a simple condition.
+ * Checks if a given token sequence is a simple condition.
  *
- * @note Examples:
- * @note ```
- * @note a <= 2
- * @note b == true
- * @note c != 3
- * @note ```
+ * Examples:
+ * ```
+ * a <= 2
+ * b == true
+ * c != 3
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1625,13 +1656,13 @@ SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam) {
 }
 
 /**
- * @brief Handles array variables.
+ * Handles array variables.
  *
- * @note Examples:
- * @note ```
- * @note [] = {};
- * @note [2] = {1, 2};
- * @note ```
+ * Examples:
+ * ```
+ * [] = {};
+ * [2] = {1, 2};
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1651,11 +1682,21 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
         SyntaxReport rep = {NULL, -1};
         
-        if ((*tokens)[startPos + skip + 1].type == _OP_RIGHT_BRACE_) {
+        switch ((*tokens)[startPos + skip + 1].type) {
+        case _OP_RIGHT_BRACE_:
             rep = SA_is_array_assignment(tokens, startPos + skip);
-        } else {
+            break;
+        case _STRING_:
+        case _CHARACTER_ARRAY_:
+            rep = SA_create_syntax_report(NULL, 2, false, NULL);
+            break;
+        case _KW_NULL_:
+            rep = SA_create_syntax_report(NULL, 2, false, NULL);
+            break;
+        default: 
             rep = SA_is_identifier(tokens, startPos + skip + 1);
             rep.tokensToSkip++;
+            break;
         }
 
         if (rep.errorOccured == true) {
@@ -1673,13 +1714,13 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Handles basic array assignments.
+ * Handles basic array assignments.
  *
- * @note Examples:
- * @note ```
- * @note = {1, 2}
- * @note = {}
- * @note ```
+ * Examples:
+ * ```
+ * = {1, 2}
+ * = {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1705,7 +1746,7 @@ SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Handles single elements `{}` individually with recursion.
+ * Handles single elements `{}` individually with recursion.
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1776,13 +1817,13 @@ SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int
 }
 
 /**
- * @brief Checks if a given token sequence matches an array element.
+ * Checks if a given token sequence matches an array element.
  *
- * @note Examples:
- * @note ```
- * @note [2]
- * @note [a + b * 3]
- * @note ```
+ * Examples:
+ * ```
+ * [2]
+ * [a + b * 3]
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1832,13 +1873,13 @@ SyntaxReport SA_is_array_element(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the constructor statement.
+ * Checks if a given token sequence matches the constructor statement.
  *
- * @note Examples:
- * @note ```
- * @note this::constructor() {}
- * @note this::constructor(obj) {}
- * @note ```
+ * Examples:
+ * ```
+ * this::constructor() {}
+ * this::constructor(obj) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1895,15 +1936,15 @@ SyntaxReport SA_is_class_constructor(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the class statment.
+ * Checks if a given token sequence matches the class statment.
  *
- * @note Examples:
- * @note ```
- * @note class Apple => {}
- * @note class Form extends Line => {}
- * @note class Window with EventListener => {}
- * @note class Dice extends Cube with RollEvent => {}
- * @note ```
+ * Examples:
+ * ```
+ * class Apple => {}
+ * class Form extends Line => {}
+ * class Window with EventListener => {}
+ * class Dice extends Cube with RollEvent => {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1962,13 +2003,13 @@ SyntaxReport SA_is_class(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the with statment.
+ * Checks if a given token sequence matches the with statment.
  *
- * @note Examples:
- * @note ```
- * @note with ActionListener
- * @note with Math
- * @note ```
+ * Examples:
+ * ```
+ * with ActionListener
+ * with Math
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -1990,12 +2031,12 @@ SyntaxReport SA_is_with_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the try statement.
+ * Checks if a given token sequence matches the try statement.
  *
- * @note Examples:
- * @note ```
- * @note try {}
- * @note ```
+ * Examples:
+ * ```
+ * try {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2017,12 +2058,12 @@ SyntaxReport SA_is_try_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the catch statement.
+ * Checks if a given token sequence matches the catch statement.
  *
- * @note Examples:
- * @note ```
- * @note catch (Exception e) {}
- * @note ```
+ * Examples:
+ * ```
+ * catch (Exception e) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2056,12 +2097,12 @@ SyntaxReport SA_is_catch_statement(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the export statement.
+ * Checks if a given token sequence matches the export statement.
  *
- * @note Examples:
- * @note ```
- * @note export "package";
- * @note ```
+ * Examples:
+ * ```
+ * export "package";
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2085,12 +2126,12 @@ SyntaxReport SA_is_export(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a given token sequence matches the include statement.
+ * Checks if a given token sequence matches the include statement.
  *
- * @note Examples:
- * @note ```
- * @note include "package";
- * @note ```
+ * Examples:
+ * ```
+ * include "package";
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2114,17 +2155,17 @@ SyntaxReport SA_is_include(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a tokens sequence starting from `startingPos` is written
+ * Checks if a tokens sequence starting from `startingPos` is written
  * accordingly to the enum syntax.
  * 
- * @note Example:
- * @note ```
- * @note enum test {
- * @note    a,
- * @note    b : 10,
- * @note    c
- * @note }
- * @note ```
+ * Example:
+ * ```
+ * enum test {
+ *    a,
+ *    b : 10,
+ *    c
+ * }
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2158,13 +2199,13 @@ SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if the token sequence initializes enumerators in an enum.
+ * Checks if the token sequence initializes enumerators in an enum.
  * 
- * @note Examples:
- * @note ```
- * @note a
- * @note b : 10
- * @note ```
+ * Examples:
+ * ```
+ * a
+ * b : 10
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2220,16 +2261,16 @@ SyntaxReport SA_is_enumerator(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks whether the input tokens at the position `startPos` are aligned
+ * Checks whether the input tokens at the position `startPos` are aligned
  * to a function definition.  
  *   
- * @note Examples:  
- * @note ```
- * @note function add(num1, num2) {}
- * @note function:int add(num1, num2) {}
- * @note function:int add(num1:int, num2:int) {}
- * @note function:int add(*num1, (*num2)) {}
- * @note ```
+ * Examples:  
+ * ```
+ * function add(num1, num2) {}
+ * function:int add(num1, num2) {}
+ * function:int add(num1:int, num2:int) {}
+ * function:int add(*num1, (*num2)) {}
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2272,12 +2313,12 @@ SyntaxReport SA_is_function(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a token is a visibility token or not.
+ * Checks if a token is a visibility token or not.
  * 
- * @note Here is a list of visibility modifiers:
- * @note - global
- * @note - secure
- * @note - private
+ * Here is a list of visibility modifiers:
+ * - global
+ * - secure
+ * - private
  * 
  * @returns `True (1)`, when the token is a visibility modifier, else
  * `false (0)`
@@ -2292,15 +2333,15 @@ int SA_skip_visibility_modifier(TOKEN *token) {
 }
 
 /**
- * @brief Checks if a tokens sequence starting from `startingPos` is written
+ * Checks if a tokens sequence starting from `startingPos` is written
  * accordingly to the function call syntax.
  * 
- * @note Examples:
- * @note ```
- * @note add(num1, num2);
- * @note add(&num1, *num2);
- * @note add(2 + 3, 4 * 5 + a);
- * @note ```
+ * Examples:
+ * ```
+ * add(num1, num2);
+ * add(&num1, *num2);
+ * add(2 + 3, 4 * 5 + a);
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2332,15 +2373,15 @@ SyntaxReport SA_is_function_call(TOKEN **tokens, size_t startPos, int inFunction
 }
 
 /**
- * @brief Checks if a tokens sequence starting from `startingPos` is a
+ * Checks if a tokens sequence starting from `startingPos` is a
  * parameter or not.
  * 
- * @note Examples:
- * @note ```
- * @note num1, num2
- * @note &num1, *num2
- * @note 2 + 3, 4 * 5 + a
- * @note ```
+ * Examples:
+ * ```
+ * num1, num2
+ * &num1, *num2
+ * 2 + 3, 4 * 5 + a
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2442,13 +2483,13 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
 }
 
 /**
- * @brief Checks if the following tokens are a valid dimension definition.
+ * Checks if the following tokens are a valid dimension definition.
  *
- * @note Examples:
- * @note ```
- * @note []
- * @note [][][][]
- * @note ```
+ * Examples:
+ * ```
+ * []
+ * [][][][]
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2474,15 +2515,15 @@ SyntaxReport SA_is_array_dimension_definition(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a sequence is a variable type definition (cast).
+ * Checks if a sequence is a variable type definition (cast).
  * 
- * @note Examples:
- * @note ```
- * @note :int
- * @note :char
- * @note :double[]
- * @note :Object[][]
- * @note ```
+ * Examples:
+ * ```
+ * :int
+ * :char
+ * :double[]
+ * :Object[][]
+ * ```
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2518,17 +2559,21 @@ SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a tokens sequence starting from `startingPos` is a simple
+ * <p>
+ * Checks if a tokens sequence starting from `startingPos` is a simple
  * term or not.
+ * </p>
  * 
- * @note Examples:
- * @note ```
- * @note 1 + 2
- * @note 3 * 4
- * @note a + b * c
- * @note "Hello" + "World"
- * @note getInteger() + 2
- * @note ```
+ * <p>
+ * Examples:
+ * ```
+ * 1 + 2
+ * 3 * 4
+ * a + b * c
+ * "Hello" + "World"
+ * getInteger() + 2
+ * ```
+ * </p>
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2599,7 +2644,9 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 
             SyntaxReport isIdentifier = SA_create_syntax_report(NULL, 0, true, "[LETTER]\", \"[DIGIT]\", \"[FUNCTION_CALL]\" or \"[CLASS_OBJECT_ACCESS]");
 
-            if ((int)SA_is_letter(currentToken->value[0]) == true) {
+            if ((int)SA_predict_term_expression(tokens, startPos + jumper)) {
+                isIdentifier = SA_is_term_expression(tokens, startPos + jumper);
+            } else if ((int)SA_is_letter(currentToken->value[0]) == true) {
                 if ((int)SA_predict_class_object_access(tokens, startPos + jumper) == true) {
                     isIdentifier = SA_is_class_object_access(tokens, startPos + jumper, false);
                 } else if ((int)SA_is_bool((*tokens)[startPos].value) == true
@@ -2611,8 +2658,6 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
                 }
             } else if ((int)is_digit(currentToken->value[0]) == true) {
                 isIdentifier = SA_is_numeral_identifier(currentToken);
-            } else if ((int)SA_predict_term_expression(tokens, startPos + jumper)) {
-                isIdentifier = SA_is_term_expression(tokens, startPos + jumper);
             } else {
                 if ((int)SA_is_pointer(currentToken) == true
                     || (int)SA_is_reference(currentToken) == true) {
@@ -2661,8 +2706,10 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 }
 
 /**
-* @brief Handles operations like `p++`, `++p`, `p--`, `--p` or `p++++`.
- *
+ * <p>
+ * Handles operations like `p++`, `++p`, `p--`, `--p` or `p++++`.
+ * </p>
+ * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
  * @param **tokens  Pointer to the TOKEN array
@@ -2696,10 +2743,14 @@ SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Predicts if the next operation is a term expression.
+ * <p>
+ * Predicts if the next operation is a term expression.
+ * </p>
  * 
- * @note As a term expression counts everything like this:
- * @note `p++`, `++p`, `p--`, `--p` or `p++++`.
+ * <p>
+ * As a term expression counts everything like this:
+ * `p++`, `++p`, `p--`, `--p` or `p++++`.
+ * </p>
  * 
  * @returns `True (1)` if the next operation is a term expression, else
  * `false (0)`
@@ -2718,7 +2769,9 @@ int SA_predict_term_expression(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if the next tokens reference to a class access or not.
+ * <p>
+ * Checks if the next tokens reference to a class access or not.
+ * </p>
  * 
  * @returns `True` (1), when a class access is detected, else `false (0)`
  * 
@@ -2739,6 +2792,7 @@ int SA_predict_class_object_access(TOKEN **tokens, size_t startPos) {
 
             return true;
         case _OP_SEMICOLON_:
+        case _OP_EQUALS_:
             return false;
         case _OP_RIGHT_BRACKET_:
             openBrackets++;
@@ -2756,17 +2810,21 @@ int SA_predict_class_object_access(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if a token sequence is an IDENTIFIER or not.
+ * <p>
+ * Checks if a token sequence is an IDENTIFIER or not.
+ * </p>
  * 
- * @note An identifier is a token sequence that is seperated with a '.'.
- * @note  
- * @note Examples:
- * @note ```
- * @note token.name.getString().getBytes()[5]
- * @note this.size
- * @note getDefaultValue().getInteger()
- * @note ```
- *
+ * <p>
+ * An identifier is a token sequence that is seperated with a '.'.
+ * 
+ * Examples:
+ * ```
+ * token.name.getString().getBytes()[5]
+ * this.size
+ * getDefaultValue().getInteger()
+ * ```
+ * </p>
+ * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
  * @param **tokens  Pointer to the TOKEN array
@@ -2801,9 +2859,9 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
                     if (isArrayIdentifier.errorOccured == false) {
                         jumper += isArrayIdentifier.tokensToSkip + isRootIdentifier;
                         continue;
-                    } else {
-                        return isArrayIdentifier;
                     }
+                    
+                    return isArrayIdentifier;
                 } else if (currentToken->type == _OP_RIGHT_BRACKET_) {
                     SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + jumper, false);
 
@@ -2853,7 +2911,9 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Predicts whether the next tokens are an array access or not.
+ * <p>
+ * Predicts whether the next tokens are an array access or not.
+ * </p>
  * 
  * @returns `True (1)` if there will be an array access, else
  * `false (0)`
@@ -2876,13 +2936,17 @@ int SA_predict_array_access(TOKEN **tokens, size_t startPos) {
 }
 
 /**
- * @brief Checks if an input matches the array acces sequence or not.
- *
- * @note Examples:
- * @note ```
- * @note [0]
- * @note [index + offset]
- * @note ```
+ * <p>
+ * Checks if an input matches the array acces sequence or not.
+ * </p>
+ * 
+ * <p>
+ * Examples:
+ * ```
+ * [0]
+ * [index + offset]
+ * ```
+ * </p>
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
@@ -2907,7 +2971,7 @@ SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos) {
         jumper += term.tokensToSkip;
 
         if ((*tokens)[startPos + jumper].type != _OP_LEFT_EDGE_BRACKET_) {
-            return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "]");
+            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "]");
         }
 
         jumper++;
@@ -2931,7 +2995,7 @@ SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos) {
     }
     
     SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + 1);
-
+  
     if (isArrayAccess.errorOccured == true) {
         return isArrayAccess;
     }
@@ -3214,7 +3278,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     (void)printf("-------------------------------------------------------\n");
 
     int errorLine = errorToken->line + 1;
-    int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorLine;
+    int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorToken->tokenStart;
 
     for (int i = printPosition, step = 0; i > 0; i--, step++) {
         if ((*SOURCE_CODE)[i] == '\n' || step == errorWindow) {
@@ -3230,7 +3294,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     (void)printf("%s", buffer);
 
     for (int i = printPosition, step = 0; i < SOURCE_LENGTH; i++, step++) {
-        if ((*SOURCE_CODE)[i] == '\n' || step == errorWindow) {
+        if ((*SOURCE_CODE)[i] == '\n' || step == (errorWindow * 2)) {
             printPosition = i + 1;
             continue;
         } else if ((*SOURCE_CODE)[i] == '\0') {
@@ -3253,7 +3317,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
 
     int counter = 0;
 
-    for (int i = printPosition; i < SOURCE_LENGTH && i - printPosition < 32; i++) {
+    for (int i = printPosition; i < SOURCE_LENGTH && i - printPosition < errorWindow * 2; i++) {
         if (i >= errorToken->tokenStart
             && counter < (errorToken->size - 1)) {
             (void)printf("^");

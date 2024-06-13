@@ -1,16 +1,52 @@
-var a = 10;
-
-class Obj => {}
-class Obj extends Base with Object => {
-    var b = 20;
+if (this.charAt(i) < 97 and i < this.length) {
+    temp[i] = 2;//this->charAt(i) + this.ASCII_OFFSET;
 }
-class Obj with Object => {}
 
-this::constructor() {}
-this::constructor(param1, param2) {}
+/*class String => {
+    private const ASCII_OFFSET = 32;
 
-enum Test {
-    a : 10,
-    b,
-    c
-}
+    global var length = 0;
+    private var:char[] data[] = null;
+
+    this::constructor(string) {
+        this.data = string;
+        this.length = string.length;
+    }
+
+    global function:char charAt(index:int) {
+        return this.data[index];
+    }
+
+    global function:String substring(startPos:int, endPos:int) {
+        if (this.data == null) {
+            return null;
+        }
+
+        var:char[] temp[endPos - startPos] = "";
+        var:int counter = 0;
+
+        for (var:int i = startPos; i < endPos; i++) {
+            if (counter >= this.length) {
+                break;
+            }
+
+            temp[counter++] = this->charAt(i);
+        }
+
+        return new String(temp);
+    }
+
+    global function:String toLowerCase() {
+        var:char[] temp[] = "";
+
+        for (var:int i = 0; i < this.length; i++) {
+            if (this->charAt(i) < 97) {
+                temp[i] = this->charAt(i) + this.ASCII_OFFSET;
+            } else {
+                temp[i] = this->charAt(i);
+            }
+        }
+
+        return new String(temp);
+    }
+}*/
