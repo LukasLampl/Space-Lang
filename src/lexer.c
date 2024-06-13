@@ -45,7 +45,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  * 
  * @see SPACE/main/input.c
  * 
- * @version 1.0     11.06.2024
+ * @version 1.0     13.06.2024
  * @author Lukas Nian En Lampl
 */
 
@@ -63,8 +63,8 @@ void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber);
 int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferCharPos);
 void LX_write_reference_in_token(TOKEN *token);
-int LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar);
-int LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber);
+void LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar);
+void LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber);
 void LX_set_keyword_type_to_token(TOKEN *token);
 TOKENTYPES LX_get_keyword_type(const char *value);
 int LX_check_for_number(TOKEN *token);
@@ -77,6 +77,65 @@ void LX_print_cpu_time(float cpu_time_used);
 
 TOKENTYPES LX_fill_operator_type(char *value);
 TOKENTYPES LX_fill_condition_type(char *value);
+
+/**
+ * <p>
+ * A structure for a keyword lookup table.
+ * </p>
+ * <p>
+ * The kwName holds the string, that indicates the keyword.
+ * The kwValue holds the corresponding TOKENTYPES
+ * </p>
+ */
+struct kwLookup {
+    char kwName[12];
+    TOKENTYPES kwValue;
+};
+
+struct symbol {
+    char symbol;
+    TOKENTYPES rep;
+};
+
+struct sequence {
+    char seq[3];
+    TOKENTYPES rep;
+};
+
+struct symbol OPERATOR_LOOKUP[] = {
+    {'%', _OP_MODULU_},             {'!', _OP_NOT_},                {'(', _OP_RIGHT_BRACKET_},
+    {')', _OP_LEFT_BRACKET_},       {'{', _OP_RIGHT_BRACE_},        {'}', _OP_LEFT_BRACE_},
+    {'[', _OP_RIGHT_EDGE_BRACKET_}, {']', _OP_LEFT_EDGE_BRACKET_},  {'$', _OP_OVERWRITE_},
+    {'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
+    {'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
+    {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {':', _OP_COLON_},
+    {'?', _OP_QUESTION_MARK_}
+};
+
+struct sequence DOUBLE_OPERATOR_LOOKUP[] = {
+    {"-=", _OP_MINUS_EQUALS_},               {"--", _OP_SUBTRACT_ONE_},
+    {"+=", _OP_PLUS_EQUALS_},                {"++", _OP_ADD_ONE_},
+    {"/=", _OP_DIVIDE_EQUALS_},              {"*=", _OP_MULTIPLY_EQUALS_},
+    {"!=", _OP_NOT_EQUALS_CONDITION_},       {"==", _OP_EQUALS_CONDITION_},
+    {"<", _OP_SMALLER_CONDITION_},           {">", _OP_GREATER_CONDITION_},
+    {">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_},
+};
+
+struct kwLookup KEYWORD_LOOKUP[] = {
+    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
+    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
+    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
+    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
+    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
+    {"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
+    {"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
+    {"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
+    {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
+    {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
+    {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
+    {"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},
+    {"long", _KW_LONG_},           {"constructor", _KW_CONSTRUCTOR_}
+};
 
 /**
  * <p>
@@ -100,20 +159,6 @@ size_t maxTokensLength = 0;
  * </p>
  */
 int tokensreserved = 0;
-
-/**
- * <p>
- * A structure for a keyword lookup table.
- * </p>
- * <p>
- * The kwName holds the string, that indicates the keyword.
- * The kwValue holds the corresponding TOKENTYPES
- * </p>
- */
-struct kwLookup {
-    char kwName[12];
-    TOKENTYPES kwValue;
-};
 
 /**
  * <p>
@@ -288,16 +333,17 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
             // Figure out whether the input is a double operator like "++" or "--" or not
             } else if ((int)LX_check_for_double_operator((*input)[i], (*input)[i + 1])) {
                 TOKENS[storagePointer].tokenStart = i;
-                i += (int)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);   
+                (void)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);   
                 (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-                TOKENS[storagePointer].tokenStart = i;
+                TOKENS[storagePointer].tokenStart = ++i;
                 storagePointer++;
                 storageIndex = 0;
                 continue;
             }
             //If non if the above is approved, the input gets processed as a 'normal' Operator
             TOKENS[storagePointer].tokenStart = i;
-            storagePointer += (int)LX_write_default_operator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
+            (void)LX_write_default_operator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
+            storagePointer++;
             storageIndex = 0;
             continue;
         } else {
@@ -791,14 +837,21 @@ void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar,
     }
 }
 
-/*
-Purpose: Write the double operator into the current token
-Return Type: int
-Params: TOKEN *token => Current token;
-        const char currentChar => Current input char;
-        const char nextChar => Next char in the input
-*/
-int LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar) {
+/**
+ * <p>
+ * Writes a double operator into the provided token.
+ * </p>
+ * 
+ * <p>
+ * As a double operator any operation that contains two
+ * normal operators is count. (e.g. "+=", "--", "/=", ...)
+ * </p>
+ * 
+ * @param *token        Token to write into
+ * @param currentChar   First char of the double operator
+ * @param nextChar      Second char of the double operator
+ */
+void LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar) {
     if (token != NULL && token->value != NULL) {
         token->value[0] = currentChar;
         token->value[1] = nextChar;
@@ -806,18 +859,23 @@ int LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextC
 
         token->type = (TOKENTYPES)LX_fill_condition_type(token->value);
     }
-
-    return 1;
 }
 
-/*
-Purpose: Write the operator into the current token
-Return Type: int
-Params: TOKEN *token => Current token; 
-        char currentChar => Operator character;
-        size_t lineNumber => Line number of the current token;
-*/
-int LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber) {
+/**
+ * <p>
+ * This function writes a single operator into the provided token.
+ * </p>
+ * 
+ * <p>
+ * A normal operator is defined as the standard operators that are
+ * not followed by another operator. (e.g. "+", "/", "*", ...)
+ * </p>
+ * 
+ * @param *token        Token to write into
+ * @param currentChar   Character / operator to write
+ * @param lineNumber    Line of the token
+ */
+void LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber) {
     if (token != NULL && token->value != NULL) {
         token->value[0] = currentChar;
         token->value[1] = '\0';
@@ -825,15 +883,19 @@ int LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t li
 
         token->type = (TOKENTYPES)LX_fill_operator_type(token->value);
     }
-
-    return 1;
 }
 
-/*
-Purpose: Writes the EOF token into the current token
-Return Type: void
-Params: TOKEN *token => Current token which should be the EOF token
-*/
+/**
+ * <p>
+ * Writes the SPACE EOF token into the provided token.
+ * </p>
+ * 
+ * <p>
+ * The EOF token indicates the end of the source file.
+ * </p>
+ * 
+ * @param *token    Token to write the EOF indicator into
+ */
 void LX_set_EOF_token(TOKEN *token) {
     if (token != NULL) {
         char *src = "$EOF$\0";
@@ -853,11 +915,13 @@ void LX_set_EOF_token(TOKEN *token) {
     }
 }
 
-/*
-Purpose: Set the keyword type to the current token
-Return Type: void
-Params: TOKEN *token => Token to set its token type
-*/
+/**
+ * <p>
+ * Sets the according keyword to the token.
+ * </p>
+ * 
+ * @param *token    Token to set the keyword in
+ */
 void LX_set_keyword_type_to_token(TOKEN *token) {
     if (token == NULL) {
         (void)LEXER_TOKEN_ERROR_EXCEPTION();
@@ -873,11 +937,19 @@ void LX_set_keyword_type_to_token(TOKEN *token) {
     }
 }
 
-/*
-Purpose: Check whether the input is a digit or not
-Return Type: int => 1 = true; 0 = false;
-Params: TOKEN *token => Token to check its value
-*/
+/**
+ * <p>
+ * Checks if a token is a number or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Token is a number
+ * <li>false - Token in not a number
+ * </ul>
+ * 
+ * @param *token    Token to check
+ */
 int LX_check_for_number(TOKEN *token) {
     if (token == NULL) {
         (void)LEXER_TOKEN_ERROR_EXCEPTION();
@@ -891,42 +963,42 @@ int LX_check_for_number(TOKEN *token) {
     return 0;
 }
 
-/*
-Purpose: Fill in the single character operators if they are an operator
-Return Type: TOKENTYPES => Type of the operator (f.e. _OP_NOT_ for '!')
-Params: char *value => Character array to check for
-*/
+/**
+ * <p>
+ * Returns the according operator type, that matches the input.
+ * </p>
+ * 
+ * <p>
+ * If the input would be "*" for instance, the returned result
+ * would look like this: _OP_MULTIPLY_.
+ * </p>
+ * 
+ * @returns The converted TOKENTYPES
+ * 
+ * @param *value    Value to convert
+ */
 TOKENTYPES LX_fill_operator_type(char *value) {
-    struct symbol {
-        char symbol;
-        TOKENTYPES rep;
-    };
-    
-    struct symbol lookup[] = {
-        {'%', _OP_MODULU_},             {'!', _OP_NOT_},                {'(', _OP_RIGHT_BRACKET_},
-        {')', _OP_LEFT_BRACKET_},       {'{', _OP_RIGHT_BRACE_},        {'}', _OP_LEFT_BRACE_},
-        {'[', _OP_RIGHT_EDGE_BRACKET_}, {']', _OP_LEFT_EDGE_BRACKET_},  {'$', _OP_OVERWRITE_},
-        {'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
-        {'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
-        {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {':', _OP_COLON_},
-        {'?', _OP_QUESTION_MARK_}
-    };
+    int length = (sizeof(OPERATOR_LOOKUP) / sizeof(OPERATOR_LOOKUP[0]));
 
-    for (int i = 0; i < (sizeof(lookup) / sizeof(lookup[0])); i++) {
+    for (int i = 0; i < length; i++) {
         // If match is found check if it is a double operator
-        if ((char*)strchr(value, lookup[i].symbol) != NULL) {
-            if (lookup[i].rep == _OP_EQUALS_ || lookup[i].rep == _OP_NOT_
-                || lookup[i].rep == _OP_PLUS_ || lookup[i].rep == _OP_MINUS_
-                || lookup[i].rep == _OP_DIVIDE_ || lookup[i].rep == _OP_MULTIPLY_) {
-
+        if ((char*)strchr(value, OPERATOR_LOOKUP[i].symbol) != NULL) {
+            switch (OPERATOR_LOOKUP[i].rep) {
+            case _OP_EQUALS_:
+            case _OP_PLUS_:
+            case _OP_NOT_:
+            case _OP_MINUS_:
+            case _OP_DIVIDE_:
+            case _OP_MULTIPLY_: {
                 TOKENTYPES possibleCondition = (TOKENTYPES)LX_fill_condition_type(value);
 
                 if (possibleCondition != _IDENTIFIER_) {
                     return possibleCondition;
                 }
             }
-
-            return lookup[i].rep;
+            default:
+                return OPERATOR_LOOKUP[i].rep;
+            }
         }
     }
 
@@ -940,45 +1012,51 @@ TOKENTYPES LX_fill_operator_type(char *value) {
     return alternativeReturnType;
 }
 
-/*
-Purpose: Check if the input is a double operator and if, fill in the type of it
-Return Type: TOKENTYPES => Type of the double operator (f.e. _OP_EQUALS_CONDITION_ for '==')
-Params: char *value => Character array to check for double operators
-*/
+/**
+ * <p>
+ * Returns the according double operator type, that matches the input.
+ * </p>
+ * 
+ * <p>
+ * If the input would be "*=" for instance, the returned result
+ * would look like this: _OP_MULTIPLY_EQUALS_.
+ * </p>
+ * 
+ * @returns The converted TOKENTYPES
+ * 
+ * @param *value    Value to convert
+ */
 TOKENTYPES LX_fill_condition_type(char *value) {
     if (value == NULL) {
         return _UNDEF_;
     }
-    
-    struct sequence {
-        char seq[3];
-        TOKENTYPES rep;
-    };
 
-    struct sequence lookup[] = {
-        {"-=", _OP_MINUS_EQUALS_},               {"--", _OP_SUBTRACT_ONE_},
-        {"+=", _OP_PLUS_EQUALS_},                {"++", _OP_ADD_ONE_},
-        {"/=", _OP_DIVIDE_EQUALS_},              {"*=", _OP_MULTIPLY_EQUALS_},
-        {"!=", _OP_NOT_EQUALS_CONDITION_},       {"==", _OP_EQUALS_CONDITION_},
-        {"<", _OP_SMALLER_CONDITION_},           {">", _OP_GREATER_CONDITION_},
-        {">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_},
-    };
+    int length = (sizeof(DOUBLE_OPERATOR_LOOKUP) / sizeof(DOUBLE_OPERATOR_LOOKUP[0]));
 
-    for (int i = 0; i < (sizeof(lookup) / sizeof(lookup[0])); i++) {
+    for (int i = 0; i < length; i++) {
         // Compare the input with the lookup
-        if ((char*)strstr(value, lookup[i].seq) != NULL) {
-            return lookup[i].rep;
+        if ((char*)strstr(value, DOUBLE_OPERATOR_LOOKUP[i].seq) != NULL) {
+            return DOUBLE_OPERATOR_LOOKUP[i].rep;
         }
     }
 
     return _IDENTIFIER_;
 }
 
-/*
-Purpose: Free the allocated token array
-Return Type: int => 1 = sucessfully freed
-Params: TOKEN *tokens => Array to be freed
-*/
+/**
+ * <p>
+ * Frees the allocated memory.
+ * </p>
+ * 
+ * <p>
+ * If the tokens are not initialized before the function
+ * just returns.
+ * </p>
+ * 
+ * @returns 1, when the function has run
+ * 
+ * @param *tokens   Token to free
+ */
 int FREE_TOKENS(TOKEN *tokens) {
     if (tokensreserved == 1 && tokens != NULL) {
         for (int i = 0; i < maxTokensLength; i++) {
@@ -996,12 +1074,21 @@ int FREE_TOKENS(TOKEN *tokens) {
     return 1;
 }
 
-/*
-Purpose: Check if the input at the position currentSymbolIndex is a double operator or not
-Return Type: int => 1 = true; 0 = false;
-Params: char currentChar => Current input char;
-        char nextChar => Following char after currentChar
-*/
+/**
+ * <p>
+ * Checks if the input at the currentSymbolIndex and
+ * currentSymbolIndex + 1 is a double operator or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - If the input is a double operator
+ * <li>false - If the input is not a double operator
+ * </ul>
+ * 
+ * @param currentChar   First char of the possible double operator
+ * @param nextChar      Second char of the possible double operator
+ */
 int LX_check_for_double_operator(char currentChar, char nextChar) {
     if ((currentChar == '+' && nextChar == '+')
         || (currentChar == '-' && nextChar == '-')) {
@@ -1020,11 +1107,14 @@ int LX_check_for_double_operator(char currentChar, char nextChar) {
     }
 }
 
-/*
-Purpose: Prints out the values of the token array
-Return Type: void
-Params: TOKEN *tokens => Token array to be printed; int currentTokenIndex => size of the token array
-*/
+/**
+ * <p><strong>DEBUG ONLY!</strong>
+ * This function prints the details of the lexer for the DEBUG_MODE = 1.
+ * </p>
+ * 
+ * @param *tokens               Tokens to print
+ * @param currentTokenIndex     Size of the token array
+ */
 void LX_print_result(TOKEN *tokens, size_t currenTokenIndex) {
     if (tokens != NULL) {
         (void)printf("\n>>>>>>>>>>>>>>>>>>>>    LEXER    <<<<<<<<<<<<<<<<<<<<\n\n");
@@ -1042,46 +1132,43 @@ void LX_print_result(TOKEN *tokens, size_t currenTokenIndex) {
     }
 }
 
-/*
-Purpose: Returns the keyword type based on the passed value
-Return Type: TOKENTYPES => Keyword in TOKENTYPES enum
-Params: char *value => Value to be scanned for keyword
-*/
-struct kwLookup KeywordTable[] = {
-    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
-    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
-    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
-    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
-    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
-    {"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
-    {"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
-    {"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
-    {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
-    {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
-    {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
-    {"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},
-    {"long", _KW_LONG_},           {"constructor", _KW_CONSTRUCTOR_}
-};
-
+/**
+ * <p>
+ * Returns the according keyword type, that matches the input.
+ * </p>
+ * 
+ * <p>
+ * If the input would be "var" for instance, the returned result
+ * would look like this: _KW_VAR_.
+ * </p>
+ * 
+ * @returns The converted TOKENTYPES
+ * 
+ * @param *value    Value to convert
+ */
 TOKENTYPES LX_get_keyword_type(const char *value) {
     if (value == NULL || (int)is_empty_string(value) == 1) {
         return _UNDEF_;
     }
+
+    int length = (sizeof(KEYWORD_LOOKUP) / sizeof(KEYWORD_LOOKUP[0]));
     
-    for (int i = 0; i < (sizeof(KeywordTable) / sizeof(KeywordTable[0])); i++) {
-        if ((int)strcmp(value, KeywordTable[i].kwName) == 0) {
-            return KeywordTable[i].kwValue;
+    for (int i = 0; i < length; i++) {
+        if ((int)strcmp(value, KEYWORD_LOOKUP[i].kwName) == 0) {
+            return KEYWORD_LOOKUP[i].kwValue;
         }
     }
 
     return _IDENTIFIER_;
 }
 
-/*
-Purpose: Print the used CPU time
-Return Type: void
-Params: float cpu_time_used => Time to be printed
-*/
+/**
+ * <p><strong>DEBUG ONLY!</strong>
+ * Prints out the totaly used time in seconds.
+ * </p>
+ * 
+ * @param cpu_time_used     CPU time that was used to run the lexer module
+ */
 void LX_print_cpu_time(float cpu_time_used) {
     (void)printf("\nCPU time used for LEXING: %f seconds\n", cpu_time_used);
 }
