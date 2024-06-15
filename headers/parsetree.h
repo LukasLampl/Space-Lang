@@ -19,8 +19,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef SPACE_PARSETREE_H_
-#define SPACE_PARSETREE_H_
+#ifndef SPACE_PARSETREE_GENERATOR_H_
+#define SPACE_PARSETREE_GENERATOR_H_
 
 #include "../headers/Token.h"
 
@@ -66,11 +66,6 @@ struct Node {
 
     struct Node *leftNode;
     struct Node *rightNode;
-};
-
-struct RootNode {
-    size_t nodeCount;
-    struct Node **nodes;
 };
 
 #endif

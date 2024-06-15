@@ -11,6 +11,7 @@ For more details:
 - [Input module](/docs/input.md)
 - [Lexer module](/docs/lexer.md)
 - [Parsetree generator module](/docs/parsetreeGenerator.md)
+- [Hashmap](/docs/hashmap.md)
 
 # Table of contents #
 1. Requirements

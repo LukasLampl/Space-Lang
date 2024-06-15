@@ -33,6 +33,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 TOKEN *TokenCache = NULL;
 char *BufferCache = NULL;
 int *arrayOfIndividualTokenSizesCache = NULL;
+struct Node *rootNode = NULL;
 
 /*
 Purpose: Initialize the token array, so it can be freed at an error
@@ -61,6 +62,9 @@ void _init_error_token_size_cache_(int **arrayOfIndividualTokenSizes) {
     arrayOfIndividualTokenSizesCache = (*arrayOfIndividualTokenSizes);
 }
 
+void _init_error_tree_cache_(struct Node **root) {
+    rootNode = (*root);
+}
 /*
 Purpose: Throw an IO exception
 Return Type: void
@@ -457,7 +461,7 @@ int FREE_MEMORY() {
     free += (int)FREE_BUFFER(BufferCache);
     free += (int)FREE_TOKENS(TokenCache);
     free += (int)FREE_TOKEN_LENGTHS(arrayOfIndividualTokenSizesCache);
-    free += (int)FREE_NODES();
+    free += (int)FREE_NODE(rootNode);
 
     if (free == 4) {
         (void)printf("\n\n\nProgram exited successful\n");

@@ -79,7 +79,7 @@ static const float SCALE_FACTOR = 1.6f;
 
 ///// PROTOTYPES /////
 
-struct HashMapEntry *HM_create_new_entry(char *key, char *value);
+struct HashMapEntry *HM_create_new_entry(char *key, void *value);
 void HM_add_internal_entry(struct HashMapEntry *entry, struct HashMap *map);
 void HM_add_entry_to_linked_list(struct HashMapEntry *entry, struct HashMap *map, int index);
 int HM_get_position_based_on_hash(char *key, int capacity);
@@ -105,7 +105,7 @@ struct HashMap *CreateNewHashMap(int initCapacity) {
     return map;
 }
 
-void print_map(struct HashMap *map, int withList) {
+void HM_print_map(struct HashMap *map, int withList) {
     if (map == NULL) {
         return;
     }
@@ -174,7 +174,7 @@ void print_map(struct HashMap *map, int withList) {
  * @param *value    Value of the entry
  * @param *map      HashMap to add the entry to
  */
-void HM_add_entry(char *key, char *value, struct HashMap *map) {
+void HM_add_entry(char *key, void *value, struct HashMap *map) {
     struct HashMapEntry *entry = HM_create_new_entry(key, value);
     (void)HM_add_internal_entry(entry, map);
 }
@@ -258,27 +258,16 @@ void HM_add_entry_to_linked_list(struct HashMapEntry *entry, struct HashMap *map
  * @param *key      Key of the entry
  * @param *value    Value of the entry
  */
-struct HashMapEntry *HM_create_new_entry(char *key, char *value) {
+struct HashMapEntry *HM_create_new_entry(char *key, void *value) {
     struct HashMapEntry *entry = (struct HashMapEntry*)calloc(1, sizeof(struct HashMapEntry));
     
     if (entry == NULL) {
         printf("Couldn't allocate space for entry!\n");
         return NULL;
     }
-    
-    size_t keyLength = (size_t)strlen(key);
-    size_t valueLength = (size_t)strlen(value);
 
-    entry->key = (char*)calloc(keyLength + 1, sizeof(char));
-    entry->value = (char*)calloc(valueLength + 1, sizeof(char));
-
-    if (entry->key == NULL || entry->value == NULL) {
-        printf("Couldn't allocate space for entry key or value!\n");
-        return NULL;
-    }
-
-    (void)strncpy(entry->key, key, keyLength);
-    (void)strncpy(entry->value, value, valueLength);
+    entry->key = key;
+    entry->value = value;
     return entry;
 }
 
@@ -314,7 +303,6 @@ void HM_handle_load(struct HashMap *map) {
  */
 struct HashMapEntry *HM_get_entry(char *key, struct HashMap *map) {
     if (key == NULL || map == NULL) {
-        printf("No map or key to search!\n");
         return NULL;
     }
     

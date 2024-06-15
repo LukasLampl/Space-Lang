@@ -61,9 +61,10 @@ struct InputReaderResults ProcessInput(char *path);
 TOKEN *Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName);
 
 //Parse
-int Generate_Parsetree(TOKEN **tokens, size_t TokenLength);
+struct Node *GenerateParsetree(TOKEN **tokens, size_t TokenLength);
 
 //int Check_syntax(TOKEN **tokens, size_t tokenArrayLength, char **buffer, size_t bufferSize);
 int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize, char *sourceName);
+int CheckSemantic(struct Node *root);
 
 #endif

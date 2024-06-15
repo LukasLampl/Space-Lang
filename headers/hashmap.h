@@ -62,8 +62,8 @@ struct HashMap {
 struct HashMap *CreateNewHashMap(int initCapacity);
 
 //Internal functions
-void print_map(struct HashMap *map, int withList);
-void HM_add_entry(char *key, char *value, struct HashMap *map);
+void HM_print_map(struct HashMap *map, int withList);
+void HM_add_entry(char *key, void *value, struct HashMap *map);
 struct HashMapEntry *HM_get_entry(char *key, struct HashMap *map);
 void HM_remove_entry(struct HashMapEntry *entry, struct HashMap *map);
 int HM_contains_entry(struct HashMapEntry *entry, struct HashMap *map);

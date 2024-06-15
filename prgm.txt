@@ -1,5 +1,1 @@
-var counter = 0;
-
-do {
-    counter++;
-} while (counter < 2);
+var:short z = 0;

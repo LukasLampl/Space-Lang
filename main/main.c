@@ -60,8 +60,16 @@ int main() {
     /////////////////////////////////////////
     ///////     GENERATE PARSETREE     //////
     /////////////////////////////////////////
-    if (containsSyntaxErrors == 0) {
-        (int)Generate_Parsetree(&tokens, requiredTokenNumber);
+    if (containsSyntaxErrors != 0) {
+        return -1;
+    }
+
+    struct Node *root = GenerateParsetree(&tokens, requiredTokenNumber);
+
+    int containsSemanticErrors = (int)CheckSemantic(root);
+
+    if (containsSemanticErrors != 0) {
+        return -1;
     }
 
     (void)FREE_MEMORY();

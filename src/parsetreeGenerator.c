@@ -147,7 +147,6 @@ enum processDirection {
 ///// FUNCTIONS PROTOTYPES /////
 
 void PG_print_cpu_time(float cpu_time_used);
-void PG_append_node_to_root_node(struct Node *node);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 int PG_predict_function_call(TOKEN **tokens, size_t startPos);
@@ -227,15 +226,7 @@ struct Node *PG_create_node(char *value, enum NodeType type, int line, int pos);
 NodeReport PG_create_node_report(struct Node *topNode, int tokensToSkip);
 void PG_allocate_node_details(struct Node *node, size_t size, int resize);
 void PG_print_from_top_node(struct Node *topNode, int depth, int pos);
-int FREE_NODES();
-void FREE_NODE(struct Node *node);
-
-/**
- * <p>
- * This variable is the root of the total parsetree.
- * </p>
-*/
-struct RootNode RootNode;
+int FREE_NODE(struct Node *node);
 
 /**
  * <p>
@@ -252,7 +243,7 @@ size_t TOKENLENGTH = 0;
  * @param **tokens  Pointer to the token array
  * @param TokenLength   Length of the token array
 */
-int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
+struct Node *GenerateParsetree(TOKEN **tokens, size_t TokenLength) {
     TOKENLENGTH = TokenLength;
 
     (void)printf("\n\n\n>>>>>>>>>>>>>>>>>>>>    PARSETREE    <<<<<<<<<<<<<<<<<<<<\n\n");
@@ -261,7 +252,6 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
         (void)PARSER_TOKEN_TRANSMISSION_EXCEPTION();
     }
 
-    RootNode.nodeCount = 0;
     printf("TOKENLENGTH: %li\n", TokenLength);
 
     // CLOCK FOR DEBUG PURPOSES ONLY!!
@@ -296,7 +286,7 @@ int Generate_Parsetree(TOKEN **tokens, size_t TokenLength) {
 
     (void)printf("\n\n\n>>>>>    Tokens converted to tree    <<<<<\n\n");
 
-    return 1;
+    return runnable.node;
 }
 
 /**
@@ -3623,47 +3613,15 @@ NodeReport PG_create_node_report(struct Node *topNode, int tokensToSkip) {
 }
 
 /**
- * @brief Appends a Node to the RootNode.
+ * <p>
+ * Frees all nodes recursively.
+ * </p>
  * 
- * @param *node Pointer to the node to append
+ * @returns 1 if it reaches the end
  * 
- * @throws PARSE_TREE_NODE_RESERVATION_EXCEPTION    When the nodes of the RootNode is NULL
-*/
-void PG_append_node_to_root_node(struct Node *node) {
-    RootNode.nodeCount++;
-    RootNode.nodes = realloc(RootNode.nodes, sizeof(struct Node) * (RootNode.nodeCount + 1));
-
-    if (RootNode.nodes == NULL) {
-        (void)PARSE_TREE_NODE_RESERVATION_EXCEPTION();
-    }
-
-    RootNode.nodes[RootNode.nodeCount] = node;
-}
-
-/*
-Purpose: Free all nodes from the RootNode
-ReturnType: int => Return 1 on finish
-Params: void
-*/
-int FREE_NODES() {
-    for (size_t i = 0; i < RootNode.nodeCount; i++) {
-        (void)FREE_NODE(RootNode.nodes[i]);
-        RootNode.nodes[i] = NULL;
-    }
-
-    if (RootNode.nodes != NULL) {
-        free(RootNode.nodes);
-    }
-
-    return 1;
-}
-
-/*
-Purpose: Free all nodes from the parent Node
-ReturnType: void
-Params: struct Node *node => Node to be freed
-*/
-void FREE_NODE(struct Node *node) {
+ * @param *node     Topnode to free
+ */
+int FREE_NODE(struct Node *node) {
     if (node != NULL) {
         FREE_NODE(node->leftNode);
         FREE_NODE(node->rightNode);
@@ -3678,4 +3636,6 @@ void FREE_NODE(struct Node *node) {
         free(node);
         node = NULL;
     }
+
+    return true;
 }

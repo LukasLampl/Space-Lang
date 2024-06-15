@@ -33,6 +33,7 @@ int FREE_MEMORY();
 void _init_error_token_cache_(TOKEN **tokens);
 void _init_error_buffer_cache_(char **buffer);
 void _init_error_token_size_cache_(int **arrayOfIndividualTokenSizes);
+void _init_error_tree_cache_(struct Node **root);
 
 void IO_FILE_EXCEPTION(char *Source, char *file);
 void IO_BUFFER_EXCEPTION(char *Step);
@@ -57,6 +58,6 @@ void SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
 int FREE_BUFFER(char *buffer);
 int FREE_TOKENS(TOKEN *tokens);
 int FREE_TOKEN_LENGTHS(int *arrayOfIndividualTokenSizes);
-int FREE_NODES();
+int FREE_NODE(struct Node *root);
 
 #endif  // SPACE_ERRORS_H_
