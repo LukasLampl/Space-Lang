@@ -43,6 +43,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  * Total Collisions:        78'050'943
  * Resizings:               30 (150 initial capacity)
  * 
+ * @see SPACE/docs/hashmap.md
+ * 
  * @version 1.0     15.06.2024
  * @author Lukas Nian En Lampl
 */
