@@ -29,8 +29,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "../headers/Token.h"
 
 /** 
- * The subprogram {@code SPACE/src/lexer.} was created
- * to provide a lxecal analysis module for the SPACE language.
+ * The subprogram {@code SPACE/src/lexer.c} was created
+ * to provide a lexical analysis module for the SPACE language.
  * The lexer can handle around 1.3 million tokens in 0.313 seconds
  * on an intel i7 - 7700 HQ (Around 5 million characters).
  * 

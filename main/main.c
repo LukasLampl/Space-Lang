@@ -20,7 +20,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include <stdio.h>
 #include "../headers/modules.h"
+#include "../headers/hashmap.h"
 #include "../headers/errors.h"
+
+#include <time.h>
+#include <stdlib.h>
 
 int main() {
     (void)printf("SPACE-Language compiler [Version 0.0.1 - Alpha]\n");
