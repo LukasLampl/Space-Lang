@@ -1,1 +1,6 @@
-var:short z = 0;
+private function:int add(param1, param2:int) {
+    var innerVar = "Test";
+}
+
+var z = 10;
+var x = z;

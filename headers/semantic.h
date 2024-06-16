@@ -30,6 +30,9 @@ enum Visibility {
 
 enum VarType {
     INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING,
+    
+    null,
+    
     INTEGER_ARR, LONG_ARR, SHORT_ARR, DOUBLE_ARR, FLOAT_ARR,
     CHAR_ARR, BOOLEAN_ARR,
 
@@ -37,7 +40,8 @@ enum VarType {
 };
 
 enum ScopeType {
-    MAIN, FUNCTION, CLASS, IF, CHECK, IS, FOR, WHILE, DO
+    MAIN, FUNCTION, CLASS, IF, CHECK, IS, FOR, WHILE, DO,
+    VARIABLE, FUNCTION_CALL
 };
 
 struct SemanticEntry {
@@ -45,6 +49,7 @@ struct SemanticEntry {
     char *value;
     enum VarType type;
     enum Visibility visibility;
+    enum ScopeType internalType;
     void *reference;
 };
 

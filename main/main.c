@@ -55,14 +55,14 @@ int main() {
     ////////////////////////////////////////
 
     //0 = no errors, 1 = with errors
-    int containsSyntaxErrors = (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength, fileName);
+    /*int containsSyntaxErrors = (int)CheckInput(&tokens, requiredTokenNumber, &buffer, fileLength, fileName);
 
     /////////////////////////////////////////
     ///////     GENERATE PARSETREE     //////
     /////////////////////////////////////////
     if (containsSyntaxErrors != 0) {
         return -1;
-    }
+    }*/
 
     struct Node *root = GenerateParsetree(&tokens, requiredTokenNumber);
 
