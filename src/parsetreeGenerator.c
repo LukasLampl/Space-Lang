@@ -212,6 +212,7 @@ int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
 int PG_is_next_operator_multiply_divide_or_modulo(TOKEN **tokens, size_t startPos);
 int PG_is_next_iden_a_member_access(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int useOptionalTyping);
+int PG_handle_member_access_brackets(TOKEN *currentToken, int *openBrackets, int *openEdgeBrackets);
 struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos);
 int PG_is_function_call(TOKEN **tokens, size_t startPos);
 NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, enum processDirection direction, int useOptionalTyping);
@@ -3171,8 +3172,11 @@ Params: TOKEN **tokens => Pointer to the tokens array;
         size_t startPos => Position from where to start constructing
 */
 NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int useOptionalTyping) {
+    struct Node *topNode = NULL;
     struct Node *cache = NULL;
     size_t skip = 0;
+    int openBrackets = 0;
+    int openEdgeBrackets = 0;
 
     while (startPos + skip < TOKENLENGTH) {
         TOKEN *currentToken = &(*tokens)[startPos + skip];
@@ -3184,28 +3188,32 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
         if (currentToken->type == _OP_DOT_
             || currentToken->type == _OP_CLASS_ACCESSOR_) {
             enum NodeType type = currentToken->type == _OP_DOT_ ? _MEMBER_ACCESS_NODE_ : _CLASS_ACCESS_NODE_;
-            struct Node *topNode = PG_create_node(currentToken->value, type, currentToken->line, currentToken->tokenStart);
+            struct Node *tempNode = PG_create_node(currentToken->value, type, currentToken->line, currentToken->tokenStart);
+            NodeReport val = {NULL, -1};
 
-            if (cache == NULL) {
-                NodeReport lVal = PG_get_member_access_side_node_tree(tokens, startPos + skip, LEFT, useOptionalTyping);
-                topNode->leftNode = lVal.node;
+            if (topNode == NULL) {
+                val = PG_get_member_access_side_node_tree(tokens, startPos + skip, LEFT, useOptionalTyping);
+                topNode = tempNode;
+            } else {
+                val = PG_get_member_access_side_node_tree(tokens, startPos + skip, RIGHT, useOptionalTyping);
+                skip += val.tokensToSkip;
+                cache->rightNode = tempNode;
             }
 
-            NodeReport rVal = PG_get_member_access_side_node_tree(tokens, startPos + skip, RIGHT, useOptionalTyping);
-            topNode->rightNode = rVal.node;
-            topNode->leftNode = cache == NULL ? topNode->leftNode : cache;
-            skip += rVal.tokensToSkip;
-            cache = topNode;
+            tempNode->leftNode = val.node;
+            cache = tempNode;
             continue;
         } else if ((int)PG_is_operator(currentToken) == true) {
-            if (cache == NULL
-                && (currentToken->type == _OP_LEFT_BRACKET_
-                || currentToken->type == _OP_RIGHT_BRACKET_
-                || currentToken->type == _OP_LEFT_EDGE_BRACKET_
-                || currentToken->type == _OP_RIGHT_EDGE_BRACKET_)) {
-                    skip++;
-                    continue;
+            if (topNode == NULL) {
+                int handledBrackets = (int)PG_handle_member_access_brackets(currentToken, &openBrackets, &openEdgeBrackets);
+                
+                if (handledBrackets == -1) {
+                    break;
                 }
+
+                skip++;
+                continue;
+            }
 
             break;
         } else if (currentToken->type == _IDENTIFIER_
@@ -3216,13 +3224,69 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
         skip++;
     }
 
-    if (cache == NULL) {
+    if (topNode == NULL) {
         NodeReport rVal = PG_get_member_access_side_node_tree(tokens, startPos, STAY, useOptionalTyping);
-        cache = rVal.node;
+        topNode = rVal.node;
         skip = rVal.tokensToSkip;
+    } else {
+        topNode->type = _MEM_CLASS_ACC_NODE_;
+        topNode->value = "MEMCLASSACC";
     }
 
-    return PG_create_node_report(cache, skip);
+    return PG_create_node_report(topNode, skip);
+}
+
+/**
+ * <p>
+ * This function limits the boundaries of a member access tree.
+ * </p>
+ * 
+ * <p>
+ * It essentially checks if the current token is an operator or not
+ * and based on that calculates the current state.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>0 - Nothing to do
+ * <li>-1 - Break the member access loop
+ * </ul>
+ * 
+ * @param *currentToken         Current token in the tree build process
+ * @param *openBrackets         Pointer to the openBrackets counter
+ * @param *openEdgeBrackets     Pointer to the openEdgeBrackets counter
+ */
+int PG_handle_member_access_brackets(TOKEN *currentToken, int *openBrackets, int *openEdgeBrackets) {
+    switch (currentToken->type) {
+    case _OP_LEFT_BRACKET_:
+        (*openBrackets)--;
+
+        if ((*openBrackets) < 0) {
+            return -1;
+        }
+
+        break;
+    case _OP_RIGHT_BRACKET_:
+        (*openBrackets)++;
+        break;
+    case _OP_LEFT_EDGE_BRACKET_:
+        (*openEdgeBrackets)--;
+
+        if ((*openEdgeBrackets) < 0) {
+            return -1;
+        }
+
+        break;
+    case _OP_RIGHT_EDGE_BRACKET_:
+        (*openEdgeBrackets)++;
+        break;
+    case _OP_SEMICOLON_:
+        return -1;
+    default:
+        return 0;
+    }
+
+    return 0;
 }
 
 NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, enum processDirection direction, int useOptionalTyping) {

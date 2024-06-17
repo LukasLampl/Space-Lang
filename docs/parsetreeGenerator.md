@@ -48,7 +48,7 @@ Now for the prediction we just have to look for dissimilarities and the first is
 The conversion to a tree is an important step, since all scopes are getting visible and tokens, that are unnecessary are thrown out.
 
 ### 2. Tree Layouts ###
-#### 2.1. Member access tree ###
+### 2.1. Member access tree ###
 A member access tree is responsible for representing identifiers, function calls within them and array accesses. The memeber access is preditable by the '.' and '->' operator. Recursion on the value branches is allowed.
 
 ```
@@ -68,7 +68,7 @@ image.getPixel(x, y)
 myVariable
 ```
 
-#### 2.2. Variable tree ####
+### 2.2. Variable tree ###
 ##### 2.2.1. Normal Variable #####
 The term normal variable is defined as a variable that is directly assigned to a value or terminated without a value.
 
@@ -157,7 +157,7 @@ var object = new Object();
 var cube = new _3DShape(_CUBE_)
 ```
 
-#### 2.3. Chained Condition tree ####
+### 2.3. Chained Condition tree ###
 A normal condition can always be represented using true and false. A chained condition is essentially a condition bound with an 'and' or 'or' operator.
 
 *All operators have their own precedence:*
@@ -191,7 +191,7 @@ A normal condition can always be represented using true and false. A chained con
 [rCond]     := Right condition
 ```
 
-#### 2.4. Term tree ####
+### 2.4. Term tree ###
 In SPACE every expression containing either a '+', '-', '*' or '/' counts as an simple term. Recursion is totally allowed. Since mulitpication and division has a higher precedence than plus and minus, there is a predence table too:
 
 |       | **+** | **-** | **\*** | **/** | **(** | **)** |
@@ -220,7 +220,7 @@ Example:
 3.14159 * r * r * h
 ```
 
-#### 2.5. Fuction tree ####
+### 2.5. Fuction tree ###
 A function comes in handy, when a code section should be either abstracted or made adaptive. The advantage is, that it can be called whenever needed and then executes the block code inside of it.
 
 ```
@@ -241,7 +241,7 @@ Example:
 function pow(num, exp) {}
 ```
 
-#### 2.6. Enum tree ####
+### 2.6. Enum tree ###
 Imagine you're developing a piece of software, that indicates the direction of a conveyor belt. the easiest and most intuitive way would be to say "0 = Left, 1 = Stay, 2 = Right", even though you might find it readable, others don't have to and that's where the enums add their functionality.
 
 ```
@@ -265,7 +265,7 @@ enum DIRECTION {
 }
 ```
 
-#### 2.7. Include / Export tree ####
+### 2.7. Include / Export tree ###
 The include statement is to define the externally used packages, while the export statement is responsible for making a package available to the outside world.
 
 ```
@@ -280,7 +280,7 @@ The include statement is to define the externally used packages, while the expor
 [EXPORT]   := Export with the package / path name
 ```
 
-#### 2.8. Try-catch tree ####
+### 2.8. Try-catch tree ###
 The try catch is essentially useful for code blocks that might throw an error.
 
 ```
@@ -301,7 +301,7 @@ The try catch is essentially useful for code blocks that might throw an error.
 [R]         := Runnable of the catch statement
 ```
 
-#### 2.9. Class tree ####
+### 2.9. Class tree ###
 Classes are an important part, allowing OOP in SPACE. Those have the ability to inherit and implement interfaces.
 
 ```

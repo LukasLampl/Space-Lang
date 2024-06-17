@@ -1,6 +1,6 @@
-private function:int add(param1, param2:int) {
-    var innerVar = "Test";
+class Book => {
+    var page = 2;
+    var:int x = 0;
 }
 
-var z = 10;
-var x = z;
+var:int a = Book->x;

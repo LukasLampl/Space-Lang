@@ -31,7 +31,7 @@ enum Visibility {
 enum VarType {
     INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING,
     
-    null,
+    null, EXT_CLASS_OR_INTERFACE,
     
     INTEGER_ARR, LONG_ARR, SHORT_ARR, DOUBLE_ARR, FLOAT_ARR,
     CHAR_ARR, BOOLEAN_ARR,
@@ -58,6 +58,7 @@ struct SemanticTable {
     struct HashMap *symbolTable;
     struct SemanticTable *parent;
     enum ScopeType type;
+    char *name;
 };
 
 #endif
