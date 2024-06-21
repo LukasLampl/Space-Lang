@@ -1,6 +1,5 @@
-class Book => {
-    var page = 2;
-    var:int x = 0;
-}
+function move(param:double) {}
+function:int test(param) {}
+function pass(param:int) {}
 
-var:int a = Book->x;
+var b = move(3.141);

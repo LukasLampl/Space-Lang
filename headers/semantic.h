@@ -54,7 +54,8 @@ struct SemanticEntry {
 };
 
 struct SemanticTable {
-    struct HashMap *paramTable;
+    struct SemanticEntry **paramEntries;
+    int paramSize;
     struct HashMap *symbolTable;
     struct SemanticTable *parent;
     enum ScopeType type;

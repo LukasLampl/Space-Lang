@@ -176,6 +176,7 @@ void HM_print_map(struct HashMap *map, int withList) {
  */
 void HM_add_entry(char *key, void *value, struct HashMap *map) {
     struct HashMapEntry *entry = HM_create_new_entry(key, value);
+    map->load++;
     (void)HM_add_internal_entry(entry, map);
 }
 
@@ -204,7 +205,6 @@ void HM_add_internal_entry(struct HashMapEntry *entry, struct HashMap *map) {
         return;
     }
 
-    map->load++;
     (void)HM_handle_load(map);
 
     int hashPos = (int)HM_get_position_based_on_hash(entry->key, map->capacity);
@@ -402,7 +402,6 @@ void HM_resize_hashmap(struct HashMap *map, int newCapacity) {
     map->collissions = 0;
     map->resizes++;
     map->capacity = newCapacity;
-    map->load = 0;
 
     //Re-init old entries
     for (int i = 0; i < oldCapacity; i++) {

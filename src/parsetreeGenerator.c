@@ -891,6 +891,10 @@ int PG_predict_member_access(TOKEN **tokens, size_t startPos, enum CONDITION_TYP
             return true;
         } else if ((int)PG_is_condition_operator(tok->type) == true) {
             return true;
+        } else if (tok->type == _OP_COMMA_) {
+            return false;
+        } else if ((int)is_primitive(tok->type) == true) {
+            return false;
         }
         
         if (type == IGNORE_ALL) {
@@ -2535,7 +2539,8 @@ size_t PG_add_params_to_node(struct Node *node, TOKEN **tokens, size_t startPos,
         if (currentToken->type != _OP_LEFT_BRACKET_
             && currentToken->type != _OP_RIGHT_BRACE_
             && currentToken->type != _OP_CLASS_CREATOR_
-            && currentToken->type != _KW_WITH_) {
+            && currentToken->type != _KW_WITH_
+            && currentToken->type != _KW_EXTENDS_) {
             //Check if the param is going to be out of the allocated space
             if (detailsPointer == node->detailsCount) {
                 skip = i - startPos;
@@ -2549,6 +2554,10 @@ size_t PG_add_params_to_node(struct Node *node, TOKEN **tokens, size_t startPos,
             } else {
                 int bounds = (int)PG_get_bound_of_single_param(tokens, i);
                 report = PG_create_simple_term_node(tokens, i, bounds);
+
+                if ((*tokens)[i + bounds].type == _OP_COLON_) {
+                    i += PG_add_varType_definition(tokens, i + bounds + 1, report.node) + 1;
+                }
             }
 
             node->details[detailsPointer] = report.node;
@@ -2576,7 +2585,8 @@ int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos) {
     for (size_t i = startPos; i < TOKENLENGTH; i++) {
         TOKEN *token = &(*tokens)[i];
 
-        if ((token->type == _OP_COMMA_ || token->type == _OP_CLASS_CREATOR_)
+        if ((token->type == _OP_COMMA_ || token->type == _OP_CLASS_CREATOR_
+            || token->type == _OP_COLON_)
             && openBrackets <= 0) {
             break;
         } else if (token->type == _OP_RIGHT_BRACKET_) {
