@@ -1,5 +1,17 @@
-function move(param:double) {}
-function:int test(param) {}
-function pass(param:int) {}
+class BasicConverter => {
+    function:int toInt(param) {
 
-var b = move(3.141);
+    }
+
+    function:char toChar(param) {
+
+    }
+}
+
+class Cal => {
+    function:int add(param1:int, param2:int) {
+
+    }
+}
+
+var b = Cal->add(BasicConverter.toInt(1.4), BasicConverter->toInt(0.1));
