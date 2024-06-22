@@ -44,22 +44,22 @@ enum ScopeType {
     VARIABLE, FUNCTION_CALL
 };
 
-struct SemanticEntry {
+typedef struct SemanticEntry {
     char *name;
     char *value;
     enum VarType type;
     enum Visibility visibility;
     enum ScopeType internalType;
     void *reference;
-};
+} SemanticEntry;
 
-struct SemanticTable {
+typedef struct SemanticTable {
     struct SemanticEntry **paramEntries;
     int paramSize;
     struct HashMap *symbolTable;
     struct SemanticTable *parent;
     enum ScopeType type;
     char *name;
-};
+} SemanticTable;
 
 #endif

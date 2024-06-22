@@ -83,6 +83,8 @@ enum ParameterType {
 
 int SA_enter_panic_mode(TOKEN **tokens, size_t startPos, int runnableWithBlock);
 SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock);
+int SA_handle_runnable_rep(SyntaxReport report, TOKEN **tokens, size_t startPos, int *jumper, int withBlock);
+
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos);
@@ -157,10 +159,29 @@ int SA_is_logic_operator(const char *sequence);
 SyntaxReport SA_create_syntax_report(TOKEN *token, int tokensToSkip, int errorOccured, char *expextedToken);
 void SA_throw_error(TOKEN *errorToken, char *expectedToken);
 
+/**
+ * This flag is turned true, if an error occured
+ */
 int FILE_CONTAINS_ERRORS = 0;
+
+/**
+ * Holds the total length of all tokens (init during ".CheckInput()")
+ */
 size_t MAX_TOKEN_LENGTH = 0;
+
+/**
+ * Holds the source code
+ */
 char **SOURCE_CODE = NULL;
+
+/**
+ * Defines the length of the source code
+ */
 size_t SOURCE_LENGTH = 0;
+
+/**
+ * Contains the name of the source file for error dumping
+ */
 char *FILE_NAME = NULL;
 
 /**
@@ -298,76 +319,96 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
         }
     }
 
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
-        && (*tokens)[startPos + jumper].type != __EOF__) {
-        if ((*tokens)[startPos + jumper].type == _OP_LEFT_BRACE_
-            && withBlock == true) {
+    while (startPos + jumper <  MAX_TOKEN_LENGTH) {
+        TOKEN *currentToken = &(*tokens)[startPos + jumper];
+
+        if (currentToken->type == __EOF__) {
+            break;
+        } else if (currentToken->type == _OP_LEFT_BRACE_ && withBlock == true) {
             break;
         }
 
-        if (((*tokens)[startPos + jumper].type == _KW_IS_
-            || (*tokens)[startPos + jumper].type == _OP_LEFT_BRACE_)
+        if ((currentToken->type == _KW_IS_
+            || currentToken->type == _OP_LEFT_BRACE_)
             && withBlock == 2) {
             break;
         }
         
         SyntaxReport isKWBasedRunnable = SA_is_keyword_based_runnable(tokens, startPos + jumper);
-
-        if (isKWBasedRunnable.errorOccured == true) {
-            (void)SA_throw_error(isKWBasedRunnable.token, isKWBasedRunnable.expectedToken);
-            int skip = (int)SA_enter_panic_mode(tokens, startPos + jumper, withBlock);
-            
-            if (skip > 0) {
-                jumper += skip;
-                continue;
-            } else {
-                if (withBlock == true) {
-                    return isKWBasedRunnable;
-                } else {
-                    jumper++;
-                    continue;
-                }
-            }
-        } else if (isKWBasedRunnable.errorOccured == false
-            && isKWBasedRunnable.tokensToSkip > 0) {
-            jumper += isKWBasedRunnable.tokensToSkip;
+        int KWRet = (int)SA_handle_runnable_rep(isKWBasedRunnable, tokens, startPos, &jumper, withBlock);
+        
+        if (KWRet == -1) {
+            return isKWBasedRunnable;
+        } else if (KWRet == 0) {
             continue;
         }
         
         SyntaxReport isNKWBasedRunnable = SA_is_non_keyword_based_runnable(tokens, startPos + jumper);
+        int NKWRet = (int)SA_handle_runnable_rep(isNKWBasedRunnable, tokens, startPos, &jumper, withBlock);
 
-        if (isNKWBasedRunnable.errorOccured == true) {
-            (void)SA_throw_error(isNKWBasedRunnable.token, isNKWBasedRunnable.expectedToken);
-            int skip = (int)SA_enter_panic_mode(tokens, startPos + jumper, withBlock);
-
-            if (skip > 0) {
-                jumper += skip;
-                return isNKWBasedRunnable;
-            } else {
-                if (withBlock == true) {
-                    return isNKWBasedRunnable;
-                } else {
-                    jumper++;
-                    continue;
-                }
-            }
-        } else if (isNKWBasedRunnable.errorOccured == false
-            && isNKWBasedRunnable.tokensToSkip > 0) {
-            jumper += isNKWBasedRunnable.tokensToSkip;
+        if (NKWRet == -1) {
+            return isNKWBasedRunnable;
+        } else if (NKWRet == 0) {
+            continue;
         } else {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<ERROR>");
+            TOKEN *errorTok = &(*tokens)[startPos + jumper];
+            return SA_create_syntax_report(errorTok, 0, true, "<ERROR>");
         }
     }
 
     if (withBlock == true) {
-        if  ((*tokens)[startPos + jumper].type != _OP_LEFT_BRACE_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "}");
+        TOKEN *finalTok = &(*tokens)[startPos + jumper];
+
+        if  (finalTok->type != _OP_LEFT_BRACE_) {
+            return SA_create_syntax_report(finalTok, 0, true, "}");
         } else {
             jumper++;
         }
     }
 
     return SA_create_syntax_report(NULL, jumper, false, NULL);
+}
+
+/**
+ * <p>
+ * Checks if the panic mode should be activated or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>-1 - Return report
+ * <li>0 - Continue the loop
+ * <li>1 - Non-success pass to next check
+ * </ul>
+ * 
+ * @param report    Report to check
+ * @param **tokens  Pointer to the tokens array
+ * @param startPos  Position at where to runnable starts
+ * @param *jumper   Pointer to the jumper / counter variable
+ * @param withBlock Flag whether the code is in a block or not
+ */
+int SA_handle_runnable_rep(SyntaxReport report, TOKEN **tokens, size_t startPos, int *jumper, int withBlock) {
+    if (report.errorOccured == true) {
+        (void)SA_throw_error(report.token, report.expectedToken);
+        int skip = (int)SA_enter_panic_mode(tokens, startPos + (*jumper), withBlock);
+
+        if (skip > 0) {
+            (*jumper) += skip;
+            return -1;
+        } else {
+            if (withBlock == true) {
+                return -1;
+            } else {
+                (*jumper)++;
+                return 0;
+            }
+        }
+    } else if (report.errorOccured == false
+        && report.tokensToSkip > 0) {
+        (*jumper) += report.tokensToSkip;
+    }
+
+    return 1;
 }
 
 /**
@@ -391,27 +432,22 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 */
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
     SyntaxReport rep = {NULL, -1};
+    int mode = -1;
     
     if ((int)SA_predict_expression(tokens, startPos) == true) {
+        mode = 0;
         rep = SA_is_expression(tokens, startPos, true);
-
-        if (rep.errorOccured == false) {
-            return rep;
-        }
-        
-        rep = SA_is_null_assigned_class_instance(tokens, startPos);
-        
-        if (rep.errorOccured == false) {
-            return rep;
-        }
     } else if ((int)SA_predict_class_object_access(tokens, startPos) == true) {
         return SA_is_class_object_access(tokens, startPos, true);
     } else {
+        mode = 1;
         rep = SA_is_runnable_function_call(tokens, startPos);
-        
-        if (rep.errorOccured == false) {
-            return rep;
-        }
+    }
+
+    rep = (rep.errorOccured == true && mode == 0) ? SA_is_null_assigned_class_instance(tokens, startPos) : rep;
+
+    if (rep.errorOccured == false) {
+        return rep;
     }
 
     char *buffer = (char*)calloc(128, sizeof(char));
@@ -430,7 +466,7 @@ SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
  * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos) {
-    int isRootIdentifier = SA_is_root_identifier(&(*tokens)[startPos]);
+    int isRootIdentifier = (int)SA_is_root_identifier(&(*tokens)[startPos]);
     int skip = 1;
     
     if (isRootIdentifier == false) {
@@ -447,7 +483,7 @@ SyntaxReport SA_is_null_assigned_class_instance(TOKEN **tokens, size_t startPos)
         }
     }
 
-    isRootIdentifier = SA_is_root_identifier(&(*tokens)[startPos + skip]);
+    isRootIdentifier = (int)SA_is_root_identifier(&(*tokens)[startPos + skip]);
     skip += isRootIdentifier;
 
     if (isRootIdentifier == false) {
@@ -513,18 +549,16 @@ SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos) {
 int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
 
-    while (startPos + jumper < MAX_TOKEN_LENGTH
-        && (*tokens)[startPos + jumper].type != __EOF__) {
+    while (startPos + jumper < MAX_TOKEN_LENGTH) {
         switch ((*tokens)[startPos + jumper].type) {
         case _KW_NEW_:
             return true;
-        case _OP_SEMICOLON_:
-        case _OP_RIGHT_BRACE_:
+        case _OP_SEMICOLON_: case _OP_RIGHT_BRACE_: case __EOF__:
             return false;
-        default: break;
+        default:
+            jumper++;
+            break;
         }
-
-        jumper++;
     }
 
     return false;
@@ -543,8 +577,7 @@ int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
 int SA_predict_expression(TOKEN **tokens, size_t startPos) {
     int jumper = 0;
     
-    while (startPos + jumper <  MAX_TOKEN_LENGTH
-        && (*tokens)[startPos + jumper].type != __EOF__) {
+    while (startPos + jumper <  MAX_TOKEN_LENGTH) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
         switch (currentToken->type) {
@@ -552,9 +585,10 @@ int SA_predict_expression(TOKEN **tokens, size_t startPos) {
         case _OP_ADD_ONE_:
         case _OP_SUBTRACT_ONE_:
             return true;
+        case __EOF__:
         case _OP_SEMICOLON_:
         case _OP_RIGHT_BRACE_:
-            return false; 
+            return false;
         default:
             if ((int)SA_is_assignment_operator(currentToken->value) == true) {
                 return true;
@@ -667,30 +701,32 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
 */
 SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall) {
     SyntaxReport leftIdentifier = SA_is_identifier(tokens, startPos);
+    int skip = leftIdentifier.tokensToSkip;
 
     if (leftIdentifier.errorOccured == true) {
         return leftIdentifier;
     }
 
-    if ((*tokens)[startPos + leftIdentifier.tokensToSkip].type != _OP_CLASS_ACCESSOR_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + leftIdentifier.tokensToSkip], 0, true, "->");
+    if ((*tokens)[startPos + skip].type != _OP_CLASS_ACCESSOR_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "->");
     }
 
-    SyntaxReport rightIdentifier = SA_is_identifier(tokens, startPos + leftIdentifier.tokensToSkip + 1);
+    SyntaxReport rightIdentifier = SA_is_identifier(tokens, startPos + skip + 1);
+    skip += rightIdentifier.tokensToSkip + 1;
 
     if (rightIdentifier.errorOccured == true) {
         return rightIdentifier;
     }
 
     if (independentCall == true) {
-        if ((*tokens)[startPos + leftIdentifier.tokensToSkip + rightIdentifier.tokensToSkip + 1].type != _OP_SEMICOLON_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + leftIdentifier.tokensToSkip + rightIdentifier.tokensToSkip + 1], 0, true, ";");
+        if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+            return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
         }
 
-        return SA_create_syntax_report(NULL, leftIdentifier.tokensToSkip + rightIdentifier.tokensToSkip + 2, false, NULL);
+        return SA_create_syntax_report(NULL, startPos + ++skip, false, NULL);
     }
 
-    return SA_create_syntax_report(NULL, leftIdentifier.tokensToSkip + rightIdentifier.tokensToSkip + 1, false, NULL);
+    return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /**
@@ -860,50 +896,55 @@ SyntaxReport SA_is_break_statement(TOKEN **tokens, size_t startPos) {
  * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
+    
     if ((*tokens)[startPos].type != _KW_FOR_) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "for");
     }
 
-    if ((*tokens)[startPos + 1].type != _OP_RIGHT_BRACKET_) {
+    if ((*tokens)[startPos + ++skip].type != _OP_RIGHT_BRACKET_) {
         return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "(");
     }
     
-    SyntaxReport isVar = SA_is_variable(tokens, startPos + 2);
+    skip++;
+    SyntaxReport isVar = SA_is_variable(tokens, startPos + skip);
+    skip += isVar.tokensToSkip;
 
     if (isVar.errorOccured == true) {
         return isVar;
     }
 
-    SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + isVar.tokensToSkip + 2, true);
+    SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + skip, true);
+    skip += isChainedCond.tokensToSkip;
 
     if (isChainedCond.errorOccured == true) {
         return isChainedCond;
     }
     
-    if ((*tokens)[startPos + isVar.tokensToSkip + isChainedCond.tokensToSkip + 2].type != _OP_SEMICOLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + isVar.tokensToSkip + isChainedCond.tokensToSkip + 2], 0, true, ";");
+    if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
     }
 
-    int totalSkip = isVar.tokensToSkip + isChainedCond.tokensToSkip + 3;
-    SyntaxReport isExpression = SA_is_expression(tokens, startPos + totalSkip, false);
+    skip++;
+    SyntaxReport isExpression = SA_is_expression(tokens, startPos + skip, false);
+    skip += isExpression.tokensToSkip;
 
     if (isExpression.errorOccured == true) {
         return isExpression;
     }
 
-    totalSkip += isExpression.tokensToSkip;
-
-    if ((*tokens)[startPos + totalSkip].type != _OP_LEFT_BRACKET_) {
-        return SA_create_syntax_report(&(*tokens)[startPos + totalSkip], 0, true, ")");
+    if ((*tokens)[startPos + skip].type != _OP_LEFT_BRACKET_) {
+        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
     }
 
-    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + totalSkip + 1, true);
+    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip + 1, true);
+    skip += isRunnable.tokensToSkip + 1;
 
     if (isRunnable.errorOccured == true) {
         return isRunnable;
     }
 
-    return SA_create_syntax_report(NULL, totalSkip + isRunnable.tokensToSkip + 1, false, NULL);
+    return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /**
@@ -998,7 +1039,7 @@ SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
  * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) { 
-    int skip = 0;
+    int skip = 1;
     
     if ((*tokens)[startPos].type != _KW_IF_) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "if");
@@ -1007,8 +1048,6 @@ SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos + 1].type != _OP_RIGHT_BRACKET_) {
         return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "(");
     }
-
-    skip++;
 
     SyntaxReport isChainedCond = SA_is_chained_condition(tokens, startPos + ++skip, true);
 
@@ -1022,8 +1061,7 @@ SyntaxReport SA_is_if_statement(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
     }
     
-    skip++;
-    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip, true);
+    SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + ++skip, true);
 
     if (isRunnable.errorOccured == true) {
         return isRunnable;

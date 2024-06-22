@@ -54,18 +54,76 @@ enum NodeType {
     _CLASS_ACCESS_NODE_, _POINTER_NODE_, _REFERENCE_NODE_, _MEM_CLASS_ACC_NODE_
 };
 
-struct Node {
+/**
+ * <p>
+ * The Node is a crucial part of the parsetree generator.
+ * A Node holds the line, position, type, value, details
+ * (center nodes), left nodes and right nodes.
+ * </p>
+ * 
+ * <p>
+ * Nodes are used to reduce the total amout of tokens that are
+ * used and only hold the most important data, which
+ * then is processed further in the semantic analyzer.
+ * </p>
+ */
+typedef struct Node {
+    /**
+     * <p>
+     * Type of the node
+     * </p>
+     */
     enum NodeType type;
+
+    /**
+     * <p>
+     * Value that the node holds (source name)
+     * </p>
+     */
     char *value;
 
+    /**
+     * <p>
+     * Line at which the Node can be found in the source code
+     * </p>
+     */
     size_t line;
+
+    /**
+     * <p>
+     * Position from the start in chars, at which the Node can be found
+     * </p>
+     */
     size_t position;
 
+    /**
+     * <p>
+     * Node array that is in the center, this is useful for
+     * parameters and type specifiers for instance.
+     * </p>
+     */
     struct Node **details;
+
+    /**
+     * <p>
+     * Holds the size of the details array
+     * </p>
+     */
     size_t detailsCount;
 
+    /**
+     * <p>
+     * Left Node appended to the parent Node (pointer)
+     * </p>
+     */
     struct Node *leftNode;
+    
+    /**
+     * <p>
+     * Right Node appended to the parent Node (pointer)
+     * </p>
+     */
     struct Node *rightNode;
-};
+} Node;
 
 #endif
