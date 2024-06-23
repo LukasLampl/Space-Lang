@@ -58,7 +58,7 @@ $$
 t(i)=\sum_{i=0}^{n-1}k_i+(t_{i-1}*31)
 $$
 
-The *n* describes the string length, while *k* is the character at the position *i*. *t* is initialized to 0 for i = -1. The final transformation / last transformation is the number we need to process further ($t(n - 1)$). The string transformation is mainly done to get one integer out of a *n* long string and thus provide a simple hashing algorithm.
+The *n* describes the string length, while *k* is the character at the position *i*. *t* is initialized to 0 for i = 0 ( $t_{i-1}$ for $i = 0$ is 0 ). The final transformation / last transformation is the number we need to process further ( $t(n - 1)$ ). The string transformation is mainly done to get one integer out of a *n* long string and thus provide a simple hashing algorithm.
 
 After the transformation, the rest is applied. Important to note is that $A = \frac{\sqrt{5}-1}{2} \approx 0.618033988749894$ and *c* is the capacity of the HashMap. (A could also be any other real number)
 

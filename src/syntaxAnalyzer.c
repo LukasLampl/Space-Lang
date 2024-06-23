@@ -172,17 +172,22 @@ size_t MAX_TOKEN_LENGTH = 0;
 /**
  * Holds the source code
  */
-char **SOURCE_CODE = NULL;
+extern char **BUFFER;
 
 /**
  * Defines the length of the source code
  */
-size_t SOURCE_LENGTH = 0;
+extern size_t BUFFER_LENGTH;
 
 /**
  * Contains the name of the source file for error dumping
  */
-char *FILE_NAME = NULL;
+extern char *FILE_NAME;
+
+/**
+ * Length of the tokens
+ */
+extern size_t TOKEN_LENGTH;
 
 /**
  * <p>
@@ -192,18 +197,9 @@ char *FILE_NAME = NULL;
  * </p>
  * 
  * @param tokens    Pointer the the tokens array from the lexer
- * @param tokenArrayLength  Length of the token array
- * @param **source  Pointer to the actual source code
- * @param sourceSize    Length of the source code
- * @param *sourceName    Name of the file that is currently checked
 */
-int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize, char *sourceName) {
-    MAX_TOKEN_LENGTH = tokenArrayLength;
-    SOURCE_CODE = source;
-    SOURCE_LENGTH = sourceSize;
-    FILE_NAME = sourceName;
-
-    if (tokens == NULL || tokenArrayLength < 1) {
+int CheckInput(TOKEN **tokens) {
+    if (tokens == NULL || TOKEN_LENGTH < 1) {
         (void)PARSER_TOKEN_TRANSMISSION_EXCEPTION();
         return -1;
     }
@@ -3652,7 +3648,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     FILE_CONTAINS_ERRORS = true;
     int errorWindow = 32;
 
-    if (SOURCE_CODE == NULL) {
+    if (BUFFER == NULL) {
         (void)printf("Source code pointer = NULL!");
         return;
     }
@@ -3661,10 +3657,10 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     (void)printf("-------------------------------------------------------\n");
 
     int errorLine = errorToken->line + 1;
-    int printPosition = errorToken->type == __EOF__ ? SOURCE_LENGTH : errorToken->tokenStart;
+    int printPosition = errorToken->type == __EOF__ ? BUFFER_LENGTH : errorToken->tokenStart;
 
     for (int i = printPosition, step = 0; i > 0; i--, step++) {
-        if ((*SOURCE_CODE)[i] == '\n' || step == errorWindow) {
+        if ((*BUFFER)[i] == '\n' || step == errorWindow) {
             break;
         }
 
@@ -3676,17 +3672,17 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     int blankLength = (int)snprintf(buffer, 32, "%i : %i | ", errorLine, tokPos);
     (void)printf("%s", buffer);
 
-    for (int i = printPosition, step = 0; i < SOURCE_LENGTH; i++, step++) {
-        if ((*SOURCE_CODE)[i] == '\n' || step == (errorWindow * 2)) {
+    for (int i = printPosition, step = 0; i < BUFFER_LENGTH; i++, step++) {
+        if ((*BUFFER)[i] == '\n' || step == (errorWindow * 2)) {
             printPosition = i + 1;
             continue;
-        } else if ((*SOURCE_CODE)[i] == '\0') {
+        } else if ((*BUFFER)[i] == '\0') {
             break;
         }
 
-        (void)printf("%c", (*SOURCE_CODE)[i]);
+        (void)printf("%c", (*BUFFER)[i]);
         
-        if ((*SOURCE_CODE)[i + 1] == '\n' || i + 1 == SOURCE_LENGTH) {
+        if ((*BUFFER)[i + 1] == '\n' || i + 1 == BUFFER_LENGTH) {
             (void)printf("\n");
             break;
         }
@@ -3700,7 +3696,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
 
     int counter = 0;
 
-    for (int i = printPosition; i < SOURCE_LENGTH && i - printPosition < errorWindow * 2; i++) {
+    for (int i = printPosition; i < BUFFER_LENGTH && i - printPosition < errorWindow * 2; i++) {
         if (i >= errorToken->tokenStart
             && counter < (errorToken->size - 1)) {
             (void)printf("^");

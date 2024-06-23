@@ -58,13 +58,13 @@ struct InputReaderResults {
 struct InputReaderResults ProcessInput(char *path);
 
 //Lexer
-TOKEN *Tokenize(char **buffer, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName);
+TOKEN *Tokenize(int **arrayOfIndividualTokenSizes);
 
 //Parse
-struct Node *GenerateParsetree(TOKEN **tokens, size_t TokenLength);
+struct Node *GenerateParsetree(TOKEN **tokens);
 
 //int Check_syntax(TOKEN **tokens, size_t tokenArrayLength, char **buffer, size_t bufferSize);
-int CheckInput(TOKEN **tokens, size_t tokenArrayLength, char **source, size_t sourceSize, char *sourceName);
+int CheckInput(TOKEN **tokens);
 int CheckSemantic(struct Node *root);
 
 #endif

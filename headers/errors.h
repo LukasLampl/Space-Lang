@@ -43,7 +43,7 @@ void IO_FILE_CLOSING_EXCEPTION();
 void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(char **input, int pos, int maxBackPos, int line);
 void LEXER_NULL_TOKEN_EXCEPTION();
 void LEXER_UNFINISHED_POINTER_EXCEPTION();
-void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber, const char **fileName);
+void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber);
 void LEXER_NULL_TOKEN_VALUE_EXCEPTION();
 void LEXER_TOKEN_ERROR_EXCEPTION();
 

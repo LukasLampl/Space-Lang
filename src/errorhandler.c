@@ -29,6 +29,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define true 1
 #define false 0
 
+extern char *FILE_NAME;
+
 // Cache
 TOKEN *TokenCache = NULL;
 char *BufferCache = NULL;
@@ -358,10 +360,9 @@ Return Type: void
 Params: char **input => Source code;
         size_t errorPos => Position from where the string starts;
         size_t lineNumber => Line number of the string start;
-        const char **fileName => Name of the file where the error occured
 */
-void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber, const char **fileName) {
-    (void)printf("Unfinished string at end of file. (%s)\n", (*fileName));
+void LEXER_UNFINISHED_STRING_EXCEPTION(char **input, size_t errorPos, size_t lineNumber) {
+    (void)printf("Unfinished string at end of file. (%s)\n", FILE_NAME);
     (void)printf("-----------------------------------------------------\n");
 
     char buffer[32];

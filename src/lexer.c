@@ -57,7 +57,7 @@ void LX_set_line_number(TOKEN *token, size_t lineNumber);
 int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex);
 
 int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber);
-int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber, const char **fileName);
+int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber);
 int LX_skip_whitespaces(char **input, size_t currentInputIndex, size_t *lineNumber);
 void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex);
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber);
@@ -143,13 +143,14 @@ struct kwLookup KEYWORD_LOOKUP[] = {
  * to the buffer length.
  * </p>
  */
-size_t maxBufferLength = 0;
+extern size_t BUFFER_LENGTH;
 
 /**
  * <p>
  * This holds the maximum length of the precalculated tokens.
  * </p>
  */
+extern size_t TOKEN_LENGTH;
 size_t maxTokensLength = 0;
 
 /**
@@ -166,6 +167,8 @@ int tokensreserved = 0;
  * </p>
  */
 TOKEN *TOKENS = NULL;
+extern char **BUFFER;
+extern char *FILE_NAME;
 
 /**
  * <p>
@@ -180,17 +183,13 @@ TOKEN *TOKENS = NULL;
  * </p>
  * @returns The final token array with all tokens
  * 
- * @param **input                           Pointer to the input
  * @param **arrayOfIndividualTokenSizes     Sizes of the indiviual tokens
- * @param fileLength                        Length of the buffer
- * @param requiredTokenLength               Length of the predicted tokens
- * @param *fileName                         Name of the code source file
  */
-TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fileLength, const size_t requiredTokenLength, const char *fileName) {
+TOKEN* Tokenize(int **arrayOfIndividualTokenSizes) {
     // TOKEN defined in modules.h
-    TOKENS = (struct TOKEN*)calloc((requiredTokenLength + 2), sizeof(struct TOKEN));
-    maxBufferLength = fileLength;
-    maxTokensLength = requiredTokenLength + 1;
+    TOKENS = (struct TOKEN*)calloc((TOKEN_LENGTH + 2), sizeof(struct TOKEN));
+    maxTokensLength = TOKEN_LENGTH + 1;
+    char **input = BUFFER;
 
     // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
     if (TOKENS == NULL) {
@@ -215,7 +214,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
 
     size_t lineNumber = 0;
 
-    for (size_t i = 0; i < fileLength; i++) {
+    for (size_t i = 0; i < BUFFER_LENGTH; i++) {
         // When the input character at index i is a hashtag, then skip the input till the next hashtag
         if ((*input)[i] == '/'
             && ((*input)[i + 1] == '/' || (*input)[i + 1] == '*')) {
@@ -223,7 +222,7 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
             continue;
         }
 
-        if (storagePointer > requiredTokenLength) {
+        if (storagePointer > maxTokensLength) {
             (void)LEXER_NULL_TOKEN_EXCEPTION();
         }
 
@@ -241,14 +240,14 @@ TOKEN* Tokenize(char **input, int **arrayOfIndividualTokenSizes, const size_t fi
         // Check if the input character at index i is the beginning of an string or character array
         if ((*input)[i] == '"' || (*input)[i] == '\'') {
             storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
-            i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, (*input)[i], &lineNumber, &fileName);
+            i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, (*input)[i], &lineNumber);
             (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
             storagePointer++;
             storageIndex = 0;
             continue;
         }
 
-        if (i + 1 >= fileLength) {
+        if (i + 1 >= BUFFER_LENGTH) {
             (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
             (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
         }
@@ -439,7 +438,7 @@ int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbol
 
     while ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')'
         && (int)is_space((*buffer)[currentSymbolIndex + symbolsToSkip + 1]) == 0
-        && currentSymbolIndex + symbolsToSkip + 1 < maxBufferLength) {
+        && currentSymbolIndex + symbolsToSkip + 1 < BUFFER_LENGTH) {
         if (token->size > symbolsToSkip + 2) {
             token->value[symbolsToSkip + 2] = (*buffer)[currentSymbolIndex + symbolsToSkip + 2];
         }
@@ -476,7 +475,7 @@ int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferC
     if (token != NULL) {
         int pointers = 0;
 
-        for (size_t i = 0; i + currentBufferCharPos < maxBufferLength; i++) {
+        for (size_t i = 0; i + currentBufferCharPos < BUFFER_LENGTH; i++) {
             if ((*buffer)[currentBufferCharPos + i] == '*') {
                 pointers++;
                 continue;
@@ -646,7 +645,7 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
     // The index of how much characters has to be skipped
     int jumpForward = 1;
     // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
-    while ((jumpForward + currentIndex) < maxBufferLength) {
+    while ((jumpForward + currentIndex) < BUFFER_LENGTH) {
         //Check for '\n'
         if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
             (*lineNumber)++;
@@ -680,9 +679,8 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
  * @param currentInputIndex     Index of the input character
  * @param crucialCharacter      Type of the string ("'" or '"')
  * @param *lineNumber           Current line number
- * @param **fileName            Name of the source code file
  */
-int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber, const char **fileName) {
+int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber) {
     int jumpForward = 1;
 
     if (input != NULL && token != NULL && token->value != NULL) {
@@ -692,7 +690,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
         // write the current character into the current token value
         // while the input is not the crucial character again the input gets set into the current token value
         while (((*input)[currentInputIndex + jumpForward] != crucialCharacter)
-            && (currentInputIndex + jumpForward) < maxBufferLength) {
+            && (currentInputIndex + jumpForward) < BUFFER_LENGTH) {
             // If the string size is bigger than size, resize the token
             if (jumpForward + 1 >= currentTokenSize) {
                 (void)LX_resize_tokens_value(token, currentTokenSize);
@@ -712,7 +710,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
         }
 
         if ((*input)[currentInputIndex + jumpForward] != crucialCharacter) {
-            (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber, fileName);
+            (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber);
         }
 
         if (crucialCharacter == '"') {
@@ -754,7 +752,7 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
 int LX_skip_whitespaces(char **input, size_t currentInputIndex, size_t *lineNumber) {
     int jumpForward = 0;
 
-    while ((currentInputIndex + jumpForward) < maxBufferLength) {
+    while ((currentInputIndex + jumpForward) < BUFFER_LENGTH) {
         int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward)]);
         
         if (whitespaceChar == 0) {

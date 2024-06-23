@@ -23,6 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define SPACE_SEMANTIC_ANALYZER_H_
 
 enum Visibility {
+    P_GLOBAL,
     GLOBAL,
     SECURE,
     PRIVATE
@@ -30,12 +31,7 @@ enum Visibility {
 
 enum VarType {
     INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING,
-    
     null, EXT_CLASS_OR_INTERFACE,
-    
-    INTEGER_ARR, LONG_ARR, SHORT_ARR, DOUBLE_ARR, FLOAT_ARR,
-    CHAR_ARR, BOOLEAN_ARR,
-
     CUSTOM
 };
 
@@ -44,10 +40,15 @@ enum ScopeType {
     VARIABLE, FUNCTION_CALL
 };
 
+struct VarDec {
+    enum VarType type;
+    int dimension;
+};
+
 typedef struct SemanticEntry {
     char *name;
     char *value;
-    enum VarType type;
+    struct VarDec dec;
     enum Visibility visibility;
     enum ScopeType internalType;
     void *reference;

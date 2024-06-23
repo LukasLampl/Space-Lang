@@ -26,6 +26,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <time.h>
 #include <stdlib.h>
 
+char *FILE_NAME = NULL;
+char **BUFFER = NULL;
+size_t BUFFER_LENGTH = 0;
+size_t TOKEN_LENGTH = 0;
+
 int main() {
     (void)printf("SPACE-Language compiler [Version 0.0.1 - Alpha]\n");
     (void)printf("Copyright (C) 2024 Lukas Nian En Lampl\n");
@@ -35,19 +40,19 @@ int main() {
     //////////     INPUT READER    //////////
     /////////////////////////////////////////
     char *path = "../SPACE/prgm.txt";
-    char *fileName = "prgm.txt";
+    FILE_NAME = "prgm.txt";
 
     struct InputReaderResults inputReaderResults = ProcessInput(path);
     int *arrayOfIndividualTokenSizes = inputReaderResults.arrayOfIndividualTokenSizes;
-    char *buffer = inputReaderResults.buffer;
-    size_t fileLength = inputReaderResults.fileLength;
-    size_t requiredTokenNumber = inputReaderResults.requiredTokenNumber;
+    BUFFER = &inputReaderResults.buffer;
+    BUFFER_LENGTH = inputReaderResults.fileLength;
+    TOKEN_LENGTH = inputReaderResults.requiredTokenNumber;
 
     //////////////////////////////////
     //////////     LEXER    //////////
     //////////////////////////////////
     printf("Tokenize\n");
-    TOKEN *tokens = Tokenize(&buffer, &arrayOfIndividualTokenSizes, fileLength, requiredTokenNumber, fileName);
+    TOKEN *tokens = Tokenize(&arrayOfIndividualTokenSizes);
     (void)FREE_TOKEN_LENGTHS(inputReaderResults.arrayOfIndividualTokenSizes);
 
     ////////////////////////////////////////
@@ -64,7 +69,7 @@ int main() {
         return -1;
     }*/
 
-    struct Node *root = GenerateParsetree(&tokens, requiredTokenNumber);
+    struct Node *root = GenerateParsetree(&tokens);
 
     int containsSemanticErrors = (int)CheckSemantic(root);
 

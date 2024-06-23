@@ -1,17 +1,9 @@
-class BasicConverter => {
-    function:int toInt(param) {
+function:int test() {
 
-    }
-
-    function:char toChar(param) {
-
-    }
 }
 
-class Cal => {
-    function:int add(param1:int, param2:int) {
+function test2(param:int[]) {
 
-    }
 }
 
-var b = Cal->add(BasicConverter.toInt(1.4), BasicConverter->toInt(0.1));
+var a = test2(test());
