@@ -892,10 +892,13 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
 }
 
 int PG_predict_member_access(TOKEN **tokens, size_t startPos, enum CONDITION_TYPE type) {
+    int openEdgeBrackets = 0;
+
     for (int i = startPos; i < TOKEN_LENGTH; i++) {
         TOKEN *tok = &(*tokens)[i];
 
-        if ((int)PG_is_calculation_operator(tok) == true) {
+        if ((int)PG_is_calculation_operator(tok) == true
+            && openEdgeBrackets == 0) {
             return false;
         } else if (tok->type == _OP_SEMICOLON_) {
             return true;
@@ -905,6 +908,10 @@ int PG_predict_member_access(TOKEN **tokens, size_t startPos, enum CONDITION_TYP
             return false;
         } else if ((int)is_primitive(tok->type) == true) {
             return false;
+        } else if (tok->type == _OP_LEFT_EDGE_BRACKET_) {
+            openEdgeBrackets--;
+        } else if (tok->type == _OP_RIGHT_EDGE_BRACKET_) {
+            openEdgeBrackets++;
         }
         
         if (type == IGNORE_ALL) {
@@ -2878,8 +2885,8 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
     size_t lastIdenPos = UNINITIALZED;
     int waitingToEndPlusOrMinus = false;
     int length = startPos + boundaries;
-    int isCalc = !PG_predict_member_access(tokens, startPos, NONE);
-
+    int isCalc = PG_predict_member_access(tokens, startPos, NONE) == true ? false : true;
+    printf("Is Cals %i for %s\n", isCalc, (*tokens)[startPos].value);
     for (size_t i = startPos; i < length && isCalc == true; i++) {
         TOKEN *currentToken = &(*tokens)[i];
 

@@ -173,3 +173,7 @@ int predict_is_conditional_assignment_type(TOKEN **tokens, size_t startPos, int 
 
     return 0;
 }
+
+int abs(int x) {
+    return x < 0 ? -1 * x : x;
+}

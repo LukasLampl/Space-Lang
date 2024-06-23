@@ -38,6 +38,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define true 1
 #define false 0
 
+enum ErrorType {
+    NONE,
+    ALREADY_DEFINED_EXCEPTION,
+    NOT_DEFINED_EXCEPTION,
+    TYPE_MISMATCH_EXCEPTION,
+    STATEMENT_MISPLACEMENT_EXCEPTION,
+    WRONG_ACCESSOR_EXCEPTION,
+    WRONG_ARGUMENT_EXCPEPTION,
+    MODIFIER_EXCEPTION,
+    NO_SUCH_ARRAY_DIMENSION_EXCEPTION
+};
+
 struct MemberAccessList {
     size_t size;
     Node **nodes;
@@ -52,6 +64,10 @@ struct SemanticReport {
     int success;
     int errorOccured;
     struct VarDec dec;
+    struct Node *errorNode;
+    enum ErrorType errorType;
+    char *expected;
+    char *got;
 };
 
 struct SemanticEntryReport {
@@ -65,7 +81,7 @@ struct varTypeLookup {
     enum VarType type;
 };
 
-struct VarDec nullDec = {null, 0};
+struct VarDec nullDec = {null, 0, NULL};
 
 struct varTypeLookup TYPE_LOOKUP[] = {
     {"int", INTEGER}, {"double", DOUBLE}, {"float", FLOAT},
@@ -83,9 +99,9 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
 
-int SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
-int SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table);
-int SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table);
+struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
+struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table);
+struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table);
 
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope, SemanticTable *parent, struct ParamTransferObject *params);
 int SA_is_node_a_number(Node *node);
@@ -96,12 +112,12 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType);
 struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *table);
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_check_non_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
-void SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart);
-void SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam);
-int SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode);
-int SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable);
+struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table);
+struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam);
+struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode);
+struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable);
 
-int SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope, SemanticTable *topScope);
+struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope, SemanticTable *topScope);
 SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *table);
 struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTable *table);
 struct VarDec SA_get_identifier_var_Type(Node *node);
@@ -112,7 +128,7 @@ char *SA_get_ScopeType_string(enum ScopeType type);
 SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table);
 
 struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry, int success, int errorOccured);
-struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured);
+struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured, Node *errorNode, enum ErrorType errorType, char *expected, char *got);
 SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType, enum Visibility visibility, enum ScopeType internalType, void *ptr);
 SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, SemanticTable *parent, enum ScopeType type);
 
@@ -128,9 +144,11 @@ void THROW_NOT_DEFINED_EXCEPTION(Node *node);
 void THROW_ALREADY_DEFINED_EXCEPTION(Node *node);
 void THROW_MEMORY_RESERVATION_EXCEPTION(char *problemPosition);
 void THROW_EXCEPTION(char *message, Node *node);
+void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep);
 
 extern char *FILE_NAME;
 extern char **BUFFER;
+extern size_t BUFFER_LENGTH;
 
 int CheckSemantic(Node *root) {
     SemanticTable *mainTable = SA_create_new_scope_table(root, MAIN, NULL, NULL);
@@ -203,7 +221,7 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
 
     char *name = classNode->value;
     enum Visibility vis = SA_get_visibility(classNode->leftNode);
-    struct VarDec std = {EXT_CLASS_OR_INTERFACE, 0};
+    struct VarDec std = {EXT_CLASS_OR_INTERFACE, 0, NULL};
     struct ParamTransferObject *params = SA_get_params(classNode, std);
     Node *runnableNode = classNode->rightNode;
 
@@ -225,7 +243,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
     enum Visibility vis = SA_get_visibility(functionNode->leftNode);
     struct VarDec type = SA_get_var_type(functionNode->details == NULL ? NULL : functionNode->details[0]);
     int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
-    struct VarDec std = {VARIABLE, -1};
+    struct VarDec std = {VARIABLE, 0, NULL};
     struct ParamTransferObject *params = SA_get_params(functionNode, std);
     Node *runnableNode = functionNode->details[paramsCount];
     SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params);
@@ -253,7 +271,12 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
 
     if ((int)SA_is_obj_already_defined(name, table) == true) {
         (void)THROW_ALREADY_DEFINED_EXCEPTION(varNode);
-    } else if ((int)SA_evaluate_assignment(type, varNode->rightNode, table) == false) {
+    }
+
+    struct SemanticReport assignmentRep = SA_evaluate_assignment(type, varNode->rightNode, table);
+
+    if (assignmentRep.errorOccured == true) {
+        (void)THROW_ASSIGNED_EXCEPTION(assignmentRep);
         return;
     }
 
@@ -287,25 +310,32 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
  * @param *topNode          Current top node to check
  * @param *table            Current scope table
  */
-int SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
+struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
     int isTopNodeArithmeticOperator = (int)SA_is_node_arithmetic_operator(topNode);
     
     if (isTopNodeArithmeticOperator == true) {
-        int leftTerm = (int)SA_evaluate_simple_term(expectedType, topNode->leftNode, table);
-        int rightTerm = (int)SA_evaluate_simple_term(expectedType, topNode->rightNode, table);
-        return leftTerm == false || rightTerm == false ? false : true;
+        struct SemanticReport leftTerm = SA_evaluate_simple_term(expectedType, topNode->leftNode, table);
+        struct SemanticReport rightTerm = SA_evaluate_simple_term(expectedType, topNode->rightNode, table);
+        
+        if (leftTerm.errorOccured == true) {
+            return leftTerm;
+        } else if (rightTerm.errorOccured == true) {
+            return rightTerm;
+        }
+
+        return SA_create_semantic_report(expectedType, true, false, NULL, NONE, NULL, NULL);
     } else {
-        return (int)SA_evaluate_term_side(expectedType, topNode, table);
+        return SA_evaluate_term_side(expectedType, topNode, table);
     }
 }
 
-int SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table) {
-    struct VarDec predictedType = {CUSTOM, 0};
+struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table) {
+    struct VarDec predictedType = {CUSTOM, 0, NULL};
 
     if ((int)SA_is_node_a_number(node) == true) {
         predictedType = SA_get_identifier_var_Type(node);
     } else if (node->type == _NULL_NODE_) {
-        struct VarDec dec = {null, 0};
+        struct VarDec dec = {null, 0, NULL};
         predictedType = dec;
     } else if (node->type == _MEM_CLASS_ACC_NODE_
         || node->type == _IDEN_NODE_
@@ -313,7 +343,7 @@ int SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable 
         struct SemanticReport rep = SA_evaluate_member_access(node, table);
 
         if (rep.errorOccured == true) {
-            return false;
+            return rep;
         }
 
         predictedType = rep.dec;
@@ -323,11 +353,10 @@ int SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable 
     if ((int)SA_are_VarTypes_equal(expectedType, predictedType) == false) {
         char *expected = SA_get_VarType_string(expectedType);
         char *got = SA_get_VarType_string(predictedType);
-        (void)THROW_TYPE_MISMATCH_EXCEPTION(node, expected, got);
-        return false;
+        return SA_create_semantic_report(nullDec, false, true, node, TYPE_MISMATCH_EXCEPTION, expected, got);
     }
 
-    return true;
+    return SA_create_semantic_report(predictedType, true, false, NULL, NONE, NULL, NULL);
 }
 
 /**
@@ -358,12 +387,8 @@ struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *ta
         rep = SA_check_restricted_member_access(topNode, table, topScope);
     }
 
-    if (rep.errorOccured == true) {
-        return SA_create_semantic_report(nullDec, false, true);
-    }
-
     printf(">>>> >>>> >>>> EXIT! (%i)\n", rep.dec.type);
-    return SA_create_semantic_report(rep.dec, true, false);
+    return rep.errorOccured == true ? rep : SA_create_semantic_report(rep.dec, true, false, NULL, NONE, NULL, NULL);
 }
 
 /**
@@ -386,14 +411,16 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
                                                             SemanticTable *topScope) {
     SemanticTable *currentScope = topScope;
     Node *cacheNode = node;
-    struct VarDec retType = {CUSTOM, 0};
+    struct VarDec retType = {CUSTOM, 0, NULL};
 
     while (cacheNode != NULL) {
         struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode, currentScope);
         struct SemanticReport resMemRep = SA_check_restricted_member_access(cacheNode->leftNode, table, currentScope);
         
-        if (entry.entry == NULL || resMemRep.errorOccured == true) {
-            return SA_create_semantic_report(nullDec, false, true);
+        if (entry.entry == NULL) {
+            return SA_create_semantic_report(nullDec, false, true, cacheNode->leftNode, NOT_DEFINED_EXCEPTION, NULL, NULL);
+        } else if (resMemRep.errorOccured == true) {
+            return resMemRep;
         }
 
         currentScope = entry.entry->reference;
@@ -401,7 +428,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
         cacheNode = cacheNode->rightNode;
     }
 
-    return SA_create_semantic_report(retType, true, false);
+    return SA_create_semantic_report(retType, true, false, NULL, NONE, NULL, NULL);
 }
 
 /**
@@ -435,118 +462,150 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
                                                             SemanticTable *topScope) {
     SemanticTable *currentScope = topScope;
     Node *cacheNode = node;
-    struct VarDec retType = {CUSTOM, 0};
+    struct VarDec retType = {CUSTOM, 0, NULL};
     
     struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode, currentScope);
     
     if (entry.entry == NULL) {
-        (void)THROW_NOT_DEFINED_EXCEPTION(cacheNode);
-        return SA_create_semantic_report(nullDec, false, true);
+        return SA_create_semantic_report(nullDec, false, true, cacheNode, NOT_DEFINED_EXCEPTION, NULL, NULL);
     }
     
     retType = entry.entry->dec;
     
     if (cacheNode->type == _FUNCTION_CALL_NODE_) {
         struct SemanticReport rep = SA_evaluate_function_call(cacheNode, entry.entry, table);
+
+        if (rep.errorOccured == true) {
+            return rep;
+        }
+
         retType = rep.dec;
     }
     
-    (void)SA_handle_array_accesses(&retType, cacheNode);
-    currentScope = (SemanticTable*)entry.entry->reference;
-    int checkRes = (int)SA_execute_access_type_checking(cacheNode, currentScope, topScope);
+    struct SemanticReport arrayRep = SA_handle_array_accesses(&retType, cacheNode, currentScope);
 
-    if (checkRes == -1) {
-        return SA_create_semantic_report(nullDec, false, true);
+    if (arrayRep.errorOccured == true) {
+        return arrayRep;
+    }
+
+    currentScope = (SemanticTable*)entry.entry->reference;
+    struct SemanticReport checkRes = SA_execute_access_type_checking(cacheNode, currentScope, topScope);
+
+    if (checkRes.errorOccured == true) {
+        return checkRes;
     }
     
-    return SA_create_semantic_report(retType, true, false);
+    return SA_create_semantic_report(retType, true, false, NULL, NONE, NULL, NULL);
 }
 
 struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry,
                                                 SemanticTable *callScopeTable) {
     if (functionEntry == NULL || topNode == NULL || callScopeTable == NULL) {
-        return SA_create_semantic_report(nullDec, true, false);
+        return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
     }
     
     SemanticTable *ref = (SemanticTable*)functionEntry->reference;
-    
-    if ((int)SA_execute_function_call_precheck(ref, topNode) == true
-        || (int)SA_evaluate_modifier(ref, functionEntry->visibility, topNode, callScopeTable) != true) {
-        return SA_create_semantic_report(nullDec, true, false);
+    struct SemanticReport preCheck = SA_execute_function_call_precheck(ref, topNode);
+    struct SemanticReport modCheck = SA_evaluate_modifier(ref, functionEntry->visibility, topNode, callScopeTable);
+
+    if (preCheck.errorOccured == true) {
+        return preCheck;
+    } else if (modCheck.errorOccured == true) {
+        return modCheck;
     }
     
     for (int i = 0; i < topNode->detailsCount; i++) {
         Node *currentNode = topNode->details[i];
         SemanticEntry *currentEntryParam = ref->paramEntries[i];
-        struct VarDec currentNodeType = {CUSTOM, 0};
-        (void)SA_execute_identifier_analysis(currentNode, callScopeTable, &currentNodeType, currentEntryParam);
+        struct VarDec currentNodeType = {CUSTOM, 0, NULL};
+        struct SemanticReport idenRep = SA_execute_identifier_analysis(currentNode, callScopeTable, &currentNodeType, currentEntryParam);
+
+        if (idenRep.errorOccured == true) {
+            return idenRep;
+        }
 
         if ((int)SA_are_VarTypes_equal(currentEntryParam->dec, currentNodeType) == false) {
             char *expected = SA_get_VarType_string(currentEntryParam->dec);
             char *got = SA_get_VarType_string(currentNodeType);
             struct Node *errorNode = currentNode->type == _MEM_CLASS_ACC_NODE_ ? currentNode->leftNode : currentNode;
-            (void)THROW_TYPE_MISMATCH_EXCEPTION(errorNode, expected, got);
-            return SA_create_semantic_report(nullDec, true, false);
+            return SA_create_semantic_report(nullDec, false, true, errorNode, TYPE_MISMATCH_EXCEPTION, expected, got);
         }
     }
 
-    return SA_create_semantic_report(functionEntry->dec, false, true);
+    return SA_create_semantic_report(functionEntry->dec, true, false, NULL, NONE, NULL, NULL);
 }
 
-void SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType,
+struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType,
                                     SemanticEntry *currentEntryParam) {
     if (currentNode->type == _MEM_CLASS_ACC_NODE_
         || currentNode->type == _FUNCTION_CALL_NODE_) {
         struct SemanticReport memAccRep = SA_evaluate_member_access(currentNode, callScopeTable);
+
+        if (memAccRep.errorOccured == true) {
+            return memAccRep;
+        }
+
         (*currentNodeType) = memAccRep.dec;
     } else {
-        int success = SA_evaluate_simple_term(currentEntryParam->dec, currentNode, callScopeTable);
-        (*currentNodeType) = success == true ? currentEntryParam->dec : SA_get_var_type(currentNode);
+        struct SemanticReport termRep = SA_evaluate_simple_term(currentEntryParam->dec, currentNode, callScopeTable);
+        (*currentNodeType) = currentEntryParam->dec;
+        /*(*currentNodeType) = termRep.success == true ? currentEntryParam->dec : SA_get_var_type(currentNode);
 
-        if (success == true) {
+        if (termRep.success == true) {
             (*currentNodeType) = currentEntryParam->dec;
         } else {
             (*currentNodeType) = SA_get_var_type(currentNode);
+        }*/
+
+        if (termRep.errorOccured == true) {
+            return termRep;
         }
     }
+
+    return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
 }
 
-void SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart) {
+struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table) {
     if (arrayAccStart->leftNode == NULL) {
-        return;
+        return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
     } else if (arrayAccStart->leftNode->type != _ARRAY_ACCESS_NODE_) {
-        return;
+        return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
     }
 
     struct Node *cache = arrayAccStart->leftNode != NULL ? arrayAccStart->leftNode : NULL;
 
     while (cache != NULL) {
         if (cache->leftNode != NULL) {
-            currentType->dimension--;
+            struct VarDec expected = {INTEGER, 0, NULL};
+            struct SemanticReport termRep = SA_evaluate_simple_term(expected, cache->leftNode, table);
 
-            if (currentType->dimension < 0) {
-                (void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(arrayAccStart);
-                return;
+            if (termRep.errorOccured == true) {
+                return termRep;
             }
         }
 
         cache = cache->rightNode;
+        currentType->dimension--;
     }
+
+    if (currentType->dimension < 0) {
+        return SA_create_semantic_report(nullDec, false, true, arrayAccStart, NO_SUCH_ARRAY_DIMENSION_EXCEPTION, NULL, NULL);
+    }
+
+    return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
 }
 
-int SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode) {
+struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode) {
     if (ref == NULL) {
-        return true;
+        return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
     } else if (topNode->detailsCount != ref->paramSize) {
-        (void)THROW_WRONG_ARGUMENT_EXCEPTION(topNode);
-        return true;
+        return SA_create_semantic_report(nullDec, false, true, topNode, WRONG_ARGUMENT_EXCPEPTION, NULL, NULL);
     } else if (topNode->type != _FUNCTION_CALL_NODE_
         || ref->type != FUNCTION) {
-        (void)THROW_TYPE_MISMATCH_EXCEPTION(topNode, "FUNCTION_CALL", "NON_FUNCTION_CALL");
-        return true;
+        return SA_create_semantic_report(nullDec, false, true, topNode, TYPE_MISMATCH_EXCEPTION, "FUNCTION_CALL", "NON_FUNCTION_CALL");
     }
 
-    return false;
+    return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
 }
 
 /**
@@ -572,13 +631,12 @@ int SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode) {
  * the `Book`, while the topTable remains in the MAIN routine.
  * </p>
  */
-int SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable) {
+struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable) {
     if (topTable->type == MAIN) {
         if (vis != P_GLOBAL) {
-            (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(node);
-            return false;
+            return SA_create_semantic_report(nullDec, false, true, node, STATEMENT_MISPLACEMENT_EXCEPTION, NULL, NULL);
         } else {
-            return true;
+            return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
         }
     }
     
@@ -586,15 +644,14 @@ int SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node 
 
     if ((int)strcmp(currentScope->name, nextClassTable->name) == 0
         && nextClassTable->type != MAIN) {
-        return true;
+        return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
     } else {
         if (vis == PRIVATE || vis == SECURE) {
-            (void)THROW_MODIFIER_EXCEPTION(node);
-            return false;
+            return SA_create_semantic_report(nullDec, false, true, node, MODIFIER_EXCEPTION, NULL, NULL);
         }
     }
 
-    return true;
+    return SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
 }
 
 /**
@@ -615,26 +672,24 @@ int SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node 
  * @param *topScope         The SemanticTable when entering the member access checking
  * 
  */
-int SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope,
+struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope,
                                     SemanticTable *topScope) {
     if (cacheNode->rightNode != NULL) {
         if (cacheNode->rightNode->type == _CLASS_ACCESS_NODE_) {
             if (currentScope->type != CLASS) {
-                (void)THROW_WRONG_ACCESSOR_EXEPTION(cacheNode->rightNode);
-                return -1;
+                return SA_create_semantic_report(nullDec, false, true, cacheNode->rightNode, WRONG_ACCESSOR_EXCEPTION, NULL, NULL);
             }
         } else if (cacheNode->rightNode->type == _MEMBER_ACCESS_NODE_) {
             if (topScope->type != CLASS
                 || (int)strcmp(topScope->name, topScope->name) != 0) {
-                (void)THROW_WRONG_ACCESSOR_EXEPTION(cacheNode->rightNode);
-                return -1;
+                return SA_create_semantic_report(nullDec, false, true, cacheNode->rightNode, WRONG_ACCESSOR_EXCEPTION, NULL, NULL);
             }
         } else {
-            return 0;
+            return SA_create_semantic_report(nullDec, 0, false, NULL, NONE, NULL, NULL);
         }
     }
 
-    return 1;
+    return SA_create_semantic_report(nullDec, 1, false, NULL, NONE, NULL, NULL);
 }
 
 /**
@@ -700,8 +755,8 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
     return temp;
 }
 
-int SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
-    return (int)SA_evaluate_simple_term(expectedType, topNode, table);
+struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
+    return SA_evaluate_simple_term(expectedType, topNode, table);
 }
 
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope,
@@ -739,6 +794,13 @@ int SA_are_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
     
     if (type1.type == CUSTOM && type1.dimension == type2.dimension) {
         return true;
+    }
+
+    if (type1.type == CLASS_REF && type2.type == CLASS_REF) {
+        if ((int)strcmp(type1.classType, type2.classType) == 0
+            && type1.dimension == type2.dimension) {
+            return true;
+        }
     }
 
     return type1.type == type2.type
@@ -825,7 +887,7 @@ SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table) 
 }
 
 struct VarDec SA_get_identifier_var_Type(Node *node) {
-    struct VarDec cust = {CUSTOM, 0};
+    struct VarDec cust = {CUSTOM, 0, NULL};
 
     switch (node->type) {
     case _FLOAT_NODE_:
@@ -856,7 +918,8 @@ struct VarDec SA_get_identifier_var_Type(Node *node) {
  * @param *topNode  Node to convert
  */
 struct VarDec SA_get_var_type(Node *node) {
-    struct VarDec cust = {CUSTOM, 0};
+    struct VarDec cust = {CUSTOM, 0, NULL};
+    int setType = false;
 
     if (node == NULL) {
         return cust;
@@ -865,14 +928,21 @@ struct VarDec SA_get_var_type(Node *node) {
     int length = sizeof(TYPE_LOOKUP) / sizeof(TYPE_LOOKUP[0]);
 
     for (int i = 0; i < length; i++) {
-        char *occurance = strstr(node->value, TYPE_LOOKUP[i].name);
+        char *occurance = (char*)strstr(node->value, TYPE_LOOKUP[i].name);
         int pos = occurance - node->value;
 
         if (pos == 0) {
             cust.type = TYPE_LOOKUP[i].type;
             cust.dimension = node->leftNode == NULL ? 0 : (int)atoi(node->leftNode->value);
+            setType = true;
             break;
         }
+    }
+
+    if (node->value != NULL && setType == false) {
+        cust.classType = node->value;
+        cust.type = CLASS_REF;
+        cust.dimension = node->leftNode == NULL ? 0 : (int)atoi(node->leftNode->value);
     }
 
     return cust;
@@ -906,11 +976,17 @@ enum Visibility SA_get_visibility(Node *visibilityNode) {
     return P_GLOBAL;
 }
 
-struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured) {
+struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured, Node *errorNode, enum ErrorType errorType,
+                                                char *expected, char *got) {
     struct SemanticReport rep;
     rep.dec = type;
     rep.success = success;
+    printf(">>>> >>>> >>>> >>>> ERROR OCC: %i %i\n", errorOccured, errorType);
     rep.errorOccured = errorOccured;
+    rep.errorNode = errorNode;
+    rep.errorType = errorType;
+    rep.expected = expected;
+    rep.got = got;
     return rep;
 }
 
@@ -993,9 +1069,7 @@ void FREE_TABLE(SemanticTable *rootTable) {
     for (int i = 0; i < rootTable->symbolTable->capacity; i++) {
         if (rootTable->symbolTable->entries[i] == NULL) {
             continue;
-        }
-
-        if (rootTable->symbolTable->entries[i]->value == NULL) {
+        } else if (rootTable->symbolTable->entries[i]->value == NULL) {
             continue;
         }
 
@@ -1031,7 +1105,7 @@ void THROW_STATEMENT_MISPLACEMENT_EXEPTION(Node *node) {
 
 void THROW_TYPE_MISMATCH_EXCEPTION(Node *node, char *expected, char *got) {
     (void)THROW_EXCEPTION("TypeMismatchException", node);
-    printf("Expected: %s, got %s\n", expected, got);
+    printf(ANSI_COLOR_RED "    Expected: %s, got %s\n" ANSI_COLOR_RESET, expected, got);
     (void)free(expected);
     (void)free(got);
 }
@@ -1045,9 +1119,9 @@ void THROW_ALREADY_DEFINED_EXCEPTION(Node *node) {
 }
 
 void THROW_MEMORY_RESERVATION_EXCEPTION(char *problemPosition) {
-    printf("MemoryReservationException: at %s\n", problemPosition);
+    printf(ANSI_COLOR_RED "MemoryReservationException: at %s\n", problemPosition);
     printf("Error was thrown while semantic analysis.\n");
-    printf("This error is an internal issue, please recompile.\n");
+    printf("This error is an internal issue, please recompile.\n" ANSI_COLOR_RESET);
     exit(EXIT_FAILURE);
 }
 
@@ -1061,16 +1135,76 @@ void THROW_MEMORY_RESERVATION_EXCEPTION(char *problemPosition) {
  */
 void THROW_EXCEPTION(char *message, Node *node) {
     int charsInLine = 0;
+    int errorCharsAwayFromNL = 0;
 
-    for (int i = node->position; i > 0; i--, charsInLine++) {
-        if ((*BUFFER)[i] == '\n') {
+    for (int i = node->position; i > 0; i--, errorCharsAwayFromNL++) {
+        if ((*BUFFER)[i - 1] == '\n' || (*BUFFER)[i - 1] == '\0') {
             break;
         }
     }
 
-    (void)printf("%s: at line %li:%i from \"%s\"\n", message, node->line + 1, charsInLine, node->value);
+    for (int i = node->position - charsInLine; (*BUFFER)[i] != '\n' && (*BUFFER)[i] != '\0'; i++, charsInLine++);
+    charsInLine += errorCharsAwayFromNL;
+
+    (void)printf(ANSI_COLOR_RED);
+    (void)printf("%s: at line %li:%i from \"%s\"\n", message, node->line + 1, errorCharsAwayFromNL, FILE_NAME);
+    
+    char firstFoldMeta[12];
+    int minSkip = (int)snprintf(firstFoldMeta, 12, "    at: ");
+    (void)printf(firstFoldMeta);
+
+    for (int i = 0; i < charsInLine; i++) {
+        int pos = node->position - errorCharsAwayFromNL + i;
+        (void)printf("%c", (*BUFFER)[pos]);
+    }
+
+    (void)printf("\n");
+    int WSSP = node->position - errorCharsAwayFromNL;
+    int WSLen = node->position + minSkip;
+
+    for (int i = WSSP; i < WSLen; i++) {
+        (void)printf(" ");
+    }
+
+    for (int i = 0; i < (int)strlen(node->value); i++) {
+        (void)printf("^");
+    }
+
+    (void)printf("\n");
+    (void)printf(ANSI_COLOR_RESET);
 }
 
+void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
+    switch (rep.errorType) {
+    case ALREADY_DEFINED_EXCEPTION:
+        (void)THROW_ALREADY_DEFINED_EXCEPTION(rep.errorNode);
+        break;
+    case NOT_DEFINED_EXCEPTION:
+        (void)THROW_NOT_DEFINED_EXCEPTION(rep.errorNode);
+        break;
+    case TYPE_MISMATCH_EXCEPTION:
+        (void)THROW_TYPE_MISMATCH_EXCEPTION(rep.errorNode, rep.expected, rep.got);
+        break;
+    case STATEMENT_MISPLACEMENT_EXCEPTION:
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep.errorNode);
+        break;
+    case WRONG_ACCESSOR_EXCEPTION:
+        (void)THROW_WRONG_ACCESSOR_EXEPTION(rep.errorNode);
+        break;
+    case WRONG_ARGUMENT_EXCPEPTION:
+        (void)THROW_WRONG_ARGUMENT_EXCEPTION(rep.errorNode);
+        break;
+    case MODIFIER_EXCEPTION:
+        (void)THROW_MODIFIER_EXCEPTION(rep.errorNode);
+        break;
+    case NO_SUCH_ARRAY_DIMENSION_EXCEPTION:
+        (void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(rep.errorNode);
+        break;
+    default:
+        (void)THROW_EXCEPTION("Exception", rep.errorNode);
+        break;
+    }
+}
 
 struct VarTypeString {
     enum VarType type;
@@ -1083,9 +1217,9 @@ struct VarTypeString VarTypeStringLookup[] = {
 };
 
 char *SA_get_VarType_string(struct VarDec type) {
-    const int size = 7 + (type.dimension * 2);
+    const int size = 8 + ((int)abs(type.dimension) * 2);
     int lookupSize = sizeof(VarTypeStringLookup) / sizeof(VarTypeStringLookup[0]);
-    char *buffer;
+    char *buffer = NULL;
 
     for (int i = 0; i < lookupSize; i++) {
         if (type.type == VarTypeStringLookup[i].type) {
@@ -1093,10 +1227,18 @@ char *SA_get_VarType_string(struct VarDec type) {
         }
     }
 
+    if (buffer == NULL) {
+        buffer = type.classType;
+    }
+
     char *string = (char*)calloc(size + 1, sizeof(char));
     (void)strncpy(string, buffer, 7);
 
-    for (int i = 0; i < type.dimension; i++) {
+    if (type.dimension < 0) {
+        (void)strcat(string, "-");
+    }
+
+    for (int i = 0; i < abs(type.dimension); i++) {
         (void)strcat(string, "[]");
     }
 

@@ -32,7 +32,7 @@ enum Visibility {
 enum VarType {
     INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING,
     null, EXT_CLASS_OR_INTERFACE,
-    CUSTOM
+    CUSTOM, CLASS_REF
 };
 
 enum ScopeType {
@@ -43,6 +43,7 @@ enum ScopeType {
 struct VarDec {
     enum VarType type;
     int dimension;
+    char *classType;
 };
 
 typedef struct SemanticEntry {

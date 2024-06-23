@@ -34,6 +34,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define PARSETREE_GENERATOR_DEBUG_MODE 1
 #define PARSETREE_GENERATOR_DISPLAY_USED_TIME 1
 
+//TERMINAL COLORS
+#define ANSI_COLOR_RED       "\x1b[31m"
+#define ANSI_COLOR_RESET     "\x1b[0m"
+
 //////////////////////////////////////
 //////////     FUNCTIONS     /////////
 //////////////////////////////////////

@@ -3653,6 +3653,7 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
         return;
     }
 
+    (void)printf(ANSI_COLOR_RED);
     (void)printf("SYNTAX ERROR: An error occured on line %li (%s).\n", (errorToken->line + 1), FILE_NAME);
     (void)printf("-------------------------------------------------------\n");
 
@@ -3708,4 +3709,5 @@ void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
 
     (void)printf("\n\nUnexpected token \"%s\", maybe replace with \"%s\".\n", errorToken->value, expectedToken);
     (void)printf("-------------------------------------------------------\n\n");
+    (void)printf(ANSI_COLOR_RESET);
 }

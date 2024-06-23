@@ -1,9 +1,11 @@
-function:int test() {
+var:int index = 0;
+
+function:Object[] test() {
 
 }
 
-function test2(param:int[]) {
+function test2(param:Object) {
 
 }
 
-var a = test2(test());
+var a = test2(test()[3 * index + 4]);
