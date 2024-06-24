@@ -28,15 +28,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define LEXER_DEBUG_MODE 1
 #define LEXER_DISPLAY_USED_TIME 1
 
-#define SYNTAX_ANALYZER_DEBUG_MODE 0
+#define SYNTAX_ANALYZER_DEBUG_MODE 1
 #define SYNTAX_ANALYZER_DISPLAY_USED_TIME 1
 
 #define PARSETREE_GENERATOR_DEBUG_MODE 1
 #define PARSETREE_GENERATOR_DISPLAY_USED_TIME 1
 
 //TERMINAL COLORS
-#define ANSI_COLOR_RED       "\x1b[31m"
-#define ANSI_COLOR_RESET     "\x1b[0m"
+#define TEXT_COLOR_RED          "\033[38;2;230;70;70m"
+#define TEXT_COLOR_BLUE         "\033[38;2;80;150;230m"
+#define TEXT_COLOR_GRAY         "\033[38;2;180;180;180m"
+#define TEXT_COLOR_YELLOW       "\033[38;2;210;210;40m"
+#define TEXT_UNDERLINE          "\x1b[4m"
+#define TEXT_COLOR_RESET        "\x1b[0m"
 
 //////////////////////////////////////
 //////////     FUNCTIONS     /////////
@@ -68,6 +72,7 @@ TOKEN *Tokenize(int **arrayOfIndividualTokenSizes);
 struct Node *GenerateParsetree(TOKEN **tokens);
 
 //int Check_syntax(TOKEN **tokens, size_t tokenArrayLength, char **buffer, size_t bufferSize);
+
 int CheckInput(TOKEN **tokens);
 int CheckSemantic(struct Node *root);
 

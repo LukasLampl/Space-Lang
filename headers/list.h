@@ -19,48 +19,19 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef SPACE_SEMANTIC_ANALYZER_H_
-#define SPACE_SEMANTIC_ANALYZER_H_
+#ifndef SPACE_LIST_H_
+#define SPACE_LIST_H_
 
-enum Visibility {
-    P_GLOBAL,
-    GLOBAL,
-    SECURE,
-    PRIVATE
+struct List {
+    size_t size;
+    void **entries;
+    size_t load;
 };
 
-enum VarType {
-    INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING,
-    null, EXT_CLASS_OR_INTERFACE,
-    CUSTOM, CLASS_REF, CONSTRUCTOR_PARAM
-};
-
-enum ScopeType {
-    MAIN, FUNCTION, CLASS, IF, CHECK, IS, FOR, WHILE, DO,
-    VARIABLE, FUNCTION_CALL, CONSTRUCTOR
-};
-
-struct VarDec {
-    enum VarType type;
-    int dimension;
-    char *classType;
-};
-
-typedef struct SemanticEntry {
-    char *name;
-    char *value;
-    struct VarDec dec;
-    enum Visibility visibility;
-    enum ScopeType internalType;
-    void *reference;
-} SemanticEntry;
-
-typedef struct SemanticTable {
-    struct List *paramList;
-    struct HashMap *symbolTable;
-    struct SemanticTable *parent;
-    enum ScopeType type;
-    char *name;
-} SemanticTable;
+struct List *CreateNewList(int initialCapacity);
+void L_add_item(struct List *list, void *ptr);
+void *L_get_item(struct List *list, int n);
+void L_print_list(struct List *list, int flag);
+void FREE_LIST(struct List *list);
 
 #endif

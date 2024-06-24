@@ -42,7 +42,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  * RUNNABLE (main) -> VARIABLE -> ARRAY VARIABLE -> INIT ARRAY VARIABLE
  * -> INIT 1 DIMENSIOT
  * 
- * @version 1.0     13.06.2024
+ * @version 1.0     24.06.2024
  * @author Lukas Nian En Lampl
 */
 
@@ -204,6 +204,7 @@ int CheckInput(TOKEN **tokens) {
         return -1;
     }
 
+    MAX_TOKEN_LENGTH = TOKEN_LENGTH;
     clock_t start, end;
 
     if (SYNTAX_ANALYZER_DISPLAY_USED_TIME == true) {
@@ -317,7 +318,7 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
     while (startPos + jumper <  MAX_TOKEN_LENGTH) {
         TOKEN *currentToken = &(*tokens)[startPos + jumper];
-
+        
         if (currentToken->type == __EOF__) {
             break;
         } else if (currentToken->type == _OP_LEFT_BRACE_ && withBlock == true) {
@@ -329,13 +330,13 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
             && withBlock == 2) {
             break;
         }
-        
+
         SyntaxReport isKWBasedRunnable = SA_is_keyword_based_runnable(tokens, startPos + jumper);
         int KWRet = (int)SA_handle_runnable_rep(isKWBasedRunnable, tokens, startPos, &jumper, withBlock);
         
         if (KWRet == -1) {
             return isKWBasedRunnable;
-        } else if (KWRet == 0) {
+        } else if (KWRet == 1) {
             continue;
         }
         
@@ -344,7 +345,7 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
         if (NKWRet == -1) {
             return isNKWBasedRunnable;
-        } else if (NKWRet == 0) {
+        } else if (NKWRet == 1) {
             continue;
         } else {
             TOKEN *errorTok = &(*tokens)[startPos + jumper];
@@ -1397,7 +1398,7 @@ SyntaxReport SA_is_is_statement(TOKEN **tokens, size_t startPos) {
  * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
-    int skip = SA_skip_visibility_modifier(&(*tokens)[startPos]);
+    int skip = (int)SA_skip_visibility_modifier(&(*tokens)[startPos]);
     TOKEN *varTok = &(*tokens)[startPos + skip];
 
     if (varTok->type == _KW_VAR_
@@ -1554,7 +1555,7 @@ SyntaxReport SA_is_assignment(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos + isTerm.tokensToSkip + 1].type != _OP_SEMICOLON_) {
         return SA_create_syntax_report(&(*tokens)[startPos + isTerm.tokensToSkip + 1], 0, true, ";");
     }
-    
+
     return SA_create_syntax_report(NULL, isTerm.tokensToSkip + 2, false, NULL);
 }
 
@@ -2816,7 +2817,7 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
         } else if ((int)is_end_indicator(currentToken) == true) {
             break;
         }
-
+        
         switch (hasToBeArithmeticOperator) {
         case false:
             hasToBeArithmeticOperator = true;
@@ -2884,13 +2885,13 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
             break;
         }
     }
-
+    
     if (hasToBeArithmeticOperator == false) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFIER>");
     } else if (jumper == 0) {
         return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFER>\", \"<FUNCTION_CALL>\" or \"<CLASS_OBJECT_ACCESS>");
     }
-
+    
     return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
@@ -3646,68 +3647,59 @@ Params: TOKEN *errorToken => Token that caused the issue;
 */
 void SA_throw_error(TOKEN *errorToken, char *expectedToken) {
     FILE_CONTAINS_ERRORS = true;
-    int errorWindow = 32;
 
     if (BUFFER == NULL) {
         (void)printf("Source code pointer = NULL!");
         return;
     }
 
-    (void)printf(ANSI_COLOR_RED);
-    (void)printf("SYNTAX ERROR: An error occured on line %li (%s).\n", (errorToken->line + 1), FILE_NAME);
-    (void)printf("-------------------------------------------------------\n");
+    int errorCharsAwayFromNL = 0;
+    size_t errorLine = errorToken->line + 1;
 
-    int errorLine = errorToken->line + 1;
-    int printPosition = errorToken->type == __EOF__ ? BUFFER_LENGTH : errorToken->tokenStart;
-
-    for (int i = printPosition, step = 0; i > 0; i--, step++) {
-        if ((*BUFFER)[i] == '\n' || step == errorWindow) {
+    for (int i = errorToken->tokenStart; i > 0; i--, errorCharsAwayFromNL++) {
+        if ((*BUFFER)[i - 1] == '\n' || (*BUFFER)[i - 1] == '\0') {
             break;
         }
-
-        printPosition = i - 1;
     }
+
+    (void)printf(TEXT_COLOR_RED);
+    (void)printf("SYNTAX ERROR occured on line ");
+    (void)printf(TEXT_COLOR_BLUE);
+    (void)printf(TEXT_UNDERLINE);
+    (void)printf("%li:%i", errorLine, errorCharsAwayFromNL);
+    (void)printf(TEXT_COLOR_RESET);
+    (void)printf(TEXT_COLOR_RED);
+    (void)printf(" in \"%s\"\n", FILE_NAME);
     
     char buffer[32];
-    int tokPos = ((errorToken->tokenStart + 1) - printPosition);
-    int blankLength = (int)snprintf(buffer, 32, "%i : %i | ", errorLine, tokPos);
+    int tokPos = ((errorToken->tokenStart + 1) - errorCharsAwayFromNL);
+    int blankLength = (int)snprintf(buffer, 32, "%li : %i | ", errorLine, tokPos);
     (void)printf("%s", buffer);
+    (void)printf(TEXT_COLOR_GRAY);
 
-    for (int i = printPosition, step = 0; i < BUFFER_LENGTH; i++, step++) {
-        if ((*BUFFER)[i] == '\n' || step == (errorWindow * 2)) {
-            printPosition = i + 1;
-            continue;
-        } else if ((*BUFFER)[i] == '\0') {
+    for (int i = errorToken->tokenStart - errorCharsAwayFromNL; i < BUFFER_LENGTH; i++) {
+        if ((*BUFFER)[i] == '\n' || (*BUFFER)[i] == '\0') {
             break;
         }
 
         (void)printf("%c", (*BUFFER)[i]);
-        
-        if ((*BUFFER)[i + 1] == '\n' || i + 1 == BUFFER_LENGTH) {
-            (void)printf("\n");
-            break;
-        }
     }
 
-    blankLength = blankLength > 32 ? 32 : blankLength;
+    (void)printf("\n");
+    (void)printf(TEXT_COLOR_YELLOW);
 
-    for (int i = 0; i < blankLength; i++) {
+    for (int i = 0; i < blankLength + errorCharsAwayFromNL; i++) {
         (void)printf(" ");
     }
 
-    int counter = 0;
-
-    for (int i = printPosition; i < BUFFER_LENGTH && i - printPosition < errorWindow * 2; i++) {
-        if (i >= errorToken->tokenStart
-            && counter < (errorToken->size - 1)) {
-            (void)printf("^");
-            counter++;
-        } else {
-            (void)printf(" ");
-        }
+    for (int i = 0; i < errorToken->size - 1; i++) {
+        (void)printf("^");
     }
 
-    (void)printf("\n\nUnexpected token \"%s\", maybe replace with \"%s\".\n", errorToken->value, expectedToken);
-    (void)printf("-------------------------------------------------------\n\n");
-    (void)printf(ANSI_COLOR_RESET);
+    (void)printf(TEXT_COLOR_RED);
+    (void)printf("\n");
+    (void)printf("    Unexpected token \"%s\",\n", errorToken->value);
+    (void)printf("    maybe replace with \"%s\".\n", expectedToken);
+    (void)printf("\n\n");
+    (void)printf(TEXT_COLOR_RESET);
 }

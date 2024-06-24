@@ -39,7 +39,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
  * 
  * @see SPACE.src.parseTreeGenerator.md
  * 
- * @version 1.0     12.06.2024
+ * @version 1.0     24.06.2024
  * @author Lukas Nian En Lampl
 */
 
@@ -1404,23 +1404,14 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
     topNode->value = (*tokens)[startPos + skip].value;
     skip += 3; //Skip the name, "=" and "new"
     token = &(*tokens)[startPos + skip];
-
+    
     Node *inheritNode = PG_create_node(token->value, _INHERITED_CLASS_NODE_, token->line, token->tokenStart);
     topNode->rightNode = inheritNode;
     skip += 2;
 
-    int paramOffset = topNode->detailsCount;
-    int bounds = 0;
-
-    if ((*tokens)[startPos + skip].type == _IDENTIFIER_
-        && (*tokens)[startPos + skip + 1].type == _OP_LEFT_BRACKET_) {
-        bounds = 1;
-    } else {
-        (int)PG_predict_argument_count(tokens, startPos + skip, false);
-    }
-    
-    (void)PG_allocate_node_details(inheritNode, paramOffset + bounds, true);
-    skip += (int)PG_add_params_to_node(inheritNode, tokens, startPos + skip, paramOffset, _NULL_);
+    int bounds = (int)PG_predict_argument_count(tokens, startPos + skip, false);    
+    (void)PG_allocate_node_details(inheritNode, bounds, true);
+    skip += (int)PG_add_params_to_node(inheritNode, tokens, startPos + skip, 0, _NULL_);
     return PG_create_node_report(topNode, skip + 2);
 }
 
@@ -2113,8 +2104,9 @@ _______________________________
 */
 NodeReport PG_create_class_constructor_tree(TOKEN **tokens, size_t startPos) {
     int skip = 5;
-    TOKEN *token = &(*tokens)[startPos + skip];
+    TOKEN *token = &(*tokens)[startPos + 3];
     Node *topNode = PG_create_node("CONSTRUCTOR", _CLASS_CONSTRUCTOR_NODE_, token->line, token->tokenStart);
+    token = &(*tokens)[startPos + skip];
     //Start (from ´´´this´´´ to ´´´constructor´´´) is SYNTAXANALYSIS
     //not tree generation.
     /*
@@ -2461,6 +2453,7 @@ _______________________________
 */
 NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     int skip = 0;
+    int withSpecifier = false;
     Node *modNode = NULL;
     Node *functionNode = PG_create_node("FNC", _FUNCTION_NODE_, 0, 0);
     TOKEN *token = &(*tokens)[startPos];
@@ -2481,6 +2474,7 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
 
     if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
         skip += (int)PG_add_varType_definition(tokens, startPos + skip + 2, functionNode) + 1;
+        withSpecifier = true;
     }
 
     //No NULL check needed, if leftNode or rightNode == NULL nothing changes
@@ -2494,6 +2488,7 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip, true);
     (void)PG_allocate_node_details(functionNode, argumentCount + 2, true);
     skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip + 1, 1, _NULL_) + 3;
+    skip -= argumentCount > 0 || withSpecifier == true ? 1 : 0;
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     functionNode->details[functionNode->detailsCount - 1] = runnableReport.node;
@@ -2571,7 +2566,7 @@ size_t PG_add_params_to_node(Node *node, TOKEN **tokens, size_t startPos, int ad
                 report = PG_create_simple_term_node(tokens, i, bounds);
 
                 if ((*tokens)[i + bounds].type == _OP_COLON_) {
-                    i += (int)PG_add_varType_definition(tokens, i + bounds + 1, report.node);
+                    i += (int)PG_add_varType_definition(tokens, i + bounds + 1, report.node) + 1;
                 }
             }
 
@@ -2628,7 +2623,10 @@ Params: TOKEN **tokens => Pointer to the array of tokens;
         int withPredefinedBrackets => Is "openBrackets" awaited to be 1
 */
 int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefinedBrackets) {
-    if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
+    if ((*tokens)[startPos].type == _IDENTIFIER_
+        && (*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_) {
+        return 1;
+    } else if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
         && (*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_) {
         return 0;
     } else if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
@@ -2638,7 +2636,7 @@ int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefine
         return 1;
     }
 
-    int count = 1;
+    int count = 0;
     int openBrackets = 0;
 
     for (size_t i = startPos; i < TOKEN_LENGTH; i++) {
@@ -2650,11 +2648,16 @@ int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefine
                 continue;
             }
 
-            count++;
+            count += count == 0 ? 2 : 1;
         } else if (token->type == _OP_RIGHT_BRACKET_) {
             openBrackets++;
         } else if (token->type == _OP_LEFT_BRACKET_) {
             openBrackets--;
+
+            if ((*tokens)[i - 1].type != _OP_RIGHT_BRACKET_
+                && count == 0) {
+                count++;
+            }
 
             if (openBrackets <= 0) {
                 break;
@@ -2784,6 +2787,8 @@ Params: char **value => Pointer to the value of the node
 enum NodeType PG_get_node_type_by_value(char **value) {
     if ((*value)[0] == '"') {
         return _STRING_NODE_;
+    } else if ((*value)[0] == '\'') {
+        return _CHAR_ARRAY_NODE_;
     } else if ((int)is_digit((*value)[0]) == true) {
         for (size_t i = 0; (*value)[i] != '\0'; i++) {
             if ((*value)[i] == '.') {
@@ -2886,7 +2891,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
     int waitingToEndPlusOrMinus = false;
     int length = startPos + boundaries;
     int isCalc = PG_predict_member_access(tokens, startPos, NONE) == true ? false : true;
-    printf("Is Cals %i for %s\n", isCalc, (*tokens)[startPos].value);
+
     for (size_t i = startPos; i < length && isCalc == true; i++) {
         TOKEN *currentToken = &(*tokens)[i];
 

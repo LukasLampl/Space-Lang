@@ -129,7 +129,7 @@ Params: char **input -> Source code; int pos -> position of error;
         the error was found
 */
 void LEXER_UNEXPECTED_SYMBOL_EXCEPTION(char **input, int pos, int maxBackPos, int line) {
-    char *errormsg = "unexpected symbol has been found in the input.";
+    char *errormsg = "Unexpected symbol has been found in the input.";
     (void)printf("\n%s\n", errormsg);
     (void)printf("At line: %i : position: %i of the input\n", line + 1, pos);
 

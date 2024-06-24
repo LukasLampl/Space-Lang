@@ -1,11 +1,5 @@
-var:int index = 0;
-
-function:Object[] test() {
-
+class List => {
+    this::constructor() {
+        var a = 1 + 2;
+    }
 }
-
-function test2(param:Object) {
-
-}
-
-var a = test2(test()[3 * index + 4]);
