@@ -43,7 +43,7 @@ typedef enum TOKENTYPES {
     _KW_SECURE_,                     _KW_PRIVATE_,                    _KW_EXPORT_,
     _KW_FOR_,                        _KW_THIS_,                       _KW_ELSE_,
     _KW_CONSTRUCTOR_,                _KW_INT_,                        _KW_DOUBLE_,
-    _KW_FLOAT_,                      _KW_CHAR_,
+    _KW_FLOAT_,                      _KW_CHAR_,                       _KW_VOID_,
     _KW_BOOLEAN_,                    _KW_SHORT_,                      _KW_LONG_,
     _KW_EXTENDS_, _INTEGER_,
     _CHARACTER_ARRAY_,               _OPERATOR_,                      _OP_PLUS_,

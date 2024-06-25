@@ -51,6 +51,12 @@ enum ErrorType {
     NO_SUCH_ARRAY_DIMENSION_EXCEPTION
 };
 
+enum FunctionCallType {
+    FNC_CALL,
+    CONSTRUCTOR_CALL,
+    CONSTRUCTOR_CHECK_CALL
+};
+
 struct MemberAccessList {
     size_t size;
     Node **nodes;
@@ -85,13 +91,13 @@ struct varTypeLookup {
 struct varTypeLookup TYPE_LOOKUP[] = {
     {"int", INTEGER}, {"double", DOUBLE}, {"float", FLOAT},
     {"short", SHORT}, {"long", LONG}, {"char", CHAR},
-    {"boolean", BOOLEAN}, {"String", STRING}
+    {"boolean", BOOLEAN}, {"String", STRING}, {"void", VOID}
 };
 
 void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table);
 void SA_add_parameters_to_runnable_table(SemanticTable *scopeTable, struct ParamTransferObject *params);
 
-struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry, SemanticTable *callScopeTable, int functionCall);
+struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry, SemanticTable *callScopeTable, enum FunctionCallType fnccType);
 void SA_add_class_to_table(SemanticTable *table, Node *classNode);
 void SA_add_function_to_table(SemanticTable *table, Node *functionNode);
 void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode);
@@ -99,14 +105,14 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode);
 void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
-int SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder);
+struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
 int SA_get_node_param_count(struct Node *paramHolder);
 
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table);
 
-SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope, SemanticTable *parent, struct ParamTransferObject *params);
+SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope, SemanticTable *parent, struct ParamTransferObject *params, size_t line, size_t position);
 int SA_is_node_a_number(Node *node);
 int SA_is_node_arithmetic_operator(Node *node);
 int SA_are_VarTypes_equal(struct VarDec type1, struct VarDec type2, int strict);
@@ -118,15 +124,15 @@ struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *ta
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_check_non_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table);
-struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam, int functionCall);
-struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode);
+struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam, enum FunctionCallType fnccType);
+struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode,  enum FunctionCallType fnccType);
 struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable);
 
 struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope, SemanticTable *topScope);
 SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *table);
 struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTable *table);
 struct VarDec SA_convert_identifier_to_VarType(Node *node);
-struct VarDec SA_get_VarType(Node *node);
+struct VarDec SA_get_VarType(Node *node, int constant);
 enum Visibility SA_get_visibility(Node *visibilityNode);
 char *SA_get_VarType_string(struct VarDec type);
 char *SA_get_ScopeType_string(enum ScopeType type);
@@ -134,8 +140,8 @@ SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table);
 
 struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry, int success, int errorOccured);
 struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured, Node *errorNode, enum ErrorType errorType, char *expected, char *got);
-SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType, enum Visibility visibility, enum ScopeType internalType, void *ptr);
-SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, SemanticTable *parent, enum ScopeType type);
+SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType, enum Visibility visibility, enum ScopeType internalType, void *ptr, size_t line, size_t position);
+SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, SemanticTable *parent, enum ScopeType type, size_t line, size_t position);
 
 void FREE_TABLE(SemanticTable *rootTable);
 
@@ -155,12 +161,12 @@ extern char *FILE_NAME;
 extern char **BUFFER;
 extern size_t BUFFER_LENGTH;
 
-struct VarDec nullDec = {null, 0, NULL};
+struct VarDec nullDec = {null, 0, NULL, false};
 struct SemanticReport nullRep;
 
 int CheckSemantic(Node *root) {
     nullRep = SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
-    SemanticTable *mainTable = SA_create_new_scope_table(root, MAIN, NULL, NULL);
+    SemanticTable *mainTable = SA_create_new_scope_table(root, MAIN, NULL, NULL, 0, 0);
     (void)SA_manage_runnable(NULL, root, mainTable);
     (void)FREE_TABLE(mainTable);
     return 1;
@@ -174,6 +180,7 @@ void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table)
 
         switch (currentNode->type) {
         case _VAR_NODE_:
+        case _CONST_NODE_:
             (void)SA_add_normal_variable_to_table(table, currentNode);
             break;
         case _FUNCTION_NODE_:
@@ -191,9 +198,6 @@ void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table)
         default: continue;
         }
     }
-    
-    printf(">>>> SYMBOL TABLE <<<<\n");
-    HM_print_map(table->symbolTable, true);
 
     /*char *search = "add";
     struct HashMapEntry *entry = HM_get_entry(search, mainTable->symbolTable);
@@ -238,10 +242,15 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
     struct ParamTransferObject *params = SA_get_params(classNode, std);
     Node *runnableNode = classNode->rightNode;
 
-    SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, CLASS, table, params);
+    if ((int)SA_is_obj_already_defined(name, table) == true) {
+        (void)THROW_ALREADY_DEFINED_EXCEPTION(classNode);
+        return;
+    }
+
+    SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, CLASS, table, params, classNode->line, classNode->position);
     scopeTable->name = name;
     
-    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, nullDec, vis, CLASS, scopeTable);
+    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, nullDec, vis, CLASS, scopeTable, classNode->line, classNode->position);
     (void)HM_add_entry(name, referenceEntry, table->symbolTable);
     (void)SA_manage_runnable(table, runnableNode, scopeTable);
 }
@@ -254,15 +263,15 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 
     char *name = functionNode->value;
     enum Visibility vis = SA_get_visibility(functionNode->leftNode);
-    struct VarDec type = SA_get_VarType(functionNode->details == NULL ? NULL : functionNode->details[0]);
+    struct VarDec type = SA_get_VarType(functionNode->details == NULL ? NULL : functionNode->details[0], false);
     int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
     struct VarDec std = {VARIABLE, 0, NULL};
     struct ParamTransferObject *params = SA_get_params(functionNode, std);
     Node *runnableNode = functionNode->details[paramsCount];
-    SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params);
+    SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params, functionNode->line, functionNode->position);
     scopeTable->name = name;
 
-    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, type, vis, FUNCTION, scopeTable);
+    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, type, vis, FUNCTION, scopeTable, functionNode->line, functionNode->position);
     (void)HM_add_entry(name, referenceEntry, table->symbolTable);
     (void)SA_manage_runnable(table, runnableNode, scopeTable);
 }
@@ -279,7 +288,8 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
     char *name = varNode->value;
     enum Visibility vis = SA_get_visibility(varNode->leftNode);
-    struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0]);
+    int constant = varNode->type == _VAR_NODE_ ? false : true;
+    struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0], constant);
     char *value = varNode->rightNode == NULL ? "(null)" : varNode->rightNode->value;
 
     if ((int)SA_is_obj_already_defined(name, table) == true) {
@@ -296,7 +306,7 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
         }
     }
 
-    SemanticEntry *entry = SA_create_semantic_entry(name, value, type, vis, VARIABLE, NULL);
+    SemanticEntry *entry = SA_create_semantic_entry(name, value, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
     (void)HM_add_entry(name, entry, table->symbolTable);
 }
 
@@ -312,10 +322,28 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
     }
 
     if (varNode->rightNode != NULL) {
+        struct Node *valueNode = varNode->rightNode;
 
+        if (valueNode->type == _FUNCTION_CALL_NODE_) {
+            SemanticTable *topTable = SA_get_next_table_of_type(table, MAIN);
+            struct SemanticEntryReport classEntry = SA_get_entry_if_available(valueNode, topTable);
+
+            if (classEntry.entry == NULL) {
+                (void)THROW_NOT_DEFINED_EXCEPTION(valueNode);
+                return;
+            }
+
+            SemanticTable *classTable = (SemanticTable*)classEntry.entry->reference;
+            struct SemanticReport containsConstructor = SA_contains_constructor_of_type(classTable, valueNode, CONSTRUCTOR_CHECK_CALL);
+
+            if (containsConstructor.success == false) {
+                (void)THROW_NOT_DEFINED_EXCEPTION(valueNode);
+                return;
+            }
+        }
     }
 
-    SemanticEntry *entry = SA_create_semantic_entry(name, value, type, vis, VARIABLE, NULL);
+    SemanticEntry *entry = SA_create_semantic_entry(name, value, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
     (void)HM_add_entry(name, entry, table->symbolTable);
 }
 
@@ -325,7 +353,9 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
         return;
     }
 
-    if ((int)SA_contains_constructor_of_type(table, constructorNode) == true) {
+    struct SemanticReport hasConstructor = SA_contains_constructor_of_type(table, constructorNode, CONSTRUCTOR_CALL);
+
+    if ((int)hasConstructor.success == true) {
         (void)THROW_ALREADY_DEFINED_EXCEPTION(constructorNode);
         return;
     }
@@ -334,15 +364,15 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
     struct VarDec cust = {CUSTOM, 0, NULL};
     struct VarDec construc = {CONSTRUCTOR_PARAM, 0, NULL};
     struct ParamTransferObject *params = SA_get_params(constructorNode, cust);
-    SemanticTable *scopeTable = SA_create_new_scope_table(constructorNode, CONSTRUCTOR, table, params);
-    SemanticEntry *entry = SA_create_semantic_entry("CONSTRUCTOR", "CONSTRUCTOR", construc, GLOBAL, CONSTRUCTOR, scopeTable);
+    SemanticTable *scopeTable = SA_create_new_scope_table(constructorNode, CONSTRUCTOR, table, params, constructorNode->line, constructorNode->position);
+    SemanticEntry *entry = SA_create_semantic_entry("CONSTRUCTOR", "CONSTRUCTOR", construc, GLOBAL, CONSTRUCTOR, scopeTable, constructorNode->line, constructorNode->position);
     (void)L_add_item(table->paramList, entry);
     (void)SA_manage_runnable(table, runnableNode, scopeTable);
 }
 
-int SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder) {
+struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
     if (classTable == NULL || paramHolder == NULL) {
-        return true;
+        return SA_create_semantic_report(nullDec, false, false, NULL, NONE, NULL, NULL);
     }
 
     int actualNodeParamCount = (int)SA_get_node_param_count(paramHolder);
@@ -364,16 +394,19 @@ int SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *para
             continue;
         }
         
-        struct SemanticReport fncCallRep = SA_evaluate_function_call(paramHolder, entry, classTable, false);
+        struct SemanticReport fncCallRep = SA_evaluate_function_call(paramHolder, entry, classTable, fncctype);
         
+        //Checks if another constructor is already defined with the same parameter types,
+        //on error there is, else not
         if (fncCallRep.errorOccured == true) {
             continue;
         } else {
-            return true;
+            fncCallRep.success = true;
+            return fncCallRep;
         }
     }
 
-    return false;
+    return SA_create_semantic_report(nullDec, false, false, NULL, NONE, NULL, NULL);
 }
 
 int SA_get_node_param_count(struct Node *paramHolder) {
@@ -617,7 +650,7 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
     retType = entry.entry->dec;
     
     if (cacheNode->type == _FUNCTION_CALL_NODE_) {
-        struct SemanticReport rep = SA_evaluate_function_call(cacheNode, entry.entry, table, true);
+        struct SemanticReport rep = SA_evaluate_function_call(cacheNode, entry.entry, table, FNC_CALL);
 
         if (rep.errorOccured == true) {
             return rep;
@@ -659,17 +692,17 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
  * @param *callScopeTable   Table from which the function call was called
  */
 struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry,
-                                                SemanticTable *callScopeTable, int functionCall) {
+                                                SemanticTable *callScopeTable, enum FunctionCallType fnccType) {
     if (functionEntry == NULL || topNode == NULL || callScopeTable == NULL) {
         return nullRep;
     }
     
     SemanticTable *ref = (SemanticTable*)functionEntry->reference;
-    struct SemanticReport preCheck = SA_execute_function_call_precheck(ref, topNode);
+    struct SemanticReport preCheck = SA_execute_function_call_precheck(ref, topNode, fnccType);
     
     if (preCheck.errorOccured == true) {
         return preCheck;
-    } else if (functionCall == true) {
+    } else if (fnccType == FNC_CALL) {
         struct SemanticReport modCheck = SA_evaluate_modifier(ref, functionEntry->visibility, topNode, callScopeTable);
 
         if (modCheck.errorOccured == true) {
@@ -678,19 +711,20 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
     }
 
     int actualParams = (int)SA_get_node_param_count(topNode);
+    int strictCheck = fnccType == FNC_CALL ? false : true;
 
     for (int i = 0; i < actualParams; i++) {
         Node *currentNode = topNode->details[i];
         SemanticEntry *currentEntryParam = (SemanticEntry*)L_get_item(ref->paramList, i);
         
         struct VarDec currentNodeType = {CUSTOM, 0, NULL};
-        struct SemanticReport idenRep = SA_execute_identifier_analysis(currentNode, callScopeTable, &currentNodeType, currentEntryParam, functionCall);
+        struct SemanticReport idenRep = SA_execute_identifier_analysis(currentNode, callScopeTable, &currentNodeType, currentEntryParam, fnccType);
 
         if (idenRep.errorOccured == true) {
             return idenRep;
         }
         
-        if ((int)SA_are_VarTypes_equal(currentEntryParam->dec, currentNodeType, !functionCall) == false) {
+        if ((int)SA_are_VarTypes_equal(currentEntryParam->dec, currentNodeType, strictCheck) == false) {
             char *expected = SA_get_VarType_string(currentEntryParam->dec);
             char *got = SA_get_VarType_string(currentNodeType);
             struct Node *errorNode = currentNode->type == _MEM_CLASS_ACC_NODE_ ? currentNode->leftNode : currentNode;
@@ -715,9 +749,9 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
  * @param *currentEntryParam    The entry of the current parameter in the function
  */
 struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType,
-                                    SemanticEntry *currentEntryParam, int functionCall) {
-    switch (functionCall) {
-    case true:
+                                    SemanticEntry *currentEntryParam, enum FunctionCallType fnccType) {
+    switch (fnccType) {
+    case FNC_CALL:
         if (currentNode->type == _MEM_CLASS_ACC_NODE_
             || currentNode->type == _FUNCTION_CALL_NODE_) {
             struct SemanticReport memAccRep = SA_evaluate_member_access(currentNode, callScopeTable);
@@ -738,11 +772,21 @@ struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, Semantic
         }
 
         return nullRep;
-    case false: {
+    case CONSTRUCTOR_CALL:
+    case CONSTRUCTOR_CHECK_CALL: {
         struct VarDec dec = {CUSTOM, 0, NULL};
         
         if (currentNode->details != NULL && currentNode->detailsCount > 0) {
-            dec = SA_get_VarType(currentNode->details[0]);
+            dec = SA_get_VarType(currentNode->details[0], false);
+        }
+
+        if (dec.type == CUSTOM && fnccType == CONSTRUCTOR_CHECK_CALL) {
+            struct SemanticReport termRep = SA_evaluate_simple_term(currentEntryParam->dec, currentNode, callScopeTable);
+            dec = currentEntryParam->dec;
+
+            if (termRep.errorOccured == true) {
+                return termRep;
+            }
         }
         
         (*currentNodeType) = dec;
@@ -750,6 +794,8 @@ struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, Semantic
     }
     default: return nullRep;
     }
+
+    return nullRep;
 }
 
 struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table) {
@@ -782,11 +828,13 @@ struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struc
     return nullRep;
 }
 
-struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode) {
+struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode, enum FunctionCallType fnccType) {
     if (ref == NULL) {
         return nullRep;
     } else if (topNode->detailsCount != ref->paramList->load) {
         return SA_create_semantic_report(nullDec, false, true, topNode, WRONG_ARGUMENT_EXCPEPTION, NULL, NULL);
+    } else if (fnccType == CONSTRUCTOR_CHECK_CALL) {
+        return nullRep;
     } else if ((topNode->type == _FUNCTION_CALL_NODE_ && ref->type != FUNCTION)
         || (topNode->type == _CLASS_CONSTRUCTOR_NODE_ && ref->type != CONSTRUCTOR)) {
         return SA_create_semantic_report(nullDec, false, true, topNode, TYPE_MISMATCH_EXCEPTION, "FUNCTION_CALL", "NON_FUNCTION_CALL");
@@ -950,9 +998,10 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
 }
 
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope,
-                                                SemanticTable *parent, struct ParamTransferObject *params) {
+                                            SemanticTable *parent, struct ParamTransferObject *params,
+                                            size_t line, size_t position) {
     int paramCount = params == NULL ? 0 : params->params;
-    SemanticTable *table = SA_create_semantic_table(paramCount, root->detailsCount, NULL, scope);
+    SemanticTable *table = SA_create_semantic_table(paramCount, root->detailsCount, NULL, scope, line, position);
     table->parent = parent;
     (void)SA_add_parameters_to_runnable_table(table, params);
     return table;
@@ -1075,8 +1124,8 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) 
         }
         
         Node *typeNode = innerNode->detailsCount > 0 ? innerNode->details[0] : NULL;
-        struct VarDec type = SA_get_VarType(typeNode);
-        SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, "null", type, P_GLOBAL, VARIABLE, NULL);
+        struct VarDec type = SA_get_VarType(typeNode, false);
+        SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, "null", type, P_GLOBAL, VARIABLE, NULL, innerNode->line, innerNode->position);
         obj->entries[actualParams++] = entry;
     }
 
@@ -1141,9 +1190,10 @@ struct VarDec SA_convert_identifier_to_VarType(Node *node) {
  * @returns The converted VarType
  * 
  * @param *topNode  Node to convert
+ * @param constant  Flag for whether the type is a constant
  */
-struct VarDec SA_get_VarType(Node *node) {
-    struct VarDec cust = {CUSTOM, 0, NULL};
+struct VarDec SA_get_VarType(Node *node, int constant) {
+    struct VarDec cust = {CUSTOM, 0, NULL, constant};
     int setType = false;
 
     if (node == NULL) {
@@ -1266,7 +1316,7 @@ struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry,
  */
 SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType,
                                                 enum Visibility visibility, enum ScopeType internalType,
-                                                void *ptr) {
+                                                void *ptr, size_t line, size_t position) {
     SemanticEntry *entry = (SemanticEntry*)calloc(1, sizeof(SemanticEntry));
     entry->name = name;
     entry->reference = ptr;
@@ -1274,6 +1324,8 @@ SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec v
     entry->visibility = visibility;
     entry->value = value;
     entry->internalType = internalType;
+    entry->line = line;
+    entry->position = position;
     return entry;
 }
 
@@ -1290,7 +1342,7 @@ SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec v
  * @param type              Type of the semantic table
  */
 SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, SemanticTable *parent,
-                                                enum ScopeType type) {
+                                                enum ScopeType type, size_t line, size_t position) {
     SemanticTable *table = (SemanticTable*)calloc(1, sizeof(SemanticTable));
 
     if (table == NULL) {
@@ -1302,6 +1354,8 @@ SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, Sem
     table->symbolTable = CreateNewHashMap(symbolTableSize > 0 ? symbolTableSize : 1);
     table->parent = parent;
     table->type = type;
+    table->line = line;
+    table->position = position;
     return table;
 }
 
@@ -1487,7 +1541,8 @@ struct VarTypeString {
  */
 struct VarTypeString VarTypeStringLookup[] = {
     {INTEGER, "INTEGER"}, {DOUBLE, "DOUBLE"}, {FLOAT, "FLOAT"}, {STRING, "STRING"}, {LONG, "LONG"},
-    {SHORT, "SHORT"}, {BOOLEAN, "BOOLEAN"}, {CHAR, "CHAR"}, {CUSTOM, "CUSTOM"}, {null, "null"}
+    {SHORT, "SHORT"}, {BOOLEAN, "BOOLEAN"}, {CHAR, "CHAR"}, {CUSTOM, "CUSTOM"}, {VOID, "VOID"},
+    {null, "null"}
 };
 
 /**

@@ -1484,37 +1484,13 @@ SyntaxReport SA_is_class_instance(TOKEN **tokens, size_t startPos) {
 
     skip++;
 
-    if ((int)SA_is_root_identifier(&(*tokens)[startPos + skip]) == false) {
-        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "<IDENTIFIER>");    
+    SyntaxReport classPath = SA_is_identifier(tokens, startPos + skip);
+
+    if (classPath.errorOccured == true) {
+        return classPath;
     }
 
-    skip++;
-
-    if ((*tokens)[startPos + skip].type == _OP_RIGHT_BRACKET_) {
-        SyntaxReport isParam = SA_is_parameter(tokens, startPos + skip + 1, _PARAM_FUNCTION_CALL_);
-
-        if (isParam.errorOccured == true) {
-            return isParam;
-        }
-
-        skip += isParam.tokensToSkip + 1;
-
-        if ((*tokens)[startPos + skip].type != _OP_LEFT_BRACKET_) {
-            return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
-        }
-
-        skip++;
-    } else if ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_) {
-        SyntaxReport isArray = SA_is_array_element(tokens, startPos + skip);
-
-        if (isArray.errorOccured == true) {
-            return isArray;
-        }
-
-        skip += isArray.tokensToSkip;
-    } else {
-        return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "(\", \"[");
-    }
+    skip += classPath.tokensToSkip;
 
     if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
         return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");

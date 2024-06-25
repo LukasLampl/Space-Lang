@@ -100,6 +100,7 @@ int is_primitive(TOKENTYPES type) {
     case _KW_FLOAT_:
     case _KW_CHAR_:
     case _KW_BOOLEAN_:
+    case _KW_VOID_:
         return 1;
     default:
         return 0;

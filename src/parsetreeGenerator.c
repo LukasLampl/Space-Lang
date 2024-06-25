@@ -1405,14 +1405,10 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
     skip += 3; //Skip the name, "=" and "new"
     token = &(*tokens)[startPos + skip];
     
-    Node *inheritNode = PG_create_node(token->value, _INHERITED_CLASS_NODE_, token->line, token->tokenStart);
-    topNode->rightNode = inheritNode;
-    skip += 2;
-
-    int bounds = (int)PG_predict_argument_count(tokens, startPos + skip, false);    
-    (void)PG_allocate_node_details(inheritNode, bounds, true);
-    skip += (int)PG_add_params_to_node(inheritNode, tokens, startPos + skip, 0, _NULL_);
-    return PG_create_node_report(topNode, skip + 2);
+    NodeReport classPathRep = PG_create_member_access_tree(tokens, startPos + skip, true);
+    topNode->rightNode = classPathRep.node;
+    skip += classPathRep.tokensToSkip;
+    return PG_create_node_report(topNode, skip + 1);
 }
 
 NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) {
@@ -2119,13 +2115,12 @@ NodeReport PG_create_class_constructor_tree(TOKEN **tokens, size_t startPos) {
     } else {
         int arguments = (int)PG_predict_argument_count(tokens, startPos + skip, false);
         (void)PG_allocate_node_details(topNode, arguments, false);
-        skip += PG_add_params_to_node(topNode, tokens, startPos + skip, 0, _PARAM_NODE_) + 1;
+        skip += PG_add_params_to_node(topNode, tokens, startPos + skip, 0, _PARAM_NODE_) + 2;
     }
-    
+
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     topNode->rightNode = runnableReport.node;
     skip += runnableReport.tokensToSkip;
-
     return PG_create_node_report(topNode, skip);
 }
 
@@ -2452,7 +2447,7 @@ return type.
 _______________________________
 */
 NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
-    int skip = 0;
+    int skip = 1; //Skip the "function" keyword
     Node *modNode = NULL;
     Node *functionNode = PG_create_node("FNC", _FUNCTION_NODE_, 0, 0);
     TOKEN *token = &(*tokens)[startPos];
@@ -2477,13 +2472,11 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     functionNode->position = token->tokenStart;
     functionNode->leftNode = modNode;
     skip += 3;
-    printf("Params: %s\n", (*tokens)[startPos + skip].value);
+
     int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip, true);
-    printf("Args: %i\n", argumentCount);
     (void)PG_allocate_node_details(functionNode, argumentCount + 2, true);
-    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip, 1, _NULL_) + 5;
-    skip -= argumentCount > 0 ? 1 : 0;
-    printf("New: %s\n", (*tokens)[startPos + skip].value);
+    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip, 1, _NULL_) + 1;
+
     if ((*tokens)[startPos + skip].type == _OP_CLASS_ACCESSOR_) {
         skip += (int)PG_add_varType_definition(tokens, startPos + skip + 1, functionNode) + 2;
     }
@@ -2541,17 +2534,17 @@ size_t PG_add_params_to_node(Node *node, TOKEN **tokens, size_t startPos, int ad
     int detailsPointer = addStart;
     int skip = 0;
 
-    for (size_t i = startPos; i < TOKEN_LENGTH; i++) {
+    for (size_t i = startPos; i < TOKEN_LENGTH; skip = i - startPos, i++) {
         TOKEN *currentToken = &(*tokens)[i];
 
         if (currentToken->type != _OP_LEFT_BRACKET_
             && currentToken->type != _OP_RIGHT_BRACE_
             && currentToken->type != _OP_CLASS_CREATOR_
             && currentToken->type != _KW_WITH_
-            && currentToken->type != _KW_EXTENDS_) {
+            && currentToken->type != _KW_EXTENDS_
+            && currentToken->type != _OP_CLASS_ACCESSOR_) {
             //Check if the param is going to be out of the allocated space
             if (detailsPointer == node->detailsCount) {
-                skip = i - startPos;
                 break;
             }
 
@@ -2572,7 +2565,6 @@ size_t PG_add_params_to_node(Node *node, TOKEN **tokens, size_t startPos, int ad
             node->details[detailsPointer++]->type = stdType == _NULL_ ? report.node->type : stdType;
             i += report.tokensToSkip;
         } else {
-            skip = i - startPos;
             break;
         }
     }

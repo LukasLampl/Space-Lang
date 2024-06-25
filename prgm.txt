@@ -1,5 +1,20 @@
 class List => {
-    this::constructor() {
-        var a = 1 + 2;
+    private var capacity = 0;
+
+    this::constructor(initialCapacity:int) {
+        
     }
 }
+
+class List2 => {
+    this::constructor(param:int) {
+
+    }
+
+    this::constructor(add:int) {
+        
+    }
+}
+
+var:int x = 10;
+var list = new List(12);

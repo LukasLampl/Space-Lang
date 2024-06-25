@@ -134,7 +134,7 @@ struct kwLookup KEYWORD_LOOKUP[] = {
     {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
     {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
     {"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},
-    {"long", _KW_LONG_},           {"constructor", _KW_CONSTRUCTOR_}
+    {"long", _KW_LONG_},           {"void", _KW_VOID_},       {"constructor", _KW_CONSTRUCTOR_}
 };
 
 /**

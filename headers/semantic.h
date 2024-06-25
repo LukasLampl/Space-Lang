@@ -30,7 +30,7 @@ enum Visibility {
 };
 
 enum VarType {
-    INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING,
+    INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING, VOID,
     null, EXT_CLASS_OR_INTERFACE,
     CUSTOM, CLASS_REF, CONSTRUCTOR_PARAM
 };
@@ -44,6 +44,7 @@ struct VarDec {
     enum VarType type;
     int dimension;
     char *classType;
+    int constant;
 };
 
 typedef struct SemanticEntry {
@@ -53,6 +54,8 @@ typedef struct SemanticEntry {
     enum Visibility visibility;
     enum ScopeType internalType;
     void *reference;
+    size_t line;
+    size_t position;
 } SemanticEntry;
 
 typedef struct SemanticTable {
@@ -61,6 +64,8 @@ typedef struct SemanticTable {
     struct SemanticTable *parent;
     enum ScopeType type;
     char *name;
+    size_t line;
+    size_t position;
 } SemanticTable;
 
 #endif
