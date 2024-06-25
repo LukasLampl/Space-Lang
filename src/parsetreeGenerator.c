@@ -2453,7 +2453,6 @@ _______________________________
 */
 NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     int skip = 0;
-    int withSpecifier = false;
     Node *modNode = NULL;
     Node *functionNode = PG_create_node("FNC", _FUNCTION_NODE_, 0, 0);
     TOKEN *token = &(*tokens)[startPos];
@@ -2471,24 +2470,23 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     */
 
     modNode = PG_create_modifier_node(token, &skip);
-
-    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
-        skip += (int)PG_add_varType_definition(tokens, startPos + skip + 2, functionNode) + 1;
-        withSpecifier = true;
-    }
-
     //No NULL check needed, if leftNode or rightNode == NULL nothing changes
-    token = &(*tokens)[startPos + skip + 1];
+    token = &(*tokens)[startPos + skip];
     functionNode->value = token->value;
     functionNode->line = token->line;
     functionNode->position = token->tokenStart;
     functionNode->leftNode = modNode;
-    skip += 2;
-
+    skip += 3;
+    printf("Params: %s\n", (*tokens)[startPos + skip].value);
     int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip, true);
+    printf("Args: %i\n", argumentCount);
     (void)PG_allocate_node_details(functionNode, argumentCount + 2, true);
-    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip + 1, 1, _NULL_) + 3;
-    skip -= argumentCount > 0 || withSpecifier == true ? 1 : 0;
+    skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip, 1, _NULL_) + 5;
+    skip -= argumentCount > 0 ? 1 : 0;
+    printf("New: %s\n", (*tokens)[startPos + skip].value);
+    if ((*tokens)[startPos + skip].type == _OP_CLASS_ACCESSOR_) {
+        skip += (int)PG_add_varType_definition(tokens, startPos + skip + 1, functionNode) + 2;
+    }
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     functionNode->details[functionNode->detailsCount - 1] = runnableReport.node;
@@ -2637,7 +2635,7 @@ int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefine
     }
 
     int count = 0;
-    int openBrackets = 0;
+    int openBrackets = withPredefinedBrackets;
 
     for (size_t i = startPos; i < TOKEN_LENGTH; i++) {
         TOKEN *token = &(*tokens)[i];
@@ -3603,7 +3601,12 @@ int PG_add_varType_definition(TOKEN **tokens, size_t startPos, Node *parentNode)
         }
     }
 
-    (void)PG_allocate_node_details(parentNode, 1, false);
+    if (parentNode->details == NULL) {
+        (void)PG_allocate_node_details(parentNode, 1, false);
+    } else {
+        (void)PG_allocate_node_details(parentNode, parentNode->detailsCount, true);
+    }
+
     parentNode->details[0] = nameOfType;
     return skip;
 }

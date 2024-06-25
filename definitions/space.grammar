@@ -112,7 +112,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 <FUNCTION>:
     | "function" -> <FUNCTION_CALL> -> "{" -> <RUNNABLE -> "}"
     | [MODIFIER] -> "function" -> <FUNCTION_CALL> -> "{" -> <RUNNABLE -> "}"
-    | "function" -> ":" -> <IDENTIFIER> -> <FUNCTION_CALL> -> "{" -> <RUNNABLE -> "}"
+    | "function" -> <FUNCTION_CALL> -> "->" -> <IDENTIFIER> -> "{" -> <RUNNABLE -> "}"
     | [MODIFIER]-> "function" -> ":" -> <IDENTIFIER> -> <FUNCTION_CALL> -> "{" -> <RUNNABLE -> "}"
 
 ### FUNCTION CALL ###

@@ -125,8 +125,8 @@ struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Vis
 struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope, SemanticTable *topScope);
 SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *table);
 struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTable *table);
-struct VarDec SA_get_identifier_var_Type(Node *node);
-struct VarDec SA_get_var_type(Node *node);
+struct VarDec SA_convert_identifier_to_VarType(Node *node);
+struct VarDec SA_get_VarType(Node *node);
 enum Visibility SA_get_visibility(Node *visibilityNode);
 char *SA_get_VarType_string(struct VarDec type);
 char *SA_get_ScopeType_string(enum ScopeType type);
@@ -254,7 +254,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 
     char *name = functionNode->value;
     enum Visibility vis = SA_get_visibility(functionNode->leftNode);
-    struct VarDec type = SA_get_var_type(functionNode->details == NULL ? NULL : functionNode->details[0]);
+    struct VarDec type = SA_get_VarType(functionNode->details == NULL ? NULL : functionNode->details[0]);
     int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
     struct VarDec std = {VARIABLE, 0, NULL};
     struct ParamTransferObject *params = SA_get_params(functionNode, std);
@@ -279,7 +279,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
     char *name = varNode->value;
     enum Visibility vis = SA_get_visibility(varNode->leftNode);
-    struct VarDec type = SA_get_var_type(varNode->details == NULL ? NULL : varNode->details[0]);
+    struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0]);
     char *value = varNode->rightNode == NULL ? "(null)" : varNode->rightNode->value;
 
     if ((int)SA_is_obj_already_defined(name, table) == true) {
@@ -458,7 +458,7 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
     struct VarDec predictedType = {CUSTOM, 0, NULL};
 
     if ((int)SA_is_node_a_number(node) == true) {
-        predictedType = SA_get_identifier_var_Type(node);
+        predictedType = SA_convert_identifier_to_VarType(node);
     } else if (node->type == _NULL_NODE_) {
         struct VarDec dec = {null, 0, NULL};
         predictedType = dec;
@@ -742,7 +742,7 @@ struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, Semantic
         struct VarDec dec = {CUSTOM, 0, NULL};
         
         if (currentNode->details != NULL && currentNode->detailsCount > 0) {
-            dec = SA_get_var_type(currentNode->details[0]);
+            dec = SA_get_VarType(currentNode->details[0]);
         }
         
         (*currentNodeType) = dec;
@@ -1075,7 +1075,7 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) 
         }
         
         Node *typeNode = innerNode->detailsCount > 0 ? innerNode->details[0] : NULL;
-        struct VarDec type = SA_get_var_type(typeNode);
+        struct VarDec type = SA_get_VarType(typeNode);
         SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, "null", type, P_GLOBAL, VARIABLE, NULL);
         obj->entries[actualParams++] = entry;
     }
@@ -1102,7 +1102,16 @@ SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table) 
     return NULL;
 }
 
-struct VarDec SA_get_identifier_var_Type(Node *node) {
+/**
+ * <p>
+ * Returns the VarType of the provided identifier.
+ * </p>
+ * 
+ * @returns The converted VarDec
+ * 
+ * @param *node     Node to convert
+ */
+struct VarDec SA_convert_identifier_to_VarType(Node *node) {
     struct VarDec cust = {CUSTOM, 0, NULL};
 
     switch (node->type) {
@@ -1133,7 +1142,7 @@ struct VarDec SA_get_identifier_var_Type(Node *node) {
  * 
  * @param *topNode  Node to convert
  */
-struct VarDec SA_get_var_type(Node *node) {
+struct VarDec SA_get_VarType(Node *node) {
     struct VarDec cust = {CUSTOM, 0, NULL};
     int setType = false;
 
@@ -1192,6 +1201,22 @@ enum Visibility SA_get_visibility(Node *visibilityNode) {
     return P_GLOBAL;
 }
 
+/**
+ * <p>
+ * Creates a semantic report structure with the provided
+ * information.
+ * </p>
+ * 
+ * @returns A SemanticReport with the information
+ * 
+ * @param type          Report return type
+ * @param success       Flag for success
+ * @param errorOccured  Flag for errors
+ * @param *errorNode    Node that caused the error
+ * @param errorType     Type of the error
+ * @param *expected     Expected input instead of the "got"
+ * @param *got          Got input instead of the "expected"
+ */
 struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured, Node *errorNode, enum ErrorType errorType,
                                                 char *expected, char *got) {
     struct SemanticReport rep;
@@ -1206,6 +1231,17 @@ struct SemanticReport SA_create_semantic_report(struct VarDec type, int success,
     return rep;
 }
 
+/**
+ * <p>
+ * Creates an entry report.
+ * </p>
+ * 
+ * @returns A SemanticEntryReport with the provided information
+ * 
+ * @param *entry        Entry to report
+ * @param success       Flag for success
+ * @param errorOccured  Flag for errors
+ */
 struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry, int success, int errorOccured) {
     struct SemanticEntryReport rep;
     rep.entry = entry;
@@ -1225,6 +1261,7 @@ struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry,
  * @param *value        Value of the entry
  * @param varType       Return type / type of the entry
  * @param visibility    Visibility of the entry
+ * @param internalType  Scope type
  * @param *ptr          Pointer to a reference table (optional)
  */
 SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType,
@@ -1396,6 +1433,11 @@ void THROW_EXCEPTION(char *message, Node *node) {
     (void)printf(TEXT_COLOR_RESET);
 }
 
+/**
+ * <p>
+ * Takes a SemanticReport and Throws the according error.
+ * </p>
+ */
 void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
     switch (rep.errorType) {
     case ALREADY_DEFINED_EXCEPTION:
@@ -1428,16 +1470,35 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
     }
 }
 
+/**
+ * <p>
+ * The lookup structure of the VarType to String function.
+ * </p>
+ */
 struct VarTypeString {
     enum VarType type;
     char *string;
 };
 
+/**
+ * <p>
+ * Collection of all primitive VarTypes, that can be matched.
+ * </p>
+ */
 struct VarTypeString VarTypeStringLookup[] = {
     {INTEGER, "INTEGER"}, {DOUBLE, "DOUBLE"}, {FLOAT, "FLOAT"}, {STRING, "STRING"}, {LONG, "LONG"},
     {SHORT, "SHORT"}, {BOOLEAN, "BOOLEAN"}, {CHAR, "CHAR"}, {CUSTOM, "CUSTOM"}, {null, "null"}
 };
 
+/**
+ * <p>
+ * Converts a VarType into the string version.
+ * </p>
+ * 
+ * @returns The converted VarType
+ * 
+ * @param type  Type to convert
+ */
 char *SA_get_VarType_string(struct VarDec type) {
     const int size = 8 + ((int)abs(type.dimension) * 2);
     int lookupSize = sizeof(VarTypeStringLookup) / sizeof(VarTypeStringLookup[0]);
@@ -1467,6 +1528,16 @@ char *SA_get_VarType_string(struct VarDec type) {
     return string;
 }
 
+/**
+ * <p>
+ * Get the string of the scope type.
+ * This function basically "stringyfies" the scope type.
+ * </p>
+ * 
+ * @returns The converted string
+ * 
+ * @param type  Scope type to convert
+ */
 char *SA_get_ScopeType_string(enum ScopeType type) {
     switch (type) {
     case VARIABLE:

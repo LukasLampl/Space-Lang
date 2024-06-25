@@ -131,7 +131,7 @@ SyntaxReport SA_is_function_return_type_specifier(TOKEN **tokens, size_t startPo
 SyntaxReport SA_is_function_call(TOKEN **tokens, size_t startPos, int inFunction);
 SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType type);
 SyntaxReport SA_is_array_dimension_definition(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos, int functionDefinition);
 SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter);
 SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos);
 int SA_predict_term_expression(TOKEN **tokens, size_t startPos);
@@ -1406,7 +1406,7 @@ SyntaxReport SA_is_variable(TOKEN **tokens, size_t startPos) {
         skip++;
 
         if ((*tokens)[startPos + skip].type == _OP_COLON_) {
-            SyntaxReport varTypeRep = SA_is_var_type_definition(tokens, startPos + skip);
+            SyntaxReport varTypeRep = SA_is_var_type_definition(tokens, startPos + skip, false);
             
             if (varTypeRep.errorOccured == true) {
                 return varTypeRep;
@@ -2428,7 +2428,7 @@ SyntaxReport SA_is_enumerator(TOKEN **tokens, size_t startPos) {
 /**
  * <p>
  * Checks whether the input tokens at the position `startPos` are aligned
- * to a function definition.  
+ * to a definition.  
  * </p>
  * 
  * <p>
@@ -2454,8 +2454,16 @@ SyntaxReport SA_is_function(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "function");
     }
 
-    if ((*tokens)[startPos + skip + 1].type == _OP_COLON_) {
-        SyntaxReport isTypeDefinition = SA_is_var_type_definition(tokens, startPos + skip + 1);
+    SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + skip + 1, true);
+
+    if (isFunctionCall.errorOccured == true) {
+        return isFunctionCall;
+    }
+    
+    skip += isFunctionCall.tokensToSkip;
+
+    if ((*tokens)[startPos + skip + 1].type == _OP_CLASS_ACCESSOR_) {
+        SyntaxReport isTypeDefinition = SA_is_var_type_definition(tokens, startPos + skip + 1, true);
 
         if (isTypeDefinition.errorOccured == true) {
             return isTypeDefinition;
@@ -2464,13 +2472,6 @@ SyntaxReport SA_is_function(TOKEN **tokens, size_t startPos) {
         skip += isTypeDefinition.tokensToSkip;
     }
 
-    SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + skip + 1, true);
-
-    if (isFunctionCall.errorOccured == true) {
-        return isFunctionCall;
-    }
-    
-    skip += isFunctionCall.tokensToSkip;
     SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + skip + 1, true);
 
     if (isRunnable.errorOccured == true) {
@@ -2632,7 +2633,7 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
                 jumper++;
 
                 if ((*tokens)[startPos + jumper].type == _OP_COLON_) {
-                    SyntaxReport isTypeDefinition = SA_is_var_type_definition(tokens, startPos + jumper);
+                    SyntaxReport isTypeDefinition = SA_is_var_type_definition(tokens, startPos + jumper, false);
 
                     if (isTypeDefinition.errorOccured == true) {
                         return isTypeDefinition;
@@ -2717,12 +2718,19 @@ SyntaxReport SA_is_array_dimension_definition(TOKEN **tokens, size_t startPos) {
  * 
  * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
  * 
- * @param **tokens  Pointer to the TOKEN array
- * @param startPos  Position from where to start checking
+ * @param **tokens              Pointer to the TOKEN array
+ * @param startPos              Position from where to start checking
+ * @param functionDefinition    Flag for whether the VarType declaration is in a function or not
 */
-SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos) {
-    if ((*tokens)[startPos].type != _OP_COLON_) {
-        return SA_create_syntax_report(&(*tokens)[startPos], 0, true, ":");
+SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos, int functionDefinition) {
+    if (functionDefinition == false) {
+        if ((*tokens)[startPos].type != _OP_COLON_) {
+            return SA_create_syntax_report(&(*tokens)[startPos], 0, true, ":");
+        }
+    } else {
+        if ((*tokens)[startPos].type != _OP_CLASS_ACCESSOR_) {
+            return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "->");
+        }
     }
 
     if ((int)is_primitive((*tokens)[startPos + 1].type) == false
