@@ -1405,7 +1405,7 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
     skip += 3; //Skip the name, "=" and "new"
     token = &(*tokens)[startPos + skip];
     
-    NodeReport classPathRep = PG_create_member_access_tree(tokens, startPos + skip, true);
+    NodeReport classPathRep = PG_create_member_access_tree(tokens, startPos + skip, false);
     topNode->rightNode = classPathRep.node;
     skip += classPathRep.tokensToSkip;
     return PG_create_node_report(topNode, skip + 1);
@@ -2499,6 +2499,7 @@ NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos) {
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos);
     Node *functionCallNode = PG_create_node(nameRet.value, _FUNCTION_CALL_NODE_, token->line, token->tokenStart);
     int argumentSize = (int)PG_predict_argument_count(tokens, startPos + nameRet.movedTokens, true);
+    printf("Args: %i\n", argumentSize);
     (void)PG_allocate_node_details(functionCallNode, argumentSize, false);
     size_t paramSize = (size_t)PG_add_params_to_node(functionCallNode, tokens, startPos + nameRet.movedTokens + 1, 0, _NULL_);
     paramSize = paramSize > 0 ? paramSize - 1 : paramSize;
@@ -2613,10 +2614,7 @@ Params: TOKEN **tokens => Pointer to the array of tokens;
         int withPredefinedBrackets => Is "openBrackets" awaited to be 1
 */
 int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefinedBrackets) {
-    if ((*tokens)[startPos].type == _IDENTIFIER_
-        && (*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_) {
-        return 1;
-    } else if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
+    if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
         && (*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_) {
         return 0;
     } else if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
@@ -2633,11 +2631,6 @@ int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefine
         TOKEN *token = &(*tokens)[i];
         
         if (token->type == _OP_COMMA_) {
-            if (withPredefinedBrackets == true
-                && openBrackets != 1) {
-                continue;
-            }
-
             count += count == 0 ? 2 : 1;
         } else if (token->type == _OP_RIGHT_BRACKET_) {
             openBrackets++;

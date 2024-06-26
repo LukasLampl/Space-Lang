@@ -48,7 +48,8 @@ enum ErrorType {
     WRONG_ACCESSOR_EXCEPTION,
     WRONG_ARGUMENT_EXCPEPTION,
     MODIFIER_EXCEPTION,
-    NO_SUCH_ARRAY_DIMENSION_EXCEPTION
+    NO_SUCH_ARRAY_DIMENSION_EXCEPTION,
+    ENUMERATOR_MISPLACEMENT_EXCEPTION
 };
 
 enum FunctionCallType {
@@ -103,6 +104,8 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode);
 void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode);
 void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode);
 void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode);
+void SA_add_enum_to_table(SemanticTable *table, Node *enumNode);
+void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *topNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
@@ -145,6 +148,7 @@ SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, Sem
 
 void FREE_TABLE(SemanticTable *rootTable);
 
+void THROW_ENUMERATOR_MISPLACEMENT_EXCEPTION(Node *node);
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(Node *node);
 void THROW_MODIFIER_EXCEPTION(Node *node);
 void THROW_WRONG_ARGUMENT_EXCEPTION(Node *node);
@@ -162,6 +166,7 @@ extern char **BUFFER;
 extern size_t BUFFER_LENGTH;
 
 struct VarDec nullDec = {null, 0, NULL, false};
+struct VarDec enumeratorDec = {ENUM_INT, 0, NULL};
 struct SemanticReport nullRep;
 
 int CheckSemantic(Node *root) {
@@ -194,6 +199,9 @@ void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table)
             break;
         case _CLASS_CONSTRUCTOR_NODE_:
             (void)SA_add_constructor_to_table(table, currentNode);
+            break;
+        case _ENUM_NODE_:
+            (void)SA_add_enum_to_table(table, currentNode);
             break;
         default: continue;
         }
@@ -370,6 +378,50 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
     (void)SA_manage_runnable(table, runnableNode, scopeTable);
 }
 
+void SA_add_enum_to_table(SemanticTable *table, Node *enumNode) {
+    if (table->type != MAIN) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(enumNode);
+        return;
+    }
+
+    char *name = enumNode->value;
+    enum Visibility vis = table->type == MAIN ? P_GLOBAL : GLOBAL;
+    char *value = enumNode->value;
+
+    if ((int)SA_is_obj_already_defined(name, table) == true) {
+        (void)THROW_ALREADY_DEFINED_EXCEPTION(enumNode);
+        return;
+    }
+
+    SemanticTable *scopeTable = SA_create_new_scope_table(enumNode, ENUM, table, NULL, enumNode->line, enumNode->position);
+    (void)SA_add_enumerators_to_enum_table(scopeTable, enumNode);
+    SemanticEntry *entry = SA_create_semantic_entry(name, value, nullDec, vis, ENUM, scopeTable, enumNode->line, enumNode->position);
+    (void)HM_add_entry(name, entry, table->symbolTable);
+}
+
+void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *topNode) {
+    struct VarDec enumDec = {INTEGER, 0, NULL};
+    
+    for (int i = 0; i < topNode->detailsCount; i++) {
+        struct Node *enumerator = topNode->details[i];
+
+        if (enumerator == NULL) {
+            continue;
+        }
+
+        char *name = enumerator->value;
+        char *value = enumerator->rightNode->value;
+
+        if ((int)HM_contains_key(name, enumTable->symbolTable) == true) {
+            (void)THROW_ALREADY_DEFINED_EXCEPTION(enumerator);
+            return;
+        }
+
+        struct SemanticEntry *entry = SA_create_semantic_entry(name, value, enumDec, P_GLOBAL, ENUMERATOR, NULL, enumerator->line, enumerator->position);
+        (void)HM_add_entry(name, entry, enumTable->symbolTable);
+    }
+}
+
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
     if (classTable == NULL || paramHolder == NULL) {
         return SA_create_semantic_report(nullDec, false, false, NULL, NONE, NULL, NULL);
@@ -458,6 +510,10 @@ struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *
             return leftTerm;
         } else if (rightTerm.errorOccured == true) {
             return rightTerm;
+        }
+
+        if (leftTerm.dec.type == ENUM_INT || rightTerm.dec.type == ENUM_INT) {
+            return SA_create_semantic_report(enumeratorDec, false, true, topNode, ENUMERATOR_MISPLACEMENT_EXCEPTION, NULL, NULL);
         }
 
         return nullRep;
@@ -588,6 +644,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
     SemanticTable *currentScope = topScope;
     Node *cacheNode = node;
     struct VarDec retType = {CUSTOM, 0, NULL};
+    enum ScopeType type = MAIN;
 
     while (cacheNode != NULL) {
         struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode, currentScope);
@@ -599,8 +656,15 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
             return resMemRep;
         }
 
+        struct SemanticReport checkRes = SA_execute_access_type_checking(cacheNode, currentScope, topScope);
+
+        if (checkRes.errorOccured == true) {
+            return checkRes;
+        }
+
+        type = type == MAIN ? entry.entry->internalType : type;
+        retType = type == ENUM ? enumeratorDec : resMemRep.dec;
         currentScope = entry.entry->reference;
-        retType = resMemRep.dec;
         cacheNode = cacheNode->rightNode;
     }
 
@@ -640,7 +704,6 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
                                                             SemanticTable *topScope) {
     Node *cacheNode = node;
     struct VarDec retType = {CUSTOM, 0, NULL};
-    
     struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode, topScope);
     
     if (entry.entry == NULL) {
@@ -663,13 +726,6 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
 
     if (arrayRep.errorOccured == true) {
         return arrayRep;
-    }
-
-    SemanticTable *currentScope = (SemanticTable*)entry.entry->reference;
-    struct SemanticReport checkRes = SA_execute_access_type_checking(cacheNode, currentScope, topScope);
-
-    if (checkRes.errorOccured == true) {
-        return checkRes;
     }
     
     return SA_create_semantic_report(retType, true, false, NULL, NONE, NULL, NULL);
@@ -911,18 +967,19 @@ struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Vis
  */
 struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope,
                                     SemanticTable *topScope) {
-    if (cacheNode->rightNode != NULL) {
-        if (cacheNode->rightNode->type == _CLASS_ACCESS_NODE_) {
+    if (cacheNode != NULL) {
+        if (cacheNode->type == _CLASS_ACCESS_NODE_) {
             if (currentScope->type != CLASS) {
-                return SA_create_semantic_report(nullDec, false, true, cacheNode->rightNode, WRONG_ACCESSOR_EXCEPTION, NULL, NULL);
+                return SA_create_semantic_report(nullDec, false, true, cacheNode, WRONG_ACCESSOR_EXCEPTION, NULL, NULL);
             }
-        } else if (cacheNode->rightNode->type == _MEMBER_ACCESS_NODE_) {
-            if (topScope->type != CLASS
-                || (int)strcmp(topScope->name, topScope->name) != 0) {
-                return SA_create_semantic_report(nullDec, false, true, cacheNode->rightNode, WRONG_ACCESSOR_EXCEPTION, NULL, NULL);
+        } else if (cacheNode->type == _MEMBER_ACCESS_NODE_) {
+            if ((topScope->type != CLASS
+                || (int)strcmp(topScope->name, topScope->name) != 0)
+                && currentScope->type != ENUM) {
+                return SA_create_semantic_report(nullDec, false, true, cacheNode, WRONG_ACCESSOR_EXCEPTION, NULL, NULL);
             }
         } else {
-            return SA_create_semantic_report(nullDec, 0, false, NULL, NONE, NULL, NULL);
+            return nullRep;
         }
     }
 
@@ -994,7 +1051,17 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
 }
 
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
-    return SA_evaluate_simple_term(expectedType, topNode, table);
+    struct SemanticReport rep;
+    SemanticTable *mainTable = SA_get_next_table_of_type(table, MAIN);
+    struct SemanticEntryReport possibleEnumEntry = SA_get_entry_if_available(topNode, mainTable);
+
+    if (possibleEnumEntry.entry != NULL) {
+        rep = SA_evaluate_member_access(topNode, mainTable);
+    } else {
+        rep = SA_evaluate_simple_term(expectedType, topNode, table);
+    }
+
+    return rep;
 }
 
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope,
@@ -1386,6 +1453,10 @@ void FREE_TABLE(SemanticTable *rootTable) {
     (void)HM_free(rootTable->symbolTable);
 }
 
+void THROW_ENUMERATOR_MISPLACEMENT_EXCEPTION(Node *node) {
+    (void)THROW_EXCEPTION("EnumeratorMisplacementException", node);
+}
+
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(Node *node) {
     (void)THROW_EXCEPTION("NoSuchArrayDimension", node);
 }
@@ -1517,6 +1588,9 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
         break;
     case NO_SUCH_ARRAY_DIMENSION_EXCEPTION:
         (void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(rep.errorNode);
+        break;
+    case ENUMERATOR_MISPLACEMENT_EXCEPTION:
+        (void)THROW_ENUMERATOR_MISPLACEMENT_EXCEPTION(rep.errorNode);
         break;
     default:
         (void)THROW_EXCEPTION("Exception", rep.errorNode);

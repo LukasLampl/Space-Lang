@@ -142,12 +142,23 @@ struct kwLookup KEYWORD_LOOKUP[] = {
  * This variable is invoked on the Tokenize() function and is set
  * to the buffer length.
  * </p>
+ * 
+ * <p><strong>Usage:</strong>
+ * This is used to provide a global boundary checking
+ * variable and thus preventing out of bounds accesses in parts
+ * that access the buffer directly.
+ * </p>
  */
 extern size_t BUFFER_LENGTH;
 
 /**
  * <p>
  * This holds the maximum length of the precalculated tokens.
+ * </p>
+ * 
+ * <p><strong>Usage:</strong>
+ * Provides a variable, that can be used globally for ensuring
+ * that an access into the TOKEN array is not out of bounds.
  * </p>
  */
 extern size_t TOKEN_LENGTH;

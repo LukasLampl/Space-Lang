@@ -1,0 +1,101 @@
+# This is a list of all todos for the semantic analysis #
+
+=========================================================
+
+- [ ] Check simple assignments (e.g. "a = 10;" or "obj = new Object()")
+   - [ ] Assignments to one identifier
+   - [ ] Complex assignments with calculations
+   - [ ] Assignments with function calls
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [X] Check enums (Out of bounds)
+   - [X] Duplicate enums
+   - [X] Valid scope placement (MAIN only)
+   - [X] Add accessed enumeration checking
+
+- [ ] Check include trees
+   - [ ] Valid scope placement (MAIN only)
+
+- [ ] Check export trees
+   - [ ] Valid scope placement (MAIN only)
+
+- [ ] Check try statement
+   - [ ] Check the runnable
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check catch statement
+   - [ ] Valid error var
+   - [ ] Valid catch runnable
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [X] Check constructors of classes
+   - [X] Duplicate constructors in same class
+   - [X] Valid runnable
+   - [X] Valid scope placement (CLASS only)
+
+- [X] Check normal var tree
+   - [X] Assignments to one identifier
+   - [X] Complex assignments with calculations
+   - [X] Assignments with function calls
+   - [X] Already defined check
+
+- [X] Check instance var trees
+   - [X] Class existence
+   - [X] Constructor existence check
+   - [X] Already defined check
+
+- [ ] Check conditional var trees
+   - [ ] Valid conditions
+   - [ ] Valid assignments
+   - [ ] Already defined check
+
+- [ ] Check array var trees
+   - [ ] Already defined
+   - [ ] Valid array assignment
+
+- [ ] Check while statements
+   - [ ] Valid conditions
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check do statements
+- [ ] Valid conditions
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check returns statements
+   - [ ] Valid return value
+   - [ ] Valid scope placement (FUNCTION only)
+
+- [ ] Check continue statements
+   - [ ] Valid scope placement (LOOP only)
+
+- [ ] Check break statements
+   - [ ] Valid scope placement (LOOP only)
+
+- [ ] Check the check statement
+   - [ ] Valid checkable
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check embedded is statement
+   - [ ] Valid checkable
+   - [ ] Valid Runnable
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check for trees
+   - [ ] Valid counter variable
+   - [ ] Valid increment/decrement
+   - [ ] Valid conditions
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check if statements
+   - [ ] Valid runnable
+   - [ ] Valid conditions
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check else if statements
+   - [ ] Valid runnable
+   - [ ] Valid conditions
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Check else statements
+   - [ ] Valid runnable
+   - [ ] Valid scope placement (FUNCTION or MAIN only)
