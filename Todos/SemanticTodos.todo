@@ -13,8 +13,8 @@
    - [X] Valid scope placement (MAIN only)
    - [X] Add accessed enumeration checking
 
-- [ ] Check include trees
-   - [ ] Valid scope placement (MAIN only)
+- [X] Check include trees
+   - [X] Valid scope placement (MAIN only)
 
 - [ ] Check export trees
    - [ ] Valid scope placement (MAIN only)

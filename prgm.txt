@@ -1,11 +1,3 @@
-enum TestEnum {
-    a,
-    b : 1003,
-    c
-}
+include SPACE.Lang.Object;
 
-class Test => {
-    var a = 0;
-}
-
-var testVar = TestEnum->b + 2;
+var:int obj = true;

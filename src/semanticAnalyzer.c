@@ -94,6 +94,7 @@ struct varTypeLookup TYPE_LOOKUP[] = {
     {"boolean", BOOLEAN}, {"String", STRING}, {"void", VOID}
 };
 
+void SA_init_globals();
 void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table);
 void SA_add_parameters_to_runnable_table(SemanticTable *scopeTable, struct ParamTransferObject *params);
 
@@ -105,6 +106,7 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode);
 void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode);
 void SA_add_enum_to_table(SemanticTable *table, Node *enumNode);
 void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *topNode);
+void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
@@ -165,14 +167,29 @@ extern size_t BUFFER_LENGTH;
 
 struct VarDec nullDec = {null, 0, NULL, false};
 struct VarDec enumeratorDec = {ENUM_INT, 0, NULL};
+struct VarDec externalDec = {EXTERNAL_RET, 0, NULL};
 struct SemanticReport nullRep;
 
+/**
+ * <p>
+ * This list holds all member accesses or class accesses that
+ * are in an external file. Ready to checked by the linker.
+ * </p>
+ */
+struct List *listOfExternalAccesses = NULL;
+
 int CheckSemantic(Node *root) {
-    nullRep = SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
+    (void)SA_init_globals();
+
     SemanticTable *mainTable = SA_create_new_scope_table(root, MAIN, NULL, NULL, 0, 0);
     (void)SA_manage_runnable(NULL, root, mainTable);
     (void)FREE_TABLE(mainTable);
     return 1;
+}
+
+void SA_init_globals() {
+    nullRep = SA_create_semantic_report(nullDec, true, false, NULL, NONE, NULL, NULL);
+    listOfExternalAccesses = CreateNewList(16);
 }
 
 void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table) {
@@ -200,6 +217,9 @@ void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table)
             break;
         case _ENUM_NODE_:
             (void)SA_add_enum_to_table(table, currentNode);
+            break;
+        case _INCLUDE_NODE_:
+            (void)SA_add_include_to_table(table, currentNode);
             break;
         default: continue;
         }
@@ -418,6 +438,32 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *top
         struct SemanticEntry *entry = SA_create_semantic_entry(name, value, enumDec, P_GLOBAL, ENUMERATOR, NULL, enumerator->line, enumerator->position);
         (void)HM_add_entry(name, entry, enumTable->symbolTable);
     }
+}
+
+void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
+    if (table->type != MAIN) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(includeNode);
+        return;
+    }
+
+    struct Node *actualInclude = NULL;
+    struct Node *cacheNode = includeNode;
+
+    while (cacheNode != NULL) {
+        actualInclude = cacheNode->leftNode;
+        cacheNode = cacheNode->rightNode;
+    }
+
+    char *name = actualInclude->value;
+    struct SemanticEntry *entry = SA_create_semantic_entry(name, "(null)", nullDec, P_GLOBAL, EXTERNAL, NULL, includeNode->line, includeNode->position);
+    
+    if ((int)SA_is_obj_already_defined(name, table) == true) {
+        (void)THROW_ALREADY_DEFINED_EXCEPTION(includeNode);
+        return;
+    }
+    
+    (void)HM_add_entry(name, entry, table->symbolTable);
+    (void)L_add_item(listOfExternalAccesses, includeNode);
 }
 
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
@@ -647,6 +693,8 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
             return SA_create_semantic_report(nullDec, false, true, cacheNode->leftNode, NOT_DEFINED_EXCEPTION, NULL, NULL);
         } else if (resMemRep.errorOccured == true) {
             return resMemRep;
+        } else if (entry.entry->internalType == EXTERNAL) {
+            return SA_create_semantic_report(externalDec, true, false, NULL, NONE, NULL, NULL);
         }
 
         struct SemanticReport checkRes = SA_execute_access_type_checking(cacheNode, currentScope, topScope);

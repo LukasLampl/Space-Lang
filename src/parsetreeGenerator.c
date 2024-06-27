@@ -2300,10 +2300,12 @@ file can be found in ´´´node->value´´´.
 _______________________________
 */
 NodeReport PG_create_include_tree(TOKEN **tokens, size_t startPos) {
-    //Here: include "../file.spc";
-    TOKEN *token = &(*tokens)[startPos + 1];
-    Node *topNode = PG_create_node(token->value, _INCLUDE_NODE_, token->line, token->tokenStart);
-    return PG_create_node_report(topNode, 3);
+    NodeReport includeRep = PG_create_member_access_tree(tokens, startPos + 1, false);
+    includeRep.node->value = "INCLUDE";
+    includeRep.node->type = _INCLUDE_NODE_;
+    includeRep.node->line = (*tokens)[startPos].line;
+    includeRep.node->position = (*tokens)[startPos].tokenStart;
+    return PG_create_node_report(includeRep.node, includeRep.tokensToSkip + 2);
 }
 
 /*

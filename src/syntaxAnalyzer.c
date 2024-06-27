@@ -2262,7 +2262,7 @@ SyntaxReport SA_is_export(TOKEN **tokens, size_t startPos) {
  * <p>
  * Examples:
  * ```
- * include "package";
+ * include package;
  * ```
  * </p>
  * 
@@ -2276,15 +2276,17 @@ SyntaxReport SA_is_include(TOKEN **tokens, size_t startPos) {
         return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "include");
     }
 
-    if ((int)SA_is_string(&(*tokens)[startPos + 1]) == false) {
-        return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<STRING>");
+    SyntaxReport rep = SA_is_identifier(tokens, startPos + 1);
+
+    if (rep.errorOccured == true) {
+        return rep;
     }
 
-    if ((*tokens)[startPos + 2].type != _OP_SEMICOLON_) {
+    if ((*tokens)[startPos + rep.tokensToSkip + 1].type != _OP_SEMICOLON_) {
         return SA_create_syntax_report(&(*tokens)[startPos + 2], 0, true, ";");
     }
 
-    return SA_create_syntax_report(NULL, 3, false, NULL);
+    return SA_create_syntax_report(NULL, rep.tokensToSkip + 2, false, NULL);
 }
 
 /**
