@@ -166,7 +166,6 @@ extern char **BUFFER;
 extern size_t BUFFER_LENGTH;
 
 struct VarDec nullDec = {null, 0, NULL, false};
-struct VarDec enumeratorDec = {ENUM_INT, 0, NULL};
 struct VarDec externalDec = {EXTERNAL_RET, 0, NULL};
 struct SemanticReport nullRep;
 
@@ -588,20 +587,26 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 
     if ((int)SA_is_node_a_number(node) == true) {
         predictedType = SA_convert_identifier_to_VarType(node);
-    } else if (node->type == _NULL_NODE_) {
-        struct VarDec dec = {null, 0, NULL};
-        predictedType = dec;
-    } else if (node->type == _STRING_NODE_) {
+    } 
+    
+    switch (node->type) {
+    case _NULL_NODE_:
+        predictedType = nullDec;
+        break;
+    case _STRING_NODE_:
         predictedType.type = STRING;
-    } else if (node->type == _CHAR_ARRAY_NODE_) {
+        break;
+    case _CHAR_ARRAY_NODE_:
         if ((int)strlen(node->value) > 3) { //3 for 1 letter + 2 quotationmarks
             predictedType.type = STRING;
         } else {
             predictedType.type = CHAR;
         }
-    } else if (node->type == _MEM_CLASS_ACC_NODE_
-        || node->type == _IDEN_NODE_
-        || node->type == _FUNCTION_CALL_NODE_) {
+
+        break;
+    case _MEM_CLASS_ACC_NODE_:
+    case _IDEN_NODE_:
+    case _FUNCTION_CALL_NODE_: {
         struct SemanticReport rep = SA_evaluate_member_access(node, table);
 
         if (rep.errorOccured == true) {
@@ -610,6 +615,12 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 
         predictedType = rep.dec;
         node = node->type == _MEM_CLASS_ACC_NODE_ ? node->leftNode : node;
+        break;
+    }
+    case _BOOL_NODE_:
+        predictedType.type = BOOLEAN;
+        break;
+    default: break;
     }
 
     if ((int)SA_are_VarTypes_equal(expectedType, predictedType, false) == false) {
@@ -1261,6 +1272,10 @@ int SA_are_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
         }
     }
 
+    if (type1.type == EXTERNAL_RET || type2.type == EXTERNAL_RET) {
+        return true;
+    }
+
     return type1.type == type2.type
             && type1.dimension == type2.dimension ? true : false;
 }
@@ -1301,6 +1316,10 @@ int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
             && type1.dimension == type2.dimension) {
             return true;
         }
+    }
+
+    if (type1.type == EXTERNAL_RET || type2.type == EXTERNAL_RET) {
+        return true;
     }
 
     return type1.type == type2.type
@@ -1814,7 +1833,7 @@ struct VarTypeString {
 struct VarTypeString VarTypeStringLookup[] = {
     {INTEGER, "INTEGER"}, {DOUBLE, "DOUBLE"}, {FLOAT, "FLOAT"}, {STRING, "STRING"}, {LONG, "LONG"},
     {SHORT, "SHORT"}, {BOOLEAN, "BOOLEAN"}, {CHAR, "CHAR"}, {CUSTOM, "CUSTOM"}, {VOID, "VOID"},
-    {null, "null"}
+    {null, "null"}, {EXTERNAL_RET, "EXT"}
 };
 
 /**
