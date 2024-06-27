@@ -1802,11 +1802,10 @@ To the [VAR] appended are the modifier
 _______________________________
 */
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
-    TOKEN *token = &(*tokens)[startPos];
-    Node *varNode = PG_create_node(NULL, _VAR_NODE_, token->line, token->tokenStart);
+    Node *varNode = PG_create_node(NULL, _VAR_NODE_, 0, 0);
     int skip = 0;
     
-    varNode->leftNode = PG_create_modifier_node(token, &skip);
+    varNode->leftNode = PG_create_modifier_node(&(*tokens)[startPos], &skip);
 
     //Determine var type
     enum NodeType type = (*tokens)[startPos + skip].type == _KW_VAR_ ? _VAR_NODE_ : _CONST_NODE_;
@@ -1819,6 +1818,8 @@ NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
 
     struct idenValRet nameRet = PG_get_identifier_by_index(tokens, startPos + skip);
     varNode->value = nameRet.value;
+    varNode->line = (*tokens)[startPos + skip].line;
+    varNode->position = (*tokens)[startPos + skip].tokenStart;
     skip += nameRet.movedTokens;
     
     if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {

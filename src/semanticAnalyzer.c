@@ -48,8 +48,7 @@ enum ErrorType {
     WRONG_ACCESSOR_EXCEPTION,
     WRONG_ARGUMENT_EXCPEPTION,
     MODIFIER_EXCEPTION,
-    NO_SUCH_ARRAY_DIMENSION_EXCEPTION,
-    ENUMERATOR_MISPLACEMENT_EXCEPTION
+    NO_SUCH_ARRAY_DIMENSION_EXCEPTION
 };
 
 enum FunctionCallType {
@@ -148,7 +147,6 @@ SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, Sem
 
 void FREE_TABLE(SemanticTable *rootTable);
 
-void THROW_ENUMERATOR_MISPLACEMENT_EXCEPTION(Node *node);
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(Node *node);
 void THROW_MODIFIER_EXCEPTION(Node *node);
 void THROW_WRONG_ARGUMENT_EXCEPTION(Node *node);
@@ -512,10 +510,6 @@ struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *
             return rightTerm;
         }
 
-        if (leftTerm.dec.type == ENUM_INT || rightTerm.dec.type == ENUM_INT) {
-            return SA_create_semantic_report(enumeratorDec, false, true, topNode, ENUMERATOR_MISPLACEMENT_EXCEPTION, NULL, NULL);
-        }
-
         return nullRep;
     } else {
         return SA_evaluate_term_side(expectedType, topNode, table);
@@ -644,7 +638,6 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
     SemanticTable *currentScope = topScope;
     Node *cacheNode = node;
     struct VarDec retType = {CUSTOM, 0, NULL};
-    enum ScopeType type = MAIN;
 
     while (cacheNode != NULL) {
         struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode, currentScope);
@@ -662,8 +655,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
             return checkRes;
         }
 
-        type = type == MAIN ? entry.entry->internalType : type;
-        retType = type == ENUM ? enumeratorDec : resMemRep.dec;
+        retType = resMemRep.dec;
         currentScope = entry.entry->reference;
         cacheNode = cacheNode->rightNode;
     }
@@ -1453,10 +1445,6 @@ void FREE_TABLE(SemanticTable *rootTable) {
     (void)HM_free(rootTable->symbolTable);
 }
 
-void THROW_ENUMERATOR_MISPLACEMENT_EXCEPTION(Node *node) {
-    (void)THROW_EXCEPTION("EnumeratorMisplacementException", node);
-}
-
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(Node *node) {
     (void)THROW_EXCEPTION("NoSuchArrayDimension", node);
 }
@@ -1588,9 +1576,6 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
         break;
     case NO_SUCH_ARRAY_DIMENSION_EXCEPTION:
         (void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(rep.errorNode);
-        break;
-    case ENUMERATOR_MISPLACEMENT_EXCEPTION:
-        (void)THROW_ENUMERATOR_MISPLACEMENT_EXCEPTION(rep.errorNode);
         break;
     default:
         (void)THROW_EXCEPTION("Exception", rep.errorNode);

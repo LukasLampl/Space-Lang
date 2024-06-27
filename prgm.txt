@@ -8,4 +8,4 @@ class Test => {
     var a = 0;
 }
 
-var testVar = TestEnum.b;
+var testVar = TestEnum->b + 2;
