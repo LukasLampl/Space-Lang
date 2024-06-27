@@ -1009,6 +1009,18 @@ SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *tab
     return temp;
 }
 
+/**
+ * <p>
+ * Returns an entry of the table, of the topNode->value (key) is found
+ * int the table.
+ * </p>
+ * 
+ * @returns A SemanticEntryReport with the found entry. If nothing was found
+ * NULL is set as entry.entry
+ * 
+ * @param *topNode      The node->value to search
+ * @param *table        Table in which to search in
+ */
 struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTable *table) {
     if (topNode == NULL || table == NULL) {
         return SA_create_semantic_entry_report(NULL, false, true);
@@ -1027,6 +1039,16 @@ struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTabl
     return SA_create_semantic_entry_report(entry, true, false);
 }
 
+/**
+ * <p>
+ * Returns a table with the provided type.
+ * </p>
+ * 
+ * @returns The table with the provided type
+ * 
+ * @param *currentTable     The table from which to go up from
+ * @param type              Type to search
+ */
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type) {
     SemanticTable *temp = currentTable;
 
@@ -1042,6 +1064,17 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
     return temp;
 }
 
+/**
+ * <p>
+ * Evaluates if an assignment (simple assignment for vars) is correct.
+ * </p>
+ * 
+ * @returns A SemanticReport with potential errors and return type
+ * 
+ * @param expectedType      The type expected by the statement that is assigned
+ * @param *topNode          The root node of the assignment operation
+ * @param *table            Table in which the assignment occured
+ */
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
     struct SemanticReport rep;
     SemanticTable *mainTable = SA_get_next_table_of_type(table, MAIN);
@@ -1056,6 +1089,20 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
     return rep;
 }
 
+/**
+ * <p>
+ * This function creates a new SemanticTable for the current scope.
+ * </p>
+ * 
+ * @returns The created SeamticTable
+ * 
+ * @param *root         The root node of the new scope (usually a `RUNNABLE`)
+ * @param scope         The ScopeType of the table (e.g. "MAIN", "CLASS", "FUNCTION", ...)
+ * @param *parent       The parent of the table
+ * @param *params       Parameters for the table (e.g. functions, constructors ect.)
+ * @param line          Line at which the table is created
+ * @param position      Character position at which the table is created
+ */
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope,
                                             SemanticTable *parent, struct ParamTransferObject *params,
                                             size_t line, size_t position) {
@@ -1066,6 +1113,19 @@ SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope,
     return table;
 }
 
+/**
+ * <p>
+ * Checks if a node is a number or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Node is a number
+ * <li>false - Node is not a number
+ * </ul>
+ * 
+ * @param *node     Pointer to the node to check
+ */
 int SA_is_node_a_number(Node *node) {
     switch (node->type) {
     case _NUMBER_NODE_: case _FLOAT_NODE_:
@@ -1074,6 +1134,19 @@ int SA_is_node_a_number(Node *node) {
     }
 }
 
+/**
+ * <p>
+ * Checks if a node is an arithmetic operator or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Node is an arithmetic operator
+ * <li>false - Node is not an arithmetic operator
+ * </ul>
+ * 
+ * @param *node     Pointer to the node to check
+ */
 int SA_is_node_arithmetic_operator(Node *node) {
     switch (node->type) {
     case _PLUS_NODE_: case _MINUS_NODE_: case _MULTIPLY_NODE_: case _MODULO_NODE_:
@@ -1083,12 +1156,55 @@ int SA_is_node_arithmetic_operator(Node *node) {
     }
 }
 
+/**
+ * <p>
+ * Ensures that both provided types are equal.
+ * </p>
+ * 
+ * <p>
+ * The `strict` flag sets the standard. For strict, the
+ * types have to match by 100%, for non-strict the
+ * types only have to match the format (FLOAT and DOUBLE).
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Types are equal
+ * <li>false - Types are not equal
+ * </ul>
+ * 
+ * @param type1     The first type to check against the second
+ * @param type2     The second type to check agains the first
+ * @param strict    Flag to enable the strict mode
+ */
 int SA_are_VarTypes_equal(struct VarDec type1, struct VarDec type2, int strict) {
     return strict == true ?
         (int)SA_are_strict_VarTypes_equal(type1, type2) :
         (int)SA_are_non_strict_VarTypes_equal(type1, type2);
 }
 
+/**
+ * <p>
+ * Checks if two VarTypes are equal, but on a higher standard
+ * basis. By that both types have to be the same as the other,
+ * unlike the `#...non_strict_var_types...`.
+ * </p>
+ * 
+ * <p><strong>Usage:</strong>
+ * This is used to evaluate type equality in a constructor
+ * definition, to prevent multiple constructors with equal
+ * parameters.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Types are equal
+ * <li>false - Types are not equal
+ * </ul>
+ * 
+ * @param type1     The first type to check against the second
+ * @param type2     The second type to check agains the first
+ */
 int SA_are_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
     if (type1.type == CLASS_REF && type2.type == CLASS_REF) {
         if ((int)strcmp(type1.classType, type2.classType) == 0
@@ -1101,6 +1217,26 @@ int SA_are_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
             && type1.dimension == type2.dimension ? true : false;
 }
 
+/**
+ * <p>
+ * Checks if two VarTypes are equal, but on a lower standard
+ * basis. By that FLOAT's and DOUBLE's are handled equally for
+ * instance and are assigned later.
+ * </p>
+ * 
+ * <p><strong>Usage:</strong>
+ * This is used to evaluate type equality in a function call.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Types are equal
+ * <li>false - Types are not equal
+ * </ul>
+ * 
+ * @param type1     The first type to check against the second
+ * @param type2     The second type to check agains the first
+ */
 int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
     if (((type1.type == DOUBLE || type1.type == FLOAT)
         && (type2.type == DOUBLE || type2.type == FLOAT))
@@ -1157,6 +1293,20 @@ int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable) {
     return false;
 }
 
+/**
+ * <p>
+ * Returns the params of a provided node.
+ * </p>
+ * 
+ * <p>
+ * The params are always in the node->details pointer.
+ * </p>
+ * 
+ * @returns An object, that contains the parameters
+ * 
+ * @param *topNode      Node to get the params from
+ * @param stdType       The standard type of the params
+ */
 struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) {
     struct ParamTransferObject *obj = (struct ParamTransferObject*)calloc(1, sizeof(struct ParamTransferObject));
 
@@ -1192,6 +1342,21 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) 
     return obj;
 }
 
+/**
+ * <p>
+ * Get an entry in the param list of the provided table,
+ * by the provided key.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>SemanticEntry - The found entry in the table
+ * <li>NULL - When no entry was found
+ * </ul>
+ * 
+ * @param *key      Key to search in the param list
+ * @param *table    The table to search in
+ */
 SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table) {
     if (table == NULL) {
         return NULL;
