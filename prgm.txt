@@ -1,3 +1,9 @@
-include SPACE.Lang.Object;
+function test(param:int) -> void {
+    var:int x = 10;
 
-var:int obj = "String";
+    try {
+        var b = test(x);
+    }
+}
+
+var x = test(1);

@@ -20,8 +20,9 @@
    - [ ] Valid scope placement (MAIN only)
 
 - [ ] Check try statement
-   - [ ] Check the runnable
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+   - [X] Check the runnable
+   - [X] Valid scope placement (FUNCTION or MAIN only)
+   - [X] Encapsulate inner defined vars
 
 - [ ] Check catch statement
    - [ ] Valid error var

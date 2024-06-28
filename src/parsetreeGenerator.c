@@ -2474,15 +2474,17 @@ NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
     functionNode->line = token->line;
     functionNode->position = token->tokenStart;
     functionNode->leftNode = modNode;
-    skip += 3;
+    skip += 2;
 
     int argumentCount = (int)PG_predict_argument_count(tokens, startPos + skip, true);
     (void)PG_allocate_node_details(functionNode, argumentCount + 2, true);
     skip += (size_t)PG_add_params_to_node(functionNode, tokens, startPos + skip, 1, _NULL_) + 1;
 
     if ((*tokens)[startPos + skip].type == _OP_CLASS_ACCESSOR_) {
-        skip += (int)PG_add_varType_definition(tokens, startPos + skip + 1, functionNode) + 2;
+        skip += (int)PG_add_varType_definition(tokens, startPos + skip + 1, functionNode) + 1;
     }
+
+    skip++;
 
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     functionNode->details[functionNode->detailsCount - 1] = runnableReport.node;

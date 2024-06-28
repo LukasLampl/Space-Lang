@@ -38,7 +38,7 @@ enum VarType {
 enum ScopeType {
     MAIN, FUNCTION, CLASS, IF, CHECK, IS, FOR, WHILE, DO,
     VARIABLE, FUNCTION_CALL, CONSTRUCTOR, ENUM, ENUMERATOR,
-    EXTERNAL
+    EXTERNAL, TRY
 };
 
 struct VarDec {
