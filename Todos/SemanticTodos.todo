@@ -19,15 +19,15 @@
 - [ ] Check export trees
    - [ ] Valid scope placement (MAIN only)
 
-- [ ] Check try statement
+- [X] Check try statement
    - [X] Check the runnable
    - [X] Valid scope placement (FUNCTION or MAIN only)
    - [X] Encapsulate inner defined vars
 
-- [ ] Check catch statement
-   - [ ] Valid error var
-   - [ ] Valid catch runnable
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check catch statement
+   - [X] Valid error var
+   - [X] Valid catch runnable
+   - [X] Valid scope placement (FUNCTION or MAIN only)
 
 - [X] Check constructors of classes
    - [X] Duplicate constructors in same class

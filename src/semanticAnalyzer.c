@@ -95,7 +95,7 @@ struct varTypeLookup TYPE_LOOKUP[] = {
 };
 
 void SA_init_globals();
-void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table);
+void SA_manage_runnable(Node *root, SemanticTable *table);
 void SA_add_parameters_to_runnable_table(SemanticTable *scopeTable, struct ParamTransferObject *params);
 
 struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry, SemanticTable *callScopeTable, enum FunctionCallType fnccType);
@@ -107,7 +107,8 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode);
 void SA_add_enum_to_table(SemanticTable *table, Node *enumNode);
 void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, Node *topNode);
 void SA_add_include_to_table(SemanticTable *table, Node *includeNode);
-void SA_check_try_statement(SemanticTable *table, Node *tryNode);
+void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index);
+void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index);
 
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
@@ -182,7 +183,7 @@ int CheckSemantic(Node *root) {
     (void)SA_init_globals();
 
     SemanticTable *mainTable = SA_create_new_scope_table(root, MAIN, NULL, NULL, 0, 0);
-    (void)SA_manage_runnable(NULL, root, mainTable);
+    (void)SA_manage_runnable(root, mainTable);
     (void)FREE_TABLE(mainTable);
     return 1;
 }
@@ -192,7 +193,7 @@ void SA_init_globals() {
     listOfExternalAccesses = CreateNewList(16);
 }
 
-void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table) {
+void SA_manage_runnable(Node *root, SemanticTable *table) {
     printf("Main instructions count: %li\n", root->detailsCount);
     
     for (int i = 0; i < root->detailsCount; i++) {
@@ -222,7 +223,10 @@ void SA_manage_runnable(SemanticTable *parent, Node *root, SemanticTable *table)
             (void)SA_add_include_to_table(table, currentNode);
             break;
         case _TRY_NODE_:
-            (void)SA_check_try_statement(table, currentNode);
+            (void)SA_check_try_statement(table, currentNode, root, i);
+            break;
+        case _CATCH_NODE_:
+            (void)SA_check_catch_statement(table, currentNode, root, i);
             break;
         default: continue;
         }
@@ -281,7 +285,7 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
     
     SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, nullDec, vis, CLASS, scopeTable, classNode->line, classNode->position);
     (void)HM_add_entry(name, referenceEntry, table->symbolTable);
-    (void)SA_manage_runnable(table, runnableNode, scopeTable);
+    (void)SA_manage_runnable(runnableNode, scopeTable);
 }
 
 void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
@@ -302,7 +306,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 
     SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, type, vis, FUNCTION, scopeTable, functionNode->line, functionNode->position);
     (void)HM_add_entry(name, referenceEntry, table->symbolTable);
-    (void)SA_manage_runnable(table, runnableNode, scopeTable);
+    (void)SA_manage_runnable(runnableNode, scopeTable);
 }
 
 /**
@@ -398,7 +402,7 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
     SemanticTable *scopeTable = SA_create_new_scope_table(constructorNode, CONSTRUCTOR, table, params, constructorNode->line, constructorNode->position);
     SemanticEntry *entry = SA_create_semantic_entry("CONSTRUCTOR", "CONSTRUCTOR", construc, GLOBAL, CONSTRUCTOR, scopeTable, constructorNode->line, constructorNode->position);
     (void)L_add_item(table->paramList, entry);
-    (void)SA_manage_runnable(table, runnableNode, scopeTable);
+    (void)SA_manage_runnable(runnableNode, scopeTable);
 }
 
 void SA_add_enum_to_table(SemanticTable *table, Node *enumNode) {
@@ -471,14 +475,44 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
     (void)L_add_item(listOfExternalAccesses, includeNode);
 }
 
-void SA_check_try_statement(SemanticTable *table, Node *tryNode) {
+void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index) {
     if (table->type != MAIN && table->type != FUNCTION && table->type != CONSTRUCTOR) {
         (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(tryNode);
         return;
     }
 
+    struct Node *estimatedCatchNode = parentNode->details[index + 1];
+
+    if (estimatedCatchNode == NULL
+        || estimatedCatchNode->type != _CATCH_NODE_) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(tryNode);
+        return;
+    }
+
     SemanticTable *tempTable = SA_create_new_scope_table(NULL, TRY, table, NULL, tryNode->line, tryNode->position);
-    (void)SA_manage_runnable(table, tryNode, tempTable);
+    (void)SA_manage_runnable(tryNode, tempTable);
+}
+
+void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index) {
+    if (table->type != MAIN && table->type != FUNCTION && table->type != CONSTRUCTOR) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(catchNode);
+        return;
+    }
+
+    struct Node *estimatedTryNode = parentNode->details[index - 1];
+
+    if (estimatedTryNode == NULL
+        || estimatedTryNode->type != _TRY_NODE_) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(catchNode);
+        return;
+    }
+
+    SemanticTable *tempTable = SA_create_new_scope_table(catchNode->rightNode, CATCH, table, NULL, catchNode->line, catchNode->position);
+    Node *errorHandleNode = catchNode->leftNode;
+    struct VarDec errorType = {CLASS_REF, 0, errorHandleNode->leftNode->value, true};
+    struct SemanticEntry *param = SA_create_semantic_entry(errorHandleNode->value, "(null)", errorType, P_GLOBAL, VARIABLE, NULL, errorHandleNode->line, errorHandleNode->position);
+    (void)L_add_item(tempTable->paramList, param);
+    (void)SA_manage_runnable(catchNode->rightNode, tempTable);
 }
 
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
@@ -1426,7 +1460,7 @@ SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table) 
     for (int i = 0; i < table->paramList->load; i++) {
         SemanticEntry *entry = (SemanticEntry*)L_get_item(table->paramList, i);
 
-        if ((int)strcmp(entry->value, key) == 0) {
+        if ((int)strcmp(entry->name, key) == 0) {
             return entry;
         }
     }

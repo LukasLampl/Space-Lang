@@ -1,9 +1,4 @@
-function test(param:int) -> void {
-    var:int x = 10;
-
-    try {
-        var b = test(x);
-    }
+try {
+} catch (Exception e) {
+    var error = e;
 }
-
-var x = test(1);

@@ -75,7 +75,7 @@ static const float MAXIMUM_LOAD_FACTOR = 0.66f;
  * resize happens. (newCap = oldCap * SCALE_FACTOR)
  * </p>
  */
-static const float SCALE_FACTOR = 1.6f;
+static const float SCALE_FACTOR = 2.0f;
 
 ///// PROTOTYPES /////
 
