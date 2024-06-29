@@ -475,6 +475,16 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
     (void)L_add_item(listOfExternalAccesses, includeNode);
 }
 
+/**
+ * <p>
+ * Evaluates a try statement for correctness.
+ * </p>
+ * 
+ * @param *table        The parent table
+ * @param *tryNode      The node with the try runnable
+ * @param *parentNode   Node abover the catchNode (evaluates if the statement is before a "catch" statement)
+ * @param index         Index at the parent node (evaluates if the statement is before a "catch" statement)
+ */
 void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index) {
     if (table->type != MAIN && table->type != FUNCTION && table->type != CONSTRUCTOR) {
         (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(tryNode);
@@ -493,6 +503,16 @@ void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNod
     (void)SA_manage_runnable(tryNode, tempTable);
 }
 
+/**
+ * <p>
+ * Evaluates a catch statement for correctness.
+ * </p>
+ * 
+ * @param *table        The parent table
+ * @param *catchNode    The node with the catch runnable and error node
+ * @param *parentNode   Node abover the catchNode (evaluates if the statement is after a "try" statement)
+ * @param index         Index at the parent node (evaluates if the statement is after a "try" statement)
+ */
 void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index) {
     if (table->type != MAIN && table->type != FUNCTION && table->type != CONSTRUCTOR) {
         (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(catchNode);
@@ -515,6 +535,34 @@ void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *paren
     (void)SA_manage_runnable(catchNode->rightNode, tempTable);
 }
 
+/**
+ * <p>
+ * Checks if a constructor with the exact same types is already defined or not.
+ * </p>
+ * 
+ * <p>
+ * The types have to be different for the constructor to be recognized as "different".
+ * 
+ * Example:
+ * 
+ * ```
+ * this::constructor(param1, param2) {}
+ * this::constructor(number1, number2) {}
+ * => ERROR, because params are of equal types
+ * 
+ * this::constructor(param1:int, param2:char) {}
+ * this::constructor(param1:int, param2:double) {}
+ * => ALLOWED, due to different types
+ * ```
+ * </p>
+ * 
+ * @returns A SemanticReport with possible errors and if the class contains another constructor
+ * of the same type or not.
+ * 
+ * @param *classTable       The table in the current class with ass other constructors
+ * @param *paramHolder      The new constructor node, that holds the params
+ * @param fncctype          Determines the "strictness", for declarations it is stricter than checks
+ */
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
     if (classTable == NULL || paramHolder == NULL) {
         return SA_create_semantic_report(nullDec, false, false, NULL, NONE, NULL, NULL);
@@ -554,6 +602,16 @@ struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable,
     return SA_create_semantic_report(nullDec, false, false, NULL, NONE, NULL, NULL);
 }
 
+/**
+ * <p>
+ * Gets the parameter count of the provided node.
+ * RUNNABLES and NULL nodes are excluded in the count.
+ * </p>
+ * 
+ * @returns The number of parameters
+ * 
+ * @param *paramHolder  The node that holds the parameters
+ */
 int SA_get_node_param_count(struct Node *paramHolder) {
     int actualNodeParamCount = 0;
 
