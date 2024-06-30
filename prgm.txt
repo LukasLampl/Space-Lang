@@ -1,14 +1,6 @@
 var a = 0;
 var b = 't';
 
-while (a == 0 and b == 2 or c == 3) {
-
-}
-
-while (b == 2) {
-
-}
-
-while (c == 3) {
-
+while (a == 0 and b == 2) {
+    var x = b;
 }

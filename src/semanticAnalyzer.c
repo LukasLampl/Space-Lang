@@ -976,7 +976,7 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
     if (arrayRep.errorOccured == true) {
         return arrayRep;
     }
-    
+
     return SA_create_semantic_report(retType, true, false, NULL, NONE, NULL, NULL);
 }
 
@@ -1329,17 +1329,16 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
  * @param *table            Table in which the assignment occured
  */
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
-    struct SemanticReport rep;
     SemanticTable *mainTable = SA_get_next_table_of_type(table, MAIN);
     struct SemanticEntryReport possibleEnumEntry = SA_get_entry_if_available(topNode, mainTable);
 
     if (possibleEnumEntry.entry != NULL) {
-        rep = SA_evaluate_member_access(topNode, mainTable);
-    } else {
-        rep = SA_evaluate_simple_term(expectedType, topNode, table);
+        if (possibleEnumEntry.entry->internalType == ENUM) {
+            return SA_evaluate_member_access(topNode, mainTable);
+        }
     }
 
-    return rep;
+    return SA_evaluate_simple_term(expectedType, topNode, table);
 }
 
 /**
@@ -1496,8 +1495,8 @@ int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
         return true;
     }
 
-    return type1.type == type2.type
-            && type1.dimension == type2.dimension ? true : false;
+    return (type1.type == type2.type
+            && type1.dimension == type2.dimension) ? true : false;
 }
 
 /**
