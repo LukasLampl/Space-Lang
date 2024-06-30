@@ -2819,26 +2819,27 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
             }
 
             SyntaxReport isIdentifier = SA_create_syntax_report(NULL, 0, true, "[LETTER]\", \"[DIGIT]\", \"[FUNCTION_CALL]\" or \"[CLASS_OBJECT_ACCESS]");
+            int pos = startPos + jumper;
 
-            if ((int)SA_predict_term_expression(tokens, startPos + jumper)) {
-                isIdentifier = SA_is_term_expression(tokens, startPos + jumper);
+            if ((int)SA_predict_term_expression(tokens, pos)) {
+                isIdentifier = SA_is_term_expression(tokens, pos);
             } else if ((int)SA_is_letter(currentToken->value[0]) == true) {
-                if ((int)SA_predict_class_object_access(tokens, startPos + jumper) == true) {
-                    isIdentifier = SA_is_class_object_access(tokens, startPos + jumper, false);
-                } else if ((int)SA_is_bool((*tokens)[startPos].value) == true
+                if ((int)SA_predict_class_object_access(tokens, pos) == true) {
+                    isIdentifier = SA_is_class_object_access(tokens, pos, false);
+                } else if ((int)SA_is_bool((*tokens)[pos].value) == true
                     || currentToken->type == _KW_NULL_) {
                     jumper++;
                     continue;
                 } else {
-                    isIdentifier = SA_is_identifier(tokens, startPos + jumper);
+                    isIdentifier = SA_is_identifier(tokens, pos);
                 }
             } else if ((int)is_digit(currentToken->value[0]) == true) {
                 isIdentifier = SA_is_numeral_identifier(currentToken);
             } else {
                 if ((int)SA_is_pointer(currentToken) == true
                     || (int)SA_is_reference(currentToken) == true) {
-                    if ((int)SA_predict_array_access(tokens, startPos + jumper + 1) == true) {
-                        SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + jumper + 1);
+                    if ((int)SA_predict_array_access(tokens, pos + 1) == true) {
+                        SyntaxReport isArrayAccess = SA_is_array_access(tokens, pos + 1);
 
                         if (isArrayAccess.errorOccured == false) {
                             jumper += isArrayAccess.tokensToSkip;

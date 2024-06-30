@@ -50,7 +50,6 @@ struct VarDec {
 
 typedef struct SemanticEntry {
     char *name;
-    char *value;
     struct VarDec dec;
     enum Visibility visibility;
     enum ScopeType internalType;

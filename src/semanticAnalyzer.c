@@ -109,7 +109,10 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, Node *topNode);
 void SA_add_include_to_table(SemanticTable *table, Node *includeNode);
 void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index);
 void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index);
+void SA_add_while_to_table(SemanticTable *table, Node *whileNode);
 
+char *SA_get_string(char bufferString[]);
+struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *rootNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
@@ -146,7 +149,7 @@ SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table);
 
 struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry, int success, int errorOccured);
 struct SemanticReport SA_create_semantic_report(struct VarDec type, int success, int errorOccured, Node *errorNode, enum ErrorType errorType, char *expected, char *got);
-SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType, enum Visibility visibility, enum ScopeType internalType, void *ptr, size_t line, size_t position);
+SemanticEntry *SA_create_semantic_entry(char *name, struct VarDec varType, enum Visibility visibility, enum ScopeType internalType, void *ptr, size_t line, size_t position);
 SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, SemanticTable *parent, enum ScopeType type, size_t line, size_t position);
 
 void FREE_TABLE(SemanticTable *rootTable);
@@ -228,6 +231,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
         case _CATCH_NODE_:
             (void)SA_check_catch_statement(table, currentNode, root, i);
             break;
+        case _WHILE_STMT_NODE_:
+            (void)SA_add_while_to_table(table, currentNode);
+            break;
         default: continue;
         }
     }
@@ -283,7 +289,7 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
     SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, CLASS, table, params, classNode->line, classNode->position);
     scopeTable->name = name;
     
-    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, nullDec, vis, CLASS, scopeTable, classNode->line, classNode->position);
+    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, nullDec, vis, CLASS, scopeTable, classNode->line, classNode->position);
     (void)HM_add_entry(name, referenceEntry, table->symbolTable);
     (void)SA_manage_runnable(runnableNode, scopeTable);
 }
@@ -304,7 +310,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
     SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params, functionNode->line, functionNode->position);
     scopeTable->name = name;
 
-    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, NULL, type, vis, FUNCTION, scopeTable, functionNode->line, functionNode->position);
+    SemanticEntry *referenceEntry = SA_create_semantic_entry(name, type, vis, FUNCTION, scopeTable, functionNode->line, functionNode->position);
     (void)HM_add_entry(name, referenceEntry, table->symbolTable);
     (void)SA_manage_runnable(runnableNode, scopeTable);
 }
@@ -323,7 +329,6 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
     enum Visibility vis = SA_get_visibility(varNode->leftNode);
     int constant = varNode->type == _VAR_NODE_ ? false : true;
     struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0], constant);
-    char *value = varNode->rightNode == NULL ? "(null)" : varNode->rightNode->value;
     SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
     if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
@@ -340,7 +345,7 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
         }
     }
 
-    SemanticEntry *entry = SA_create_semantic_entry(name, value, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
+    SemanticEntry *entry = SA_create_semantic_entry(name, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
     (void)HM_add_entry(name, entry, table->symbolTable);
 }
 
@@ -348,7 +353,6 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
     char *name = varNode->value;
     enum Visibility vis = SA_get_visibility(varNode->leftNode);
     struct VarDec type = {CLASS_REF, 0, varNode->value};
-    char *value = varNode->rightNode == NULL ? "(null)" : varNode->rightNode->value;
     SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
     if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
@@ -378,7 +382,7 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
         }
     }
 
-    SemanticEntry *entry = SA_create_semantic_entry(name, value, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
+    SemanticEntry *entry = SA_create_semantic_entry(name, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
     (void)HM_add_entry(name, entry, table->symbolTable);
 }
 
@@ -395,12 +399,13 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
         return;
     }
 
+    char *name = SA_get_string("Constructor");
     struct Node *runnableNode = constructorNode->rightNode;
     struct VarDec cust = {CUSTOM, 0, NULL};
-    struct VarDec construc = {CONSTRUCTOR_PARAM, 0, NULL};
+    struct VarDec constructDec = {CONSTRUCTOR_PARAM, 0, NULL};
     struct ParamTransferObject *params = SA_get_params(constructorNode, cust);
     SemanticTable *scopeTable = SA_create_new_scope_table(constructorNode, CONSTRUCTOR, table, params, constructorNode->line, constructorNode->position);
-    SemanticEntry *entry = SA_create_semantic_entry("CONSTRUCTOR", "CONSTRUCTOR", construc, GLOBAL, CONSTRUCTOR, scopeTable, constructorNode->line, constructorNode->position);
+    SemanticEntry *entry = SA_create_semantic_entry(name, constructDec, GLOBAL, CONSTRUCTOR, scopeTable, constructorNode->line, constructorNode->position);
     (void)L_add_item(table->paramList, entry);
     (void)SA_manage_runnable(runnableNode, scopeTable);
 }
@@ -413,7 +418,6 @@ void SA_add_enum_to_table(SemanticTable *table, Node *enumNode) {
 
     char *name = enumNode->value;
     enum Visibility vis = table->type == MAIN ? P_GLOBAL : GLOBAL;
-    char *value = enumNode->value;
 
     if ((int)SA_is_obj_already_defined(name, table) == true) {
         (void)THROW_ALREADY_DEFINED_EXCEPTION(enumNode);
@@ -422,7 +426,7 @@ void SA_add_enum_to_table(SemanticTable *table, Node *enumNode) {
 
     SemanticTable *scopeTable = SA_create_new_scope_table(enumNode, ENUM, table, NULL, enumNode->line, enumNode->position);
     (void)SA_add_enumerators_to_enum_table(scopeTable, enumNode);
-    SemanticEntry *entry = SA_create_semantic_entry(name, value, nullDec, vis, ENUM, scopeTable, enumNode->line, enumNode->position);
+    SemanticEntry *entry = SA_create_semantic_entry(name, nullDec, vis, ENUM, scopeTable, enumNode->line, enumNode->position);
     (void)HM_add_entry(name, entry, table->symbolTable);
 }
 
@@ -437,14 +441,13 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *top
         }
 
         char *name = enumerator->value;
-        char *value = enumerator->rightNode->value;
 
         if ((int)HM_contains_key(name, enumTable->symbolTable) == true) {
             (void)THROW_ALREADY_DEFINED_EXCEPTION(enumerator);
             return;
         }
 
-        struct SemanticEntry *entry = SA_create_semantic_entry(name, value, enumDec, P_GLOBAL, ENUMERATOR, NULL, enumerator->line, enumerator->position);
+        struct SemanticEntry *entry = SA_create_semantic_entry(name, enumDec, P_GLOBAL, ENUMERATOR, NULL, enumerator->line, enumerator->position);
         (void)HM_add_entry(name, entry, enumTable->symbolTable);
     }
 }
@@ -464,7 +467,7 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
     }
 
     char *name = actualInclude->value;
-    struct SemanticEntry *entry = SA_create_semantic_entry(name, "(null)", nullDec, P_GLOBAL, EXTERNAL, NULL, includeNode->line, includeNode->position);
+    struct SemanticEntry *entry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, EXTERNAL, NULL, includeNode->line, includeNode->position);
     
     if ((int)SA_is_obj_already_defined(name, table) == true) {
         (void)THROW_ALREADY_DEFINED_EXCEPTION(includeNode);
@@ -486,7 +489,7 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
  * @param index         Index at the parent node (evaluates if the statement is before a "catch" statement)
  */
 void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index) {
-    if (table->type != MAIN && table->type != FUNCTION && table->type != CONSTRUCTOR) {
+    if (table->type == ENUM) {
         (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(tryNode);
         return;
     }
@@ -499,7 +502,10 @@ void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNod
         return;
     }
 
+    char *name = SA_get_string("try");
     SemanticTable *tempTable = SA_create_new_scope_table(NULL, TRY, table, NULL, tryNode->line, tryNode->position);
+    struct SemanticEntry *tryEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, tempTable, tryNode->line, tryNode->position);
+    (void)HM_add_entry(name, tryEntry, table->symbolTable);
     (void)SA_manage_runnable(tryNode, tempTable);
 }
 
@@ -514,7 +520,7 @@ void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNod
  * @param index         Index at the parent node (evaluates if the statement is after a "try" statement)
  */
 void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index) {
-    if (table->type != MAIN && table->type != FUNCTION && table->type != CONSTRUCTOR) {
+    if (table->type == ENUM) {
         (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(catchNode);
         return;
     }
@@ -527,12 +533,96 @@ void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *paren
         return;
     }
 
+    char *name = SA_get_string("catch");
     SemanticTable *tempTable = SA_create_new_scope_table(catchNode->rightNode, CATCH, table, NULL, catchNode->line, catchNode->position);
     Node *errorHandleNode = catchNode->leftNode;
     struct VarDec errorType = {CLASS_REF, 0, errorHandleNode->leftNode->value, true};
-    struct SemanticEntry *param = SA_create_semantic_entry(errorHandleNode->value, "(null)", errorType, P_GLOBAL, VARIABLE, NULL, errorHandleNode->line, errorHandleNode->position);
+    struct SemanticEntry *param = SA_create_semantic_entry(errorHandleNode->value, errorType, P_GLOBAL, VARIABLE, NULL, errorHandleNode->line, errorHandleNode->position);
     (void)L_add_item(tempTable->paramList, param);
+    struct SemanticEntry *catchEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, tempTable, catchNode->line, catchNode->position);
+    (void)HM_add_entry(name, catchEntry, table->symbolTable);
     (void)SA_manage_runnable(catchNode->rightNode, tempTable);
+}
+
+void SA_add_while_to_table(SemanticTable *table, Node *whileNode) {
+    if (table->type == ENUM) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(whileNode);
+        return;
+    }
+
+    struct SemanticReport conditionRep = SA_evaluate_chained_condition(table, whileNode->leftNode);
+
+    if (conditionRep.errorOccured == true) {
+        (void)THROW_ASSIGNED_EXCEPTION(conditionRep);
+        return;
+    }
+
+    char *name = SA_get_string("while");
+    SemanticTable *whileTable = SA_create_new_scope_table(whileNode->rightNode, WHILE, table, NULL, whileNode->line, whileNode->position);
+    struct SemanticEntry *whileEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, whileNode->line, whileNode->position);
+    (void)HM_add_entry(name, whileEntry, table->symbolTable);
+    (void)SA_manage_runnable(whileNode->rightNode, whileTable);
+}
+
+/**
+ * <p>
+ * Evaluates a chained condition for correctness.
+ * </p>
+ * 
+ * <p>
+ * It goes down the chained condition tree recursively by checkinig for the 'and' and 'or'
+ * keyword. If thse are found another recursion happens, else the resulting terms are
+ * checked. There's no need to check the rational operator, due to syntax analysis.
+ * </p>
+ * 
+ * @returns A SeamnticReport with possible errors.
+ * 
+ * @param *table        Table in which the condition is called from
+ * @param *rootNode     The root of the condition tree
+ */
+struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *rootNode) {
+    if (rootNode->type == _OR_NODE_
+        || rootNode->type == _AND_NODE_) {
+        struct SemanticReport leftCond = SA_evaluate_chained_condition(table, rootNode->leftNode);
+        struct SemanticReport rightCond = SA_evaluate_chained_condition(table, rootNode->rightNode);
+
+        if (leftCond.errorOccured == true) {
+            return leftCond;
+        } else if (rightCond.errorOccured == true) {
+            return rightCond;
+        }
+
+        return nullRep;
+    } else {
+        struct VarDec cust = {CUSTOM, 0, NULL};
+        struct SemanticReport lVal = SA_evaluate_simple_term(cust, rootNode->leftNode, table);
+        struct SemanticReport rVal = SA_evaluate_simple_term(cust, rootNode->rightNode, table);
+
+        if (lVal.errorOccured == true) {
+            return lVal;
+        } else if (rVal.errorOccured == true) {
+            return rVal;
+        }
+
+        return nullRep;
+    }
+}
+
+char *SA_get_string(char bufferString[]) {
+    int length = (int)strlen(bufferString);
+    char *string = (char*)calloc(length + 1, sizeof(char));
+
+    if (string == NULL) {
+        (void)THROW_MEMORY_RESERVATION_EXCEPTION("toString");
+        return NULL;
+    }
+
+    for (int i = 0; i < length; i++) {
+        string[i] = bufferString[i];
+    }
+
+    string[length] = '\0';
+    return string;
 }
 
 /**
@@ -1257,7 +1347,7 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
  * This function creates a new SemanticTable for the current scope.
  * </p>
  * 
- * @returns The created SeamticTable
+ * @returns The created SemanticTable
  * 
  * @param *root         The root node of the new scope (usually a `RUNNABLE`)
  * @param scope         The ScopeType of the table (e.g. "MAIN", "CLASS", "FUNCTION", ...)
@@ -1485,7 +1575,7 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) 
         
         Node *typeNode = innerNode->detailsCount > 0 ? innerNode->details[0] : NULL;
         struct VarDec type = SA_get_VarType(typeNode, false);
-        SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, "null", type, P_GLOBAL, VARIABLE, NULL, innerNode->line, innerNode->position);
+        SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, type, P_GLOBAL, VARIABLE, NULL, innerNode->line, innerNode->position);
         obj->entries[actualParams++] = entry;
     }
 
@@ -1683,13 +1773,12 @@ struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry,
  * @returns A SemanticEntry with the provided information
  * 
  * @param *name         Name of the entry
- * @param *value        Value of the entry
  * @param varType       Return type / type of the entry
  * @param visibility    Visibility of the entry
  * @param internalType  Scope type
  * @param *ptr          Pointer to a reference table (optional)
  */
-SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec varType,
+SemanticEntry *SA_create_semantic_entry(char *name, struct VarDec varType,
                                                 enum Visibility visibility, enum ScopeType internalType,
                                                 void *ptr, size_t line, size_t position) {
     SemanticEntry *entry = (SemanticEntry*)calloc(1, sizeof(SemanticEntry));
@@ -1697,7 +1786,6 @@ SemanticEntry *SA_create_semantic_entry(char *name, char *value, struct VarDec v
     entry->reference = ptr;
     entry->dec = varType;
     entry->visibility = visibility;
-    entry->value = value;
     entry->internalType = internalType;
     entry->line = line;
     entry->position = position;

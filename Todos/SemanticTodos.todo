@@ -2,6 +2,8 @@
 
 =========================================================
 
+- [ ] Add Pointer and Reference support
+
 - [ ] Check simple assignments (e.g. "a = 10;" or "obj = new Object()")
    - [ ] Assignments to one identifier
    - [ ] Complex assignments with calculations

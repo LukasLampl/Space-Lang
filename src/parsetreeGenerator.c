@@ -1200,7 +1200,7 @@ The indicator node [DO_STMT] has the conditions at
 
 [DO_STMT]: Indicator for the do statement
 [COND]: Chained condition to be fulfilled
-[RUNNABLE]: Block in the while statment
+[RUNNABLE]: Block in the while statement
 */
 NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos) {
     TOKEN *token = &(*tokens)[startPos];
@@ -1267,7 +1267,6 @@ NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos) {
     NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
     topNode->rightNode = runnableReport.node;
     skip += runnableReport.tokensToSkip;
-
     return PG_create_node_report(topNode, skip);
 }
 
@@ -1873,7 +1872,6 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
     Node *cache = NULL;
     size_t lastCondStart = startPos;
     size_t skip = 0;
-    int openBrackets = 0;
     int hasLogicOperators = (int)PG_contains_logical_operator(tokens, startPos);
 
     while (skip < TOKEN_LENGTH && hasLogicOperators == true) {
@@ -1881,37 +1879,22 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
 
         switch (currentToken->type) {
         case _OP_RIGHT_BRACKET_: {
-            openBrackets++;
-
-            if ((int)PG_is_logic_operator_bracket(tokens, startPos + skip) == false) {
-                break;
-            }
-
-            NodeReport report = PG_create_chained_condition_tree(tokens, startPos + skip + 1, true);
-            skip += report.tokensToSkip;
+            NodeReport rep = PG_create_chained_condition_tree(tokens, startPos + skip + 1, true);
+            skip += rep.tokensToSkip;
 
             if (cache == NULL) {
-                cache = report.node;
+                cache = rep.node;
             } else {
                 if (cache->leftNode == NULL) {
-                    cache->leftNode = report.node;
+                    cache->leftNode = rep.node;
                 } else {
-                    cache->rightNode = report.node;
+                    cache->rightNode = rep.node;
                 }
             }
 
             continue;
         }
         case _OP_LEFT_BRACKET_:
-            openBrackets--;
-
-            if (openBrackets < 0) {
-                hasLogicOperators = false;
-                skip += inDepth == true ? 1 : 0;
-                continue;
-            }
-
-            break;
         case _OP_SEMICOLON_:
         case _OP_QUESTION_MARK_:
             hasLogicOperators = false;
@@ -1930,8 +1913,7 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
 
             NodeReport rightReport = {NULL, UNINITIALZED};
 
-            if ((*tokens)[skip + 1].type == _OP_RIGHT_BRACKET_
-                && (int)PG_is_logic_operator_bracket(tokens, startPos + skip + 2) == true) {
+            if ((*tokens)[startPos + skip + 1].type == _OP_RIGHT_BRACKET_) {
                 rightReport = PG_create_chained_condition_tree(tokens, startPos + skip + 2, true);
             } else {
                 rightReport = PG_create_condition_tree(tokens, startPos + skip + 1);
@@ -1951,9 +1933,17 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
     }
 
     if (cache == NULL) {
-        NodeReport condRep = PG_create_condition_tree(tokens, startPos);
-        cache = condRep.node;
-        skip = condRep.tokensToSkip;
+        skip = 0;
+        NodeReport rep = {NULL, UNINITIALZED};
+
+        if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_) {
+            rep = PG_create_chained_condition_tree(tokens, startPos + 1, true);
+        } else {
+            rep = PG_create_condition_tree(tokens, startPos);
+        }
+
+        cache = rep.node;
+        skip = rep.tokensToSkip;
     }
 
     return PG_create_node_report(cache, skip);
@@ -3024,6 +3014,10 @@ NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos) {
         || (*tokens)[startPos].type == _CHARACTER_ARRAY_) {
         Node *strNode = PG_create_node((*tokens)[startPos].value, _STRING_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
         return PG_create_node_report(strNode, 2);
+    } else if ((*tokens)[startPos].type == _KW_TRUE_
+        || (*tokens)[startPos].type == _KW_FALSE_) {
+        Node *boolNode = PG_create_node((*tokens)[startPos].value, _BOOL_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+        return PG_create_node_report(boolNode, 1);
     } else {
         report = PG_create_member_access_tree(tokens, startPos + 1, true);
     }
