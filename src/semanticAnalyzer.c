@@ -109,7 +109,10 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, Node *topNode);
 void SA_add_include_to_table(SemanticTable *table, Node *includeNode);
 void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index);
 void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index);
-void SA_add_while_to_table(SemanticTable *table, Node *whileNode);
+void SA_add_while_do_to_table(SemanticTable *table, Node *whileNode);
+void SA_add_if_to_table(SemanticTable *table, Node *ifNode);
+void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *parentNode, int index);
+void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode, int index);
 
 char *SA_get_string(char bufferString[]);
 struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *rootNode);
@@ -232,7 +235,17 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
             (void)SA_check_catch_statement(table, currentNode, root, i);
             break;
         case _WHILE_STMT_NODE_:
-            (void)SA_add_while_to_table(table, currentNode);
+        case _DO_STMT_NODE_:
+            (void)SA_add_while_do_to_table(table, currentNode);
+            break;
+        case _IF_STMT_NODE_:
+            (void)SA_add_if_to_table(table, currentNode);
+            break;
+        case _ELSE_IF_STMT_NODE_:
+            (void)SA_add_else_if_to_table(table, currentNode, root, i);
+            break;
+        case _ELSE_STMT_NODE_:
+            (void)SA_add_else_to_table(table, currentNode, root, i);
             break;
         default: continue;
         }
@@ -544,24 +557,83 @@ void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *paren
     (void)SA_manage_runnable(catchNode->rightNode, tempTable);
 }
 
-void SA_add_while_to_table(SemanticTable *table, Node *whileNode) {
+void SA_add_while_or_do_to_table(SemanticTable *table, Node *whileDoNode) {
     if (table->type == ENUM) {
-        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(whileNode);
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(whileDoNode);
         return;
     }
 
-    struct SemanticReport conditionRep = SA_evaluate_chained_condition(table, whileNode->leftNode);
+    struct SemanticReport conditionRep = SA_evaluate_chained_condition(table, whileDoNode->leftNode);
 
     if (conditionRep.errorOccured == true) {
         (void)THROW_ASSIGNED_EXCEPTION(conditionRep);
         return;
     }
 
-    char *name = SA_get_string("while");
-    SemanticTable *whileTable = SA_create_new_scope_table(whileNode->rightNode, WHILE, table, NULL, whileNode->line, whileNode->position);
-    struct SemanticEntry *whileEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, whileNode->line, whileNode->position);
+    char *name = whileDoNode->type == _WHILE_STMT_NODE_ ? SA_get_string("while") : SA_get_string("do");
+    enum ScopeType type = whileDoNode->type == _WHILE_STMT_NODE_ ? WHILE : DO;
+    SemanticTable *whileTable = SA_create_new_scope_table(whileDoNode->rightNode, type, table, NULL, whileDoNode->line, whileDoNode->position);
+    struct SemanticEntry *whileEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, type, whileTable, whileDoNode->line, whileDoNode->position);
     (void)HM_add_entry(name, whileEntry, table->symbolTable);
-    (void)SA_manage_runnable(whileNode->rightNode, whileTable);
+    (void)SA_manage_runnable(whileDoNode->rightNode, whileTable);
+}
+
+void SA_add_if_to_table(SemanticTable *table, Node *ifNode) {
+    if (table->type == ENUM) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(ifNode);
+    }
+
+    struct SemanticReport conditionRep = SA_evaluate_chained_condition(table, ifNode->leftNode);
+
+    if (conditionRep.errorOccured == true) {
+        (void)THROW_ASSIGNED_EXCEPTION(conditionRep);
+        return;
+    }
+
+    char *name = SA_get_string("if");
+    SemanticTable *whileTable = SA_create_new_scope_table(ifNode->rightNode, WHILE, table, NULL, ifNode->line, ifNode->position);
+    struct SemanticEntry *ifEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, ifNode->line, ifNode->position);
+    (void)HM_add_entry(name, ifEntry, table->symbolTable);
+    (void)SA_manage_runnable(ifNode->rightNode, whileTable);
+}
+
+void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *parentNode, int index) {
+    struct Node *estimatedIfNode = parentNode->details[index - 1];
+
+    if (estimatedIfNode->type != _IF_STMT_NODE_
+        && estimatedIfNode->type != _ELSE_IF_STMT_NODE_) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(elseIfNode);
+        return;
+    }
+
+    struct SemanticReport conditionRep = SA_evaluate_chained_condition(table, elseIfNode->leftNode);
+
+    if (conditionRep.errorOccured == true) {
+        (void)THROW_ASSIGNED_EXCEPTION(conditionRep);
+        return;
+    }
+
+    char *name = SA_get_string("else_if");
+    SemanticTable *whileTable = SA_create_new_scope_table(elseIfNode->rightNode, WHILE, table, NULL, elseIfNode->line, elseIfNode->position);
+    struct SemanticEntry *elseIfEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, elseIfNode->line, elseIfNode->position);
+    (void)HM_add_entry(name, elseIfEntry, table->symbolTable);
+    (void)SA_manage_runnable(elseIfNode->rightNode, whileTable);
+}
+
+void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode, int index) {
+    struct Node *estimatedIfOrElseIfNode = parentNode->details[index - 1];
+
+    if (estimatedIfOrElseIfNode->type != _IF_STMT_NODE_
+        && estimatedIfOrElseIfNode->type != _ELSE_IF_STMT_NODE_) {
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(elseNode);
+        return;
+    }
+
+    char *name = SA_get_string("else");
+    SemanticTable *whileTable = SA_create_new_scope_table(elseNode->rightNode, WHILE, table, NULL, elseNode->line, elseNode->position);
+    struct SemanticEntry *elseEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, elseNode->line, elseNode->position);
+    (void)HM_add_entry(name, elseEntry, table->symbolTable);
+    (void)SA_manage_runnable(elseNode->rightNode, whileTable);
 }
 
 /**

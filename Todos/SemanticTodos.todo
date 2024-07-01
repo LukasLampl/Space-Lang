@@ -89,16 +89,16 @@
    - [ ] Valid conditions
    - [ ] Valid scope placement (FUNCTION or MAIN only)
 
-- [ ] Check if statements
-   - [ ] Valid runnable
-   - [ ] Valid conditions
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check if statements
+   - [X] Valid runnable
+   - [X] Valid conditions
+   - [X] Valid scope placement (Not enum)
 
-- [ ] Check else if statements
-   - [ ] Valid runnable
-   - [ ] Valid conditions
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check else if statements
+   - [X] Valid runnable
+   - [X] Valid conditions
+   - [X] Valid scope placement (after IF or ELSE-IF only)
 
-- [ ] Check else statements
-   - [ ] Valid runnable
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check else statements
+   - [X] Valid runnable
+   - [X] Valid scope placement (after IF or ELSE-IF only)

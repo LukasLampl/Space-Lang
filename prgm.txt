@@ -1,6 +1,5 @@
-var a = 0;
-var b = 't';
+if (a == 0) {
 
-while (a == 0 and b == 2) {
-    var x = b;
+} else {
+
 }
