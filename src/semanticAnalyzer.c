@@ -624,7 +624,8 @@ void SA_add_catch_statement(SemanticTable *table, Node *catchNode, Node *parentN
     struct Node *estimatedTryNode = parentNode->details[index - 1];
 
     if (estimatedTryNode == NULL
-        || estimatedTryNode->type != _TRY_NODE_) {
+        || (estimatedTryNode->type != _TRY_NODE_
+        && estimatedTryNode->type != _CATCH_NODE_)) {
         char *msg = "Catch statements have to be placed after a try statement.";
         struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, catchNode, STATEMENT_MISPLACEMENT_EXCEPTION, msg);
         (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
