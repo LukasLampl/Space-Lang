@@ -695,14 +695,24 @@ void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrCont
     }
 }
 
+/**
+ * <p>
+ * Checks the placement of the break or continue statement.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - If the statement is placed correctly
+ * <li>false - If the statement is place incorrectly
+ * </ul>
+ * 
+ * @param *table    The innerscope from which to work upwards, till a loop is detected
+ */
 int SA_is_break_or_continue_placement_valid(SemanticTable *table) {
     SemanticTable *temp = table;
     int metLoop = false;
 
     while (temp != NULL) {
-        printf("Type: %i\n", temp->type);
-        HM_print_map(temp->symbolTable, true);
-
         switch (temp->type) {
         case FOR: case WHILE: case DO:
         case IS:
