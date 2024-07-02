@@ -215,13 +215,18 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
 int PG_handle_member_access_brackets(TOKEN *currentToken, int *openBrackets, int *openEdgeBrackets);
 struct idenValRet PG_get_identifier_by_index(TOKEN **tokens, size_t startPos);
 int PG_is_function_call(TOKEN **tokens, size_t startPos);
+int PG_handle_RBracket_function_call(TOKEN **tokens, size_t startPos);
+int PG_handle_LBracket_function_call(TOKEN **tokens, size_t startPos);
+int PG_execute_direct_check_for_function_call(TOKEN **tokens, size_t startPos);
 NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, enum processDirection direction, int useOptionalTyping);
+void PG_create_post_member_access_side_node_tree(Node *topNode, TOKEN **tokens, int *internalSkip, int useOptionalTyping);
 int PG_propagate_back_till_iden(TOKEN **tokens, size_t startPos);
 int PG_propagate_offset_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction);
 int PG_back_shift_array_access(TOKEN **tokens, size_t startPos);
 int PG_predict_argument_count(TOKEN **tokens, size_t startPos, int withPredefinedBrackets);
 int PG_is_operator(const TOKEN *token);
 int PG_add_varType_definition(TOKEN **tokens, size_t startPos, Node *parentNode);
+int PG_count_varType_dimensions(TOKEN **tokens, size_t startPos);
 Node *PG_create_modifier_node(TOKEN *token, int *skip);
 Node *PG_create_node(char *value, enum NodeType type, int line, int pos);
 NodeReport PG_create_node_report(Node *topNode, int tokensToSkip);
@@ -3295,32 +3300,35 @@ NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, 
         internalSkip += valRet.movedTokens;
     }
 
-    switch ((*tokens)[internalSkip].type) {
+    (void)PG_create_post_member_access_side_node_tree(topNode, tokens, &internalSkip, useOptionalTyping);
+    int actualSkip = internalSkip - startPos;
+    return PG_create_node_report(topNode, actualSkip);
+}
+
+void PG_create_post_member_access_side_node_tree(Node *topNode, TOKEN **tokens, int *internalSkip, int useOptionalTyping) {
+    switch ((*tokens)[(*internalSkip)].type) {
     case _OP_ADD_ONE_:
     case _OP_SUBTRACT_ONE_: {
-        NodeReport incDecRep = PG_create_increment_decrement_tree(tokens, internalSkip);
-        internalSkip += incDecRep.tokensToSkip;
+        NodeReport incDecRep = PG_create_increment_decrement_tree(tokens, (*internalSkip));
+        (*internalSkip) += incDecRep.tokensToSkip;
         topNode->leftNode = incDecRep.node;
         break;
     }
     case _OP_RIGHT_EDGE_BRACKET_: {
-        NodeReport arrayRep = PG_create_array_access_tree(tokens, internalSkip);
-        internalSkip += arrayRep.tokensToSkip;
+        NodeReport arrayRep = PG_create_array_access_tree(tokens, (*internalSkip));
+        (*internalSkip) += arrayRep.tokensToSkip;
         topNode->leftNode = arrayRep.node;
         break;
     }
     case _OP_COLON_:
         if (useOptionalTyping == true) {
             (void)PG_allocate_node_details(topNode, 1, false);
-            internalSkip += (int)PG_add_varType_definition(tokens, internalSkip + 1, topNode);
+            (*internalSkip) += (int)PG_add_varType_definition(tokens, (*internalSkip) + 1, topNode);
         }
 
         break;
     default: break;
     }
-
-    int actualSkip = internalSkip - startPos;
-    return PG_create_node_report(topNode, actualSkip);
 }
 
 /**
@@ -3472,6 +3480,114 @@ Params: TOKEN **tokens => Pointer to the tokens array;
         size_t startPos => Position from where to start checking
 */
 int PG_is_function_call(TOKEN **tokens, size_t startPos) {
+    if ((int)PG_execute_direct_check_for_function_call(tokens, startPos) == true) {
+        return true;
+    }
+
+    if ((*tokens)[startPos].type == _OP_LEFT_BRACKET_
+        || (*tokens)[startPos].type == _OP_LEFT_EDGE_BRACKET_) {
+        return (int)PG_handle_LBracket_function_call(tokens, startPos);
+    } else if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_) {
+        return (int)PG_handle_RBracket_function_call(tokens, startPos);
+    }
+
+    return false;
+}
+
+/**
+ * <p>
+ * Checks if a function call, which starts with '('
+ * is a function call or not.
+ * </p>
+ * 
+ * @returns The number of tokens to go forward
+ * 
+ * @param **tokens  Pointer to the token array to check
+ * @param startPos  Position from where to start
+ */
+int PG_handle_RBracket_function_call(TOKEN **tokens, size_t startPos) {
+    int jumper = 0;
+    int openBrackets = 0;
+
+    while ((*tokens)[startPos + jumper].type != __EOF__) {
+        if ((*tokens)[startPos + jumper].type == _OP_LEFT_BRACKET_) {
+            openBrackets--;
+
+            if (openBrackets == 0
+                && (*tokens)[startPos - 1].type == _IDENTIFIER_) {
+                return jumper;
+            }
+        } else if ((*tokens)[startPos + jumper].type == _OP_RIGHT_BRACKET_) {
+            openBrackets++;
+        }
+
+        jumper++;
+    }
+
+    return jumper;
+}
+
+/**
+ * <p>
+ * Checks if a function call, which starts with either ')' or ']'
+ * is a function call or not.
+ * </p>
+ * 
+ * @returns The number of tokens to go back
+ * 
+ * @param **tokens  Pointer to the token array to check
+ * @param startPos  Position from where to start
+ */
+int PG_handle_LBracket_function_call(TOKEN **tokens, size_t startPos) {
+    int jumper = 0;
+    int openBrackets = 0;
+    int openEdgeBrackets = 0;
+
+    while (startPos - jumper > 0) {
+        TOKEN *tok = &(*tokens)[startPos - jumper];
+
+        if (tok->type == _OP_LEFT_EDGE_BRACKET_) {
+            openEdgeBrackets--;
+        } else if (tok->type == _OP_RIGHT_EDGE_BRACKET_) {
+            openEdgeBrackets++;
+        }
+        
+        if (openEdgeBrackets != 0) {
+            continue;
+        }
+        
+        if (tok->type == _OP_LEFT_BRACKET_) {
+            openBrackets--;
+        } else if (tok->type == _OP_RIGHT_BRACKET_) {
+            openBrackets++;
+
+            if (openBrackets == 0
+                && (*tokens)[startPos - jumper - 1].type == _IDENTIFIER_) {
+                return jumper;
+            }
+        }
+
+        jumper++;
+    }
+
+    return jumper;
+}
+
+/**
+ * <p>
+ * Checks for the most primitive function call.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - If it is a function call
+ * <li>false - If it is not a function call
+ * </ul>
+ * 
+ * @param **tokens  Pointer to the tokens to check
+ * @param startPos  Position from where to start checking
+ */
+int PG_execute_direct_check_for_function_call(TOKEN **tokens, size_t startPos) {
     if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_
         && ((*tokens)[startPos + 1].type == _OP_LEFT_BRACKET_
         || (*tokens)[startPos - 1].type == _IDENTIFIER_)) {
@@ -3482,55 +3598,6 @@ int PG_is_function_call(TOKEN **tokens, size_t startPos) {
     } else if ((*tokens)[startPos].type == _IDENTIFIER_
         && (*tokens)[startPos + 1].type == _OP_RIGHT_BRACKET_) {
         return true;
-    }
-
-    int mover = 0;
-    int openBrackets = 0;
-    int openEdgeBrackets = 0;
-
-    if ((*tokens)[startPos].type == _OP_LEFT_BRACKET_
-        || (*tokens)[startPos].type == _OP_LEFT_EDGE_BRACKET_) {
-        while (startPos - mover > 0) {
-            TOKEN *tok = &(*tokens)[startPos - mover];
-
-            if (tok->type == _OP_LEFT_EDGE_BRACKET_) {
-                openEdgeBrackets--;
-            } else if (tok->type == _OP_RIGHT_EDGE_BRACKET_) {
-                openEdgeBrackets++;
-            }
-            
-            if (openEdgeBrackets != 0) {
-                continue;
-            }
-            
-            if (tok->type == _OP_LEFT_BRACKET_) {
-                openBrackets--;
-            } else if (tok->type == _OP_RIGHT_BRACKET_) {
-                openBrackets++;
-
-                if (openBrackets == 0
-                    && (*tokens)[startPos - mover - 1].type == _IDENTIFIER_) {
-                    return mover;
-                }
-            }
-
-            mover++;
-        }
-    } else if ((*tokens)[startPos].type == _OP_RIGHT_BRACKET_) {
-        while ((*tokens)[startPos + mover].type != __EOF__) {
-            if ((*tokens)[startPos + mover].type == _OP_LEFT_BRACKET_) {
-                openBrackets--;
-
-                if (openBrackets == 0
-                    && (*tokens)[startPos - 1].type == _IDENTIFIER_) {
-                    return mover;
-                }
-            } else if ((*tokens)[startPos + mover].type == _OP_RIGHT_BRACKET_) {
-                openBrackets++;
-            }
-
-            mover++;
-        }
     }
 
     return false;
@@ -3547,17 +3614,10 @@ int PG_is_function_call(TOKEN **tokens, size_t startPos) {
 */
 int PG_add_varType_definition(TOKEN **tokens, size_t startPos, Node *parentNode) {
     int skip = 1;
-    int dimensions = 0;
+    int dimensions = (int)PG_count_varType_dimensions(tokens, startPos + skip);
     
     TOKEN *nameTok = &(*tokens)[startPos];
     Node *nameOfType = PG_create_node(nameTok->value, _VAR_TYPE_NODE_, nameTok->line, nameTok->tokenStart);
-
-    while ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_
-        && (*tokens)[startPos + skip + 1].type == _OP_LEFT_EDGE_BRACKET_
-        && startPos + skip < TOKEN_LENGTH) {
-        skip += 2;
-        dimensions++;
-    }
 
     if (dimensions > 0) {
         char *buffer = (char*)calloc(16, sizeof(char));
@@ -3578,6 +3638,30 @@ int PG_add_varType_definition(TOKEN **tokens, size_t startPos, Node *parentNode)
 
     parentNode->details[0] = nameOfType;
     return skip;
+}
+
+/**
+ * <p>
+ * Counts the dimensions of a varType definition.
+ * </p>
+ * 
+ * @returns The number of dimensions
+ * 
+ * @param **tokens      Pointer to the tokens array
+ * @param startPos      Position from where to start counting
+ */
+int PG_count_varType_dimensions(TOKEN **tokens, size_t startPos) {
+    int skip = 0;
+    int dimensions = 0;
+
+    while ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_
+        && (*tokens)[startPos + skip + 1].type == _OP_LEFT_EDGE_BRACKET_
+        && startPos + skip < TOKEN_LENGTH) {
+        skip += 2;
+        dimensions++;
+    }
+
+    return dimensions;
 }
 
 /**
@@ -3634,12 +3718,13 @@ Node *PG_create_node(char *value, enum NodeType type, int line, int pos) {
  * This is an array containing all "mark worthy" operators.
 */
 const TOKENTYPES operators[] = {
-_OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
-_OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_, _OP_EQUALS_, _OP_SEMICOLON_,
-_OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_, _OP_RIGHT_EDGE_BRACKET_,
-_OP_LEFT_EDGE_BRACKET_, _OP_COLON_, _OP_PLUS_EQUALS_, _OP_MINUS_EQUALS_,
-_OP_MULTIPLY_EQUALS_, _OP_DIVIDE_EQUALS_, _OP_CLASS_ACCESSOR_,
-_OP_ADD_ONE_, _OP_SUBTRACT_ONE_};
+    _OP_PLUS_, _OP_MINUS_, _OP_MULTIPLY_, _OP_DIVIDE_, _OP_MODULU_,
+    _OP_LEFT_BRACKET_, _OP_RIGHT_BRACKET_, _OP_EQUALS_, _OP_SEMICOLON_,
+    _OP_COMMA_, _OP_RIGHT_BRACE_, _OP_DOT_, _OP_RIGHT_EDGE_BRACKET_,
+    _OP_LEFT_EDGE_BRACKET_, _OP_COLON_, _OP_PLUS_EQUALS_, _OP_MINUS_EQUALS_,
+    _OP_MULTIPLY_EQUALS_, _OP_DIVIDE_EQUALS_, _OP_CLASS_ACCESSOR_,
+    _OP_ADD_ONE_, _OP_SUBTRACT_ONE_
+};
 
 /**
  * @brief Check if a given token is an operator or not.
@@ -3653,7 +3738,9 @@ int PG_is_operator(const TOKEN *token) {
         return true;
     }
 
-    for (int i = 0; i < (sizeof(operators) / sizeof(operators[0])); i++) {
+    int length = (sizeof(operators) / sizeof(operators[0]));
+
+    for (int i = 0; i < length; i++) {
         if (token->type == operators[i]
             || (int)PG_is_condition_operator(token->type) == true) {
             return true;

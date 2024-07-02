@@ -1,5 +1,7 @@
-catch (IOException e) {
-
-} catch (IllegalArgumentException e) {
-
+class Test => {
+    var add = 0;
+    private var b = 4;
 }
+
+var x = Test->add;
+var f = Test->b;
