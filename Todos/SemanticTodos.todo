@@ -47,10 +47,10 @@
    - [X] Constructor existence check
    - [X] Already defined check
 
-- [ ] Check conditional var trees
-   - [ ] Valid conditions
-   - [ ] Valid assignments
-   - [ ] Already defined check
+- [X] Check conditional var trees
+   - [X] Valid conditions
+   - [X] Valid assignments
+   - [X] Already defined check
 
 - [ ] Check array var trees
    - [ ] Already defined

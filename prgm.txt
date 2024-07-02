@@ -1,9 +1,0 @@
-var a = true;
-
-while (a == true) {
-    if (a == 2) {
-        break;
-    }
-
-    continue;
-}

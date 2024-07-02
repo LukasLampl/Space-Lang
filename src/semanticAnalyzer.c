@@ -106,6 +106,7 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
 void SA_add_class_to_table(SemanticTable *table, Node *classNode);
 void SA_add_function_to_table(SemanticTable *table, Node *functionNode);
 void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode);
+void SA_add_conditional_variable_to_table(SemanticTable *table, Node *varNode);
 void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode);
 void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode);
 void SA_add_enum_to_table(SemanticTable *table, Node *enumNode);
@@ -128,6 +129,7 @@ struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable,
 int SA_get_node_param_count(struct Node *paramHolder);
 
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
+struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table);
 
@@ -218,6 +220,10 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
         case _CONST_NODE_:
             (void)SA_add_normal_variable_to_table(table, currentNode);
             break;
+        case _CONDITIONAL_VAR_NODE_:
+        case _CONDITIONAL_CONST_NODE_:
+            (void)SA_add_conditional_variable_to_table(table, currentNode);
+            break;
         case _FUNCTION_NODE_:
             (void)SA_add_function_to_table(table, currentNode);
             break;
@@ -225,6 +231,7 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
             (void)SA_add_class_to_table(table, currentNode);
             break;
         case _VAR_CLASS_INSTANCE_NODE_:
+        case _CONST_CLASS_INSTANCE_NODE_:
             (void)SA_add_instance_variable_to_table(table, currentNode);
             break;
         case _CLASS_CONSTRUCTOR_NODE_:
@@ -385,10 +392,52 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
     (void)HM_add_entry(name, entry, table->symbolTable);
 }
 
+/**
+ * <p>
+ * Adds a conditional variable as an entry into the current
+ * Semantic table.
+ * </p>
+ * 
+ * @param *table    Table to add the variable to
+ * @param *varNode  AST-Node that defines a variable
+ */
+void SA_add_conditional_variable_to_table(SemanticTable *table, Node *varNode) {
+    if (table->type == ENUM) {
+        char *msg = "Vars are not allowed within enums.";
+        struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, varNode, STATEMENT_MISPLACEMENT_EXCEPTION, msg);
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+        return;
+    }
+
+    char *name = varNode->value;
+    enum Visibility vis = SA_get_visibility(varNode->leftNode);
+    int constant = varNode->type == _CONDITIONAL_VAR_NODE_ ? false : true;
+    struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0], constant);
+    SemanticTable *actualTable = table->type == TRY ? table->parent : table;
+
+    if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
+        (void)THROW_ALREADY_DEFINED_EXCEPTION(varNode);
+        return;
+    }
+
+    if (varNode->rightNode != NULL) {
+        struct SemanticReport assignmentRep = SA_evaluate_conditional_assignment(type, varNode->rightNode, actualTable);
+
+        if (assignmentRep.status == ERROR) {
+            (void)THROW_ASSIGNED_EXCEPTION(assignmentRep);
+            return;
+        }
+    }
+
+    SemanticEntry *entry = SA_create_semantic_entry(name, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
+    (void)HM_add_entry(name, entry, table->symbolTable);
+}
+
 void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
     char *name = varNode->value;
     enum Visibility vis = SA_get_visibility(varNode->leftNode);
-    struct VarDec type = {CLASS_REF, 0, varNode->value};
+    int constant = varNode->type == _VAR_CLASS_INSTANCE_NODE_ ? false : true;
+    struct VarDec type = {CLASS_REF, 0, varNode->value, constant};
     SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
     if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
@@ -1117,18 +1166,17 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
  */
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table,
                                                             SemanticTable *topScope) {
-    Node *cacheNode = node;
     struct VarDec retType = {CUSTOM, 0, NULL};
-    struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode, topScope);
+    struct SemanticEntryReport entry = SA_get_entry_if_available(node, topScope);
     
     if (entry.entry == NULL) {
-        return SA_create_semantic_report(nullDec, ERROR, cacheNode, NOT_DEFINED_EXCEPTION, NULL);
+        return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, NULL);
     }
-    
+
     retType = entry.entry->dec;
     
-    if (cacheNode->type == _FUNCTION_CALL_NODE_) {
-        struct SemanticReport rep = SA_evaluate_function_call(cacheNode, entry.entry, table, FNC_CALL);
+    if (node->type == _FUNCTION_CALL_NODE_) {
+        struct SemanticReport rep = SA_evaluate_function_call(node, entry.entry, table, FNC_CALL);
 
         if (rep.status == ERROR) {
             return rep;
@@ -1137,7 +1185,7 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
         retType = rep.dec;
     }
     
-    struct SemanticReport arrayRep = SA_handle_array_accesses(&retType, cacheNode, topScope);
+    struct SemanticReport arrayRep = SA_handle_array_accesses(&retType, node, topScope);
 
     if (arrayRep.status == ERROR) {
         return arrayRep;
@@ -1540,6 +1588,27 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
     }
 
     return SA_evaluate_simple_term(expectedType, topNode, table);
+}
+
+struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
+    struct SemanticReport condRep = SA_evaluate_chained_condition(table, topNode->leftNode);
+
+    if (condRep.status == ERROR) {
+        return condRep;
+    }
+    
+    if (topNode->details != NULL && topNode->detailsCount >= 2) {
+        struct SemanticReport trueRep = SA_evaluate_simple_term(expectedType, topNode->details[0], table);
+        struct SemanticReport falseRep = SA_evaluate_simple_term(expectedType, topNode->details[1], table);
+
+        if (trueRep.status == ERROR) {
+            return trueRep;
+        } else if (falseRep.status == ERROR) {
+            return falseRep;
+        }
+    }
+
+    return nullRep;
 }
 
 /**

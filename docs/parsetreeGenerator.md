@@ -117,17 +117,17 @@ Sometimes it is easier and simpler to assign a condition to a variable that retu
 
 ```
      [COND_VAR]
-    /     |    \
-[MOD]    [T]   [?]
-              /   \
-          [tVal] [fVal]
+   /      |     \
+[MOD]    [T]    [?]
+              /   |
+         [COND] [VAL]
 
-[COND_VAR]  := Variable name and type
-[MOD]       := Visibility modifier (global, secure or private)
-[T]         := Optional type (":int", ":char", ":Object", ...)
-[?]         := Condition for assignment ("a == true ? 1 : 2")
-[tVal]      := True branch
-[fVal]      := False branch
+[COND_VAR]  := Conditional var
+[MOD]       := Modifier
+[?]         := Conditional assignment indicator
+[COND]      := Condition
+[VAL]       := Values for true and false
+[T]         := Type of variable (optional)
 ```
 
 Examples:

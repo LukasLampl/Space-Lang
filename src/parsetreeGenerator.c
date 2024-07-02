@@ -206,7 +206,7 @@ int PG_get_bound_of_single_param(TOKEN **tokens, size_t startPos);
 enum NodeType PG_get_node_type_by_value(char **value);
 NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t boundaries);
 int PG_predict_member_access(TOKEN **tokens, size_t startPos, enum CONDITION_TYPE type);
-NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos);
+NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos, int useOptionalTyping);
 size_t PG_go_backwards_till_operator(TOKEN **tokens, size_t startPos);
 int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
 int PG_is_next_operator_multiply_divide_or_modulo(TOKEN **tokens, size_t startPos);
@@ -688,16 +688,15 @@ NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos) {
  */
 int PG_predict_assignment(TOKEN **tokens, size_t startPos) {
     for (int i = startPos; i < TOKEN_LENGTH; i++) {
-        if ((*tokens)[i].type == _OP_SEMICOLON_) {
-            break;
-        } else if ((*tokens)[i].type == _OP_EQUALS_
-            || (*tokens)[i].type == _OP_PLUS_EQUALS_
-            || (*tokens)[i].type == _OP_MINUS_EQUALS_
-            || (*tokens)[i].type == _OP_ADD_ONE_
-            || (*tokens)[i].type == _OP_SUBTRACT_ONE_
-            || (*tokens)[i].type == _OP_MULTIPLY_EQUALS_
-            ||(*tokens)[i].type == _OP_DIVIDE_EQUALS_) {
+        switch ((*tokens)[i].type) {
+        case _OP_SEMICOLON_:
+            return false;
+        case _OP_EQUALS_:           case _OP_PLUS_EQUALS_:
+        case _OP_MINUS_EQUALS_:     case _OP_ADD_ONE_:
+        case _OP_SUBTRACT_ONE_:     case _OP_MULTIPLY_EQUALS_:
+        case _OP_DIVIDE_EQUALS_:
             return true;
+        default: continue;
         }
     }
 
@@ -720,22 +719,14 @@ int PG_predict_assignment(TOKEN **tokens, size_t startPos) {
  */
 enum NodeType PG_get_nodeType_of_operator(TOKENTYPES type) {
     switch (type) {
-    case _OP_SUBTRACT_ONE_:
-        return _DECREMENT_ONE_NODE_;
-    case _OP_ADD_ONE_:
-        return _INCREMENT_ONE_NODE_;
-    case _OP_PLUS_EQUALS_:
-        return _PLUS_EQUALS_NODE_;
-    case _OP_MINUS_EQUALS_:
-        return _MINUS_EQUALS_NODE_;
-    case _OP_MULTIPLY_EQUALS_:
-        return _MULTIPLY_EQUALS_NODE_;
-    case _OP_DIVIDE_EQUALS_:
-        return _DIVIDE_EQUALS_NODE_;
-    case _OP_EQUALS_:
-        return _EQUALS_NODE_;
-    default:
-        return _NULL_;
+    case _OP_SUBTRACT_ONE_:         return _DECREMENT_ONE_NODE_;
+    case _OP_ADD_ONE_:              return _INCREMENT_ONE_NODE_;
+    case _OP_PLUS_EQUALS_:          return _PLUS_EQUALS_NODE_;
+    case _OP_MINUS_EQUALS_:         return _MINUS_EQUALS_NODE_;
+    case _OP_MULTIPLY_EQUALS_:      return _MULTIPLY_EQUALS_NODE_;
+    case _OP_DIVIDE_EQUALS_:        return _DIVIDE_EQUALS_NODE_;
+    case _OP_EQUALS_:               return _EQUALS_NODE_;
+    default:                        return _NULL_;
     }
 }
 
@@ -776,12 +767,9 @@ int PG_get_term_bounds(TOKEN **tokens, size_t startPos) {
         case _OP_RIGHT_EDGE_BRACKET_:
             openEdgeBrackets++;
             break;
-        case _OP_SEMICOLON_:
-        case _OP_EQUALS_:
-        case _OP_PLUS_EQUALS_:
-        case _OP_MINUS_EQUALS_:
-        case _OP_MULTIPLY_EQUALS_:
-        case _OP_DIVIDE_EQUALS_:
+        case _OP_SEMICOLON_:        case _OP_EQUALS_:
+        case _OP_PLUS_EQUALS_:      case _OP_MINUS_EQUALS_:
+        case _OP_MULTIPLY_EQUALS_:  case _OP_DIVIDE_EQUALS_:
         case _OP_LEFT_BRACE_:
             return i - startPos;
         default: continue;
@@ -806,10 +794,8 @@ int PG_get_term_bounds(TOKEN **tokens, size_t startPos) {
  */
 int PG_is_calculation_operator(TOKEN *token) {
     switch (token->type) {
-    case _OP_PLUS_:
-    case _OP_MINUS_:
-    case _OP_MULTIPLY_:
-    case _OP_DIVIDE_:
+    case _OP_PLUS_:     case _OP_MINUS_:
+    case _OP_MULTIPLY_: case _OP_DIVIDE_:
     case _OP_MODULU_:
         return true;
     default: return false;
@@ -839,9 +825,8 @@ int PG_is_calculation_operator(TOKEN *token) {
  * @returns A NodeReport with the root node and how many tokens to skip
  */
 NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
-    TOKEN *token = &(*tokens)[startPos + 1];
+    TOKEN *token = &(*tokens)[startPos];
     Node *operatorNode = NULL;
-    token = &(*tokens)[startPos];
     NodeReport lRep = {NULL, UNINITIALZED};
     int skip = 0;
     
@@ -1417,7 +1402,7 @@ NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) 
 
     Node *topNode = PG_create_node("?", _CONDITIONAL_ASSIGNMENT_NODE_, token->line, token->tokenStart);
     topNode->leftNode = conditionReport.node;
-    skip += conditionReport.tokensToSkip;
+    skip += conditionReport.tokensToSkip + 1;
 
     (void)PG_allocate_node_details(topNode, 2, false);
 
@@ -1426,7 +1411,6 @@ NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) 
     >                     ^
     >         (*tokens)[startPos + skip]
     */
-
     NodeReport trueValue = {NULL, UNINITIALZED};
     
     if ((int)predict_is_conditional_assignment_type(tokens, startPos + skip, TOKEN_LENGTH) == true) {
@@ -1438,7 +1422,6 @@ NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) 
     }
 
     topNode->details[0] = trueValue.node;
-    topNode->details[0]->type = _TRUE_VALUE_NODE_;
     skip += trueValue.tokensToSkip;
 
     NodeReport falseValue = {NULL, UNINITIALZED};
@@ -1452,7 +1435,6 @@ NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) 
     }
 
     topNode->details[1] = falseValue.node;
-    topNode->details[1]->type = _FALSE_VALUE_NODE_;
     skip += falseValue.tokensToSkip;
 
     return PG_create_node_report(topNode, skip);
@@ -1488,9 +1470,10 @@ _______________________________
 */
 NodeReport PG_create_conditional_var_tree(TOKEN **tokens, size_t startPos) {
     TOKEN *token = &(*tokens)[startPos];
-    Node *topNode = PG_create_node(NULL, _CONDITIONAL_VAR_NODE_, token->line, token->tokenStart);
+    Node *topNode = PG_create_node(NULL, _NULL_, token->line, token->tokenStart);
     int skip = 1;
     topNode->leftNode = PG_create_modifier_node(token, &skip);
+    topNode->type = (*tokens)[startPos + skip].type == _KW_VAR_ ? _CONDITIONAL_VAR_NODE_ : _CONDITIONAL_CONST_NODE_;
 
     if ((*tokens)[startPos + skip].type == _OP_COLON_) {
         skip += PG_add_varType_definition(tokens, startPos + skip + 1, topNode);
@@ -2923,7 +2906,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
             int multOrDivOrModAtRight = (int)PG_is_next_operator_multiply_divide_or_modulo(tokens, i + 1);
 
             if (multOrDivOrModAtRight == false) {
-                NodeReport assignRep = PG_assign_processed_node_to_node(tokens, i);
+                NodeReport assignRep = PG_assign_processed_node_to_node(tokens, i, true);
                 node->rightNode = assignRep.node;
                 i += assignRep.tokensToSkip;
             } else {
@@ -2938,12 +2921,12 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
         case _OP_MULTIPLY_:
         case _OP_MODULU_: {
             Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart);
-            NodeReport rightAssignRep = PG_assign_processed_node_to_node(tokens, i);
+            NodeReport rightAssignRep = PG_assign_processed_node_to_node(tokens, i, true);
             node->rightNode = rightAssignRep.node;
             i += rightAssignRep.tokensToSkip;
 
             if (cache == NULL) {
-                NodeReport leftAssignRep = PG_assign_processed_node_to_node(tokens, lastIdenPos - 1);
+                NodeReport leftAssignRep = PG_assign_processed_node_to_node(tokens, lastIdenPos - 1, true);
                 node->leftNode = leftAssignRep.node;
             }
 
@@ -2955,7 +2938,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
                 cache = node;
             } else {
                 if (temp == NULL) {
-                    NodeReport leftAssignRep = PG_assign_processed_node_to_node(tokens, lastIdenPos - 1);
+                    NodeReport leftAssignRep = PG_assign_processed_node_to_node(tokens, lastIdenPos - 1, true);
                     node->leftNode = leftAssignRep.node;
                 } else {
                     node->leftNode = temp;
@@ -2991,7 +2974,8 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
     }
 
     if (cache == NULL) {
-        NodeReport assignRep = PG_assign_processed_node_to_node(tokens, startPos - 1);
+        int useOptionalTyping = boundaries < 3 ? false : true;
+        NodeReport assignRep = PG_assign_processed_node_to_node(tokens, startPos - 1, useOptionalTyping);
         cache = assignRep.node;
     }
 
@@ -3002,9 +2986,10 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 Purpose: Assign the correct simple term node to the given node
 Return Type: NodeReport => Contains the top node and how many tokens to skip
 Params: TOKEN **tokens => Pointer to the tokens;
-        size_t startPos => Position from where to start processing
+        size_t startPos => Position from where to start processing;
+        int useOptionalTyping => Flag for whether the optional typing is activated or not
 */
-NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos) {
+NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos, int useOptionalTyping) {
     NodeReport report = {NULL, UNINITIALZED};
 
     if ((*tokens)[startPos + 1].type == _OP_RIGHT_BRACKET_) {
@@ -3019,7 +3004,7 @@ NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos) {
         Node *boolNode = PG_create_node((*tokens)[startPos].value, _BOOL_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
         return PG_create_node_report(boolNode, 1);
     } else {
-        report = PG_create_member_access_tree(tokens, startPos + 1, true);
+        report = PG_create_member_access_tree(tokens, startPos + 1, useOptionalTyping);
     }
     
     if (report.node != NULL && report.tokensToSkip != UNINITIALZED) {
