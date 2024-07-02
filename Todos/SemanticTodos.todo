@@ -56,23 +56,23 @@
    - [ ] Already defined
    - [ ] Valid array assignment
 
-- [ ] Check while statements
-   - [ ] Valid conditions
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check while statements
+   - [X] Valid conditions
+   - [X] Valid scope placement (FUNCTION or MAIN only)
 
-- [ ] Check do statements
-- [ ] Valid conditions
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check do statements
+- [X] Valid conditions
+   - [X] Valid scope placement (FUNCTION or MAIN only)
 
 - [ ] Check returns statements
    - [ ] Valid return value
    - [ ] Valid scope placement (FUNCTION only)
 
-- [ ] Check continue statements
-   - [ ] Valid scope placement (LOOP only)
+- [X] Check continue statements
+   - [X] Valid scope placement (LOOP only)
 
-- [ ] Check break statements
-   - [ ] Valid scope placement (LOOP only)
+- [X] Check break statements
+   - [X] Valid scope placement (LOOP only)
 
 - [ ] Check the check statement
    - [ ] Valid checkable

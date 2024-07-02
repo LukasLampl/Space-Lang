@@ -111,13 +111,15 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode);
 void SA_add_enum_to_table(SemanticTable *table, Node *enumNode);
 void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, Node *topNode);
 void SA_add_include_to_table(SemanticTable *table, Node *includeNode);
-void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index);
-void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index);
+void SA_add_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index);
+void SA_add_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index);
 void SA_add_while_or_do_to_table(SemanticTable *table, Node *whileDoNode);
 void SA_add_if_to_table(SemanticTable *table, Node *ifNode);
 void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *parentNode, int index);
 void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode, int index);
+void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrContinueNode);
 
+int SA_is_break_or_continue_placement_valid(SemanticTable *table);
 char *SA_get_string(char bufferString[]);
 struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *rootNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
@@ -235,10 +237,10 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
             (void)SA_add_include_to_table(table, currentNode);
             break;
         case _TRY_NODE_:
-            (void)SA_check_try_statement(table, currentNode, root, i);
+            (void)SA_add_try_statement(table, currentNode, root, i);
             break;
         case _CATCH_NODE_:
-            (void)SA_check_catch_statement(table, currentNode, root, i);
+            (void)SA_add_catch_statement(table, currentNode, root, i);
             break;
         case _WHILE_STMT_NODE_:
         case _DO_STMT_NODE_:
@@ -252,6 +254,10 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
             break;
         case _ELSE_STMT_NODE_:
             (void)SA_add_else_to_table(table, currentNode, root, i);
+            break;
+        case _CONTINUE_STMT_NODE_:
+        case _BREAK_STMT_NODE_:
+            (void)SA_check_break_or_continue_to_table(table, currentNode);
             break;
         default: continue;
         }
@@ -524,7 +530,7 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
  * @param *parentNode   Node abover the catchNode (evaluates if the statement is before a "catch" statement)
  * @param index         Index at the parent node (evaluates if the statement is before a "catch" statement)
  */
-void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index) {
+void SA_add_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index) {
     if (table->type == ENUM) {
         char *msg = "Try statements are not allowed in enums.";
         struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, tryNode, STATEMENT_MISPLACEMENT_EXCEPTION, msg);
@@ -558,7 +564,7 @@ void SA_check_try_statement(SemanticTable *table, Node *tryNode, Node *parentNod
  * @param *parentNode   Node abover the catchNode (evaluates if the statement is after a "try" statement)
  * @param index         Index at the parent node (evaluates if the statement is after a "try" statement)
  */
-void SA_check_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index) {
+void SA_add_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index) {
     if (table->type == ENUM) {
         char *msg = "Catch statements are not allowed in enums.";
         struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, catchNode, STATEMENT_MISPLACEMENT_EXCEPTION, msg);
@@ -625,8 +631,8 @@ void SA_add_if_to_table(SemanticTable *table, Node *ifNode) {
     }
 
     char *name = SA_get_string("if");
-    SemanticTable *whileTable = SA_create_new_scope_table(ifNode->rightNode, WHILE, table, NULL, ifNode->line, ifNode->position);
-    struct SemanticEntry *ifEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, ifNode->line, ifNode->position);
+    SemanticTable *whileTable = SA_create_new_scope_table(ifNode->rightNode, IF, table, NULL, ifNode->line, ifNode->position);
+    struct SemanticEntry *ifEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, IF, whileTable, ifNode->line, ifNode->position);
     (void)HM_add_entry(name, ifEntry, table->symbolTable);
     (void)SA_manage_runnable(ifNode->rightNode, whileTable);
 }
@@ -650,8 +656,8 @@ void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *paren
     }
 
     char *name = SA_get_string("else_if");
-    SemanticTable *whileTable = SA_create_new_scope_table(elseIfNode->rightNode, WHILE, table, NULL, elseIfNode->line, elseIfNode->position);
-    struct SemanticEntry *elseIfEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, elseIfNode->line, elseIfNode->position);
+    SemanticTable *whileTable = SA_create_new_scope_table(elseIfNode->rightNode, ELSE_IF, table, NULL, elseIfNode->line, elseIfNode->position);
+    struct SemanticEntry *elseIfEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, ELSE_IF, whileTable, elseIfNode->line, elseIfNode->position);
     (void)HM_add_entry(name, elseIfEntry, table->symbolTable);
     (void)SA_manage_runnable(elseIfNode->rightNode, whileTable);
 }
@@ -668,10 +674,52 @@ void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode
     }
 
     char *name = SA_get_string("else");
-    SemanticTable *whileTable = SA_create_new_scope_table(elseNode->rightNode, WHILE, table, NULL, elseNode->line, elseNode->position);
-    struct SemanticEntry *elseEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, whileTable, elseNode->line, elseNode->position);
+    SemanticTable *whileTable = SA_create_new_scope_table(elseNode->rightNode, ELSE, table, NULL, elseNode->line, elseNode->position);
+    struct SemanticEntry *elseEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, ELSE, whileTable, elseNode->line, elseNode->position);
     (void)HM_add_entry(name, elseEntry, table->symbolTable);
     (void)SA_manage_runnable(elseNode->rightNode, whileTable);
+}
+
+void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrContinueNode) {
+    if ((int)SA_is_break_or_continue_placement_valid(table) == false) {
+        char *msg = NULL;
+
+        if (breakOrContinueNode->type == _BREAK_STMT_NODE_) {
+            msg = "Breaks are only allowed within a loop scope.\0";
+        } else {
+            msg = "Continues are only allowed within a loop scope.\0";
+        }
+
+        struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, breakOrContinueNode, STATEMENT_MISPLACEMENT_EXCEPTION, msg);
+        (void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+    }
+}
+
+int SA_is_break_or_continue_placement_valid(SemanticTable *table) {
+    SemanticTable *temp = table;
+    int metLoop = false;
+
+    while (temp != NULL) {
+        printf("Type: %i\n", temp->type);
+        HM_print_map(temp->symbolTable, true);
+
+        switch (temp->type) {
+        case FOR: case WHILE: case DO:
+        case IS:
+            metLoop = true;
+            break;
+        case IF: case ELSE_IF: case ELSE:
+        case TRY: case CATCH:
+            break;
+        default:
+            temp = NULL;
+            break;
+        }
+
+        temp = temp == NULL ? NULL : temp->parent;
+    }
+
+    return metLoop;
 }
 
 /**
@@ -2009,6 +2057,7 @@ void THROW_STATEMENT_MISPLACEMENT_EXEPTION(struct SemanticReport rep) {
 
 void THROW_TYPE_MISMATCH_EXCEPTION(struct SemanticReport rep) {
     (void)THROW_EXCEPTION("TypeMismatchException", rep);
+    (void)free(rep.description);
 }
 
 void THROW_NOT_DEFINED_EXCEPTION(Node *node) {
@@ -2059,10 +2108,6 @@ void THROW_EXCEPTION(char *message, struct SemanticReport rep) {
     (void)printf(TEXT_COLOR_RED);
     (void)printf(" from \"%s\"\n", FILE_NAME);
     (void)printf("    msg: %s\n", rep.description == NULL ? "N/A" : rep.description);
-
-    if (rep.description != NULL) {
-        (void)free(rep.description);
-    }
 
     char firstFoldMeta[12];
     int minSkip = (int)snprintf(firstFoldMeta, 12, "    at: ");

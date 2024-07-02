@@ -1,12 +1,9 @@
-class String => {
-    private var:char[] data[] = null;
-    private var:int length = 0;
+var a = true;
 
-    this::constructor(string:char[]) {
-        //this.data = string;
+while (a == true) {
+    if (a == 2) {
+        break;
     }
 
-    global function length() -> int {
-        //return this.length;
-    }
+    continue;
 }
