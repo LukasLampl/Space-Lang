@@ -1,6 +1,6 @@
 class Test => {
     var add = 0;
-    private var b = 4;
+    global var b = 4;
 }
 
 var x = Test->add;

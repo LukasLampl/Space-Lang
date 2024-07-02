@@ -1125,6 +1125,11 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 
         if (checkRes.status == ERROR) {
             return checkRes;
+        } else if (cacheNode->type == _CLASS_ACCESS_NODE_
+            && (entry.entry->visibility != GLOBAL
+            && entry.entry->visibility != P_GLOBAL)) {
+            char *msg = "Can't access non-global modified vars from outside.";
+            return SA_create_semantic_report(nullDec, ERROR, cacheNode->leftNode, MODIFIER_EXCEPTION, msg);
         }
 
         retType = resMemRep.dec;
