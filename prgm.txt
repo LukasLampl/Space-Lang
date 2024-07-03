@@ -1,7 +1,0 @@
-class Test => {
-    var add = 0;
-    global var b = 4;
-}
-
-var x = Test->add;
-var f = Test->b;
