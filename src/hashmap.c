@@ -91,73 +91,73 @@ void HM_free_row(struct HashMap *map, int index);
 void HM_free_entry(struct HashMapEntry *entry, int freeList);
 
 struct HashMap *CreateNewHashMap(int initCapacity) {
-    struct HashMap *map = (struct HashMap*)calloc(1, sizeof(struct HashMap));
-    int primeCap = (int)HM_get_next_prime_number(initCapacity);
-    map->capacity = primeCap;
-    map->entries = (struct HashMapEntry**)calloc(primeCap, sizeof(struct HashMapEntry));
+	struct HashMap *map = (struct HashMap*)calloc(1, sizeof(struct HashMap));
+	int primeCap = (int)HM_get_next_prime_number(initCapacity);
+	map->capacity = primeCap;
+	map->entries = (struct HashMapEntry**)calloc(primeCap, sizeof(struct HashMapEntry));
 
-    if (map->entries == NULL) {
-        printf("Hashmap allocation failed!\n");
-        HM_free(map);
-        exit(0);
-    }
+	if (map->entries == NULL) {
+		printf("Hashmap allocation failed!\n");
+		HM_free(map);
+		exit(0);
+	}
 
-    return map;
+	return map;
 }
 
 void HM_print_map(struct HashMap *map, int withList) {
-    if (map == NULL) {
-        return;
-    }
+	if (map == NULL) {
+		return;
+	}
 
-    printf("HashMap@[%p]\n", (void*)map);
-    printf("Map Capacity: %i\n", map->capacity);
-    printf("Map Collision: %i\n", map->collissions);
-    printf("Map Resizes: %i\n", map->resizes);
-    printf("\n");
+	printf("HashMap@[%p]\n", (void*)map);
+	printf("Map Capacity: %i\n", map->capacity);
+	printf("Map Collision: %i\n", map->collissions);
+	printf("Map Resizes: %i\n", map->resizes);
+	printf("\n");
 
-    if (withList == false) {
-        return;
-    }
+	if (withList == false) {
+		return;
+	}
 
-    printf("           |%-23s|%-24s|%-24s|\n", "KEYS", "VALUES", "LINKS");
-    printf("-----------+-----------------------+------------------------+------------------------+\n");
+	printf("           |%-23s|%-24s|%-24s|\n", "KEYS", "VALUES", "LINKS");
+	printf("-----------+-----------------------+------------------------+------------------------+\n");
 
-    for (int i = 0; i < map->capacity; i++) {
-        if (map->entries[i] == NULL) {
-            printf("Entry %5i|%-23s|%-24p|%-24s|\n", i, "(null)", NULL, "(0)");
-            continue;
-        }
+	for (int i = 0; i < map->capacity; i++) {
+		if (map->entries[i] == NULL) {
+			printf("Entry %5i|%-23s|%-24p|%-24s|\n", i, "(null)", NULL, "(0)");
+			continue;
+		}
 
-        char *key = map->entries[i]->key;
-        void *value = map->entries[i]->value;
+		char *key = map->entries[i]->key;
+		void *value = map->entries[i]->value;
 
-        char linksString[256] = "";
-        int links = 0;
-        struct HashMapEntry *temp = map->entries[i]->linkedEntry;
+		char linksString[256] = "";
+		int links = 0;
+		struct HashMapEntry *temp = map->entries[i]->linkedEntry;
 
-        while (temp != NULL) {
-            if ((int)strlen(linksString) == 0) {
-                (void)strncpy(linksString, key, 256);
-            }
+		while (temp != NULL) {
+			if ((int)strlen(linksString) == 0) {
+				(void)strncpy(linksString, key, 256);
+			}
 
-            int size = sizeof(linksString) - strlen(linksString) - 1;
-            (void)strncat(linksString, "->", size);
-            (void)strncat(linksString, temp->key, size);
-            
-            temp = temp->linkedEntry;
-            links++;
-            
-            if (strlen(linksString) >= 256 - 1) {
-                printf("Warning: linksString buffer full!\n");
-                break;
-            }
-        }
+			int size = sizeof(linksString) - strlen(linksString) - 1;
+			(void)strncat(linksString, "->", size);
+			(void)strncat(linksString, temp->key, size);
+			
+			temp = temp->linkedEntry;
+			links++;
+			
+			if (strlen(linksString) >= 256 - 1) {
+				printf("Warning: linksString buffer full!\n");
+				break;
+			}
+		}
 
-        printf("Entry %5i|%-23s|%-24p|%-24i| %s\n", i, key == NULL ? "(null)" : key, value == NULL ? "(null)" : value, links, linksString);
-    }
+		printf("Entry %5i|%-23s|%-24p|%-24i| %s\n", i, key == NULL ? "(null)" : key, value == NULL ? "(null)" : value, links, linksString);
+	}
 
-    return;
+	return;
 }
 
 /**
@@ -175,9 +175,9 @@ void HM_print_map(struct HashMap *map, int withList) {
  * @param *map      HashMap to add the entry to
  */
 void HM_add_entry(char *key, void *value, struct HashMap *map) {
-    struct HashMapEntry *entry = HM_create_new_entry(key, value);
-    map->load++;
-    (void)HM_add_internal_entry(entry, map);
+	struct HashMapEntry *entry = HM_create_new_entry(key, value);
+	map->load++;
+	(void)HM_add_internal_entry(entry, map);
 }
 
 /**
@@ -200,16 +200,16 @@ void HM_add_entry(char *key, void *value, struct HashMap *map) {
  * @param newEntry  Flag for determining if the entry is new or not
  */
 void HM_add_internal_entry(struct HashMapEntry *entry, struct HashMap *map) {
-    if (entry == NULL || map == NULL) {
-        printf("No map or entry to add!\n");
-        return;
-    }
+	if (entry == NULL || map == NULL) {
+		printf("No map or entry to add!\n");
+		return;
+	}
 
-    (void)HM_handle_load(map);
+	(void)HM_handle_load(map);
 
-    int hashPos = (int)HM_get_position_based_on_hash(entry->key, map->capacity);
-    (void)HM_add_entry_to_linked_list(entry, map, hashPos);
-    return;
+	int hashPos = (int)HM_get_position_based_on_hash(entry->key, map->capacity);
+	(void)HM_add_entry_to_linked_list(entry, map, hashPos);
+	return;
 }
 
 /**
@@ -227,22 +227,22 @@ void HM_add_internal_entry(struct HashMapEntry *entry, struct HashMap *map) {
  * @param index     Bucket index in the HashMap
  */
 void HM_add_entry_to_linked_list(struct HashMapEntry *entry, struct HashMap *map, int index) {
-    if (entry == NULL || map == NULL) {
-        return;
-    }
+	if (entry == NULL || map == NULL) {
+		return;
+	}
 
-    if (map->entries[index] == NULL) {
-        map->entries[index] = entry;
-    } else {
-        struct HashMapEntry *temp = map->entries[index];
+	if (map->entries[index] == NULL) {
+		map->entries[index] = entry;
+	} else {
+		struct HashMapEntry *temp = map->entries[index];
 
-        while (temp->linkedEntry != NULL) {
-            temp = temp->linkedEntry;
-        }
+		while (temp->linkedEntry != NULL) {
+			temp = temp->linkedEntry;
+		}
 
-        temp->linkedEntry = entry;
-        map->collissions++;
-    }
+		temp->linkedEntry = entry;
+		map->collissions++;
+	}
 }
 
 /**
@@ -259,16 +259,16 @@ void HM_add_entry_to_linked_list(struct HashMapEntry *entry, struct HashMap *map
  * @param *value    Value of the entry
  */
 struct HashMapEntry *HM_create_new_entry(char *key, void *value) {
-    struct HashMapEntry *entry = (struct HashMapEntry*)calloc(1, sizeof(struct HashMapEntry));
-    
-    if (entry == NULL) {
-        printf("Couldn't allocate space for entry!\n");
-        return NULL;
-    }
+	struct HashMapEntry *entry = (struct HashMapEntry*)calloc(1, sizeof(struct HashMapEntry));
+	
+	if (entry == NULL) {
+		printf("Couldn't allocate space for entry!\n");
+		return NULL;
+	}
 
-    entry->key = key;
-    entry->value = value;
-    return entry;
+	entry->key = key;
+	entry->value = value;
+	return entry;
 }
 
 /**
@@ -280,13 +280,13 @@ struct HashMapEntry *HM_create_new_entry(char *key, void *value) {
  * @param *map  Map to check and resize
  */
 void HM_handle_load(struct HashMap *map) {
-    double n = (double)map->load / (double)map->capacity;
-    
-    if (n > MAXIMUM_LOAD_FACTOR) {
-        int minSize = (int)((double)map->capacity * SCALE_FACTOR);
-        int primeCap = (int)HM_get_next_prime_number(minSize);
-        (void)HM_resize_hashmap(map, primeCap);
-    }
+	double n = (double)map->load / (double)map->capacity;
+	
+	if (n > MAXIMUM_LOAD_FACTOR) {
+		int minSize = (int)((double)map->capacity * SCALE_FACTOR);
+		int primeCap = (int)HM_get_next_prime_number(minSize);
+		(void)HM_resize_hashmap(map, primeCap);
+	}
 }
 
 /**
@@ -302,22 +302,22 @@ void HM_handle_load(struct HashMap *map) {
  * @param *map  Map from which to get the HashMapEntry from
  */
 struct HashMapEntry *HM_get_entry(char *key, struct HashMap *map) {
-    if (key == NULL || map == NULL) {
-        return NULL;
-    }
-    
-    int hashPos = (int)HM_get_position_based_on_hash(key, map->capacity);
-    struct HashMapEntry *temp = map->entries[hashPos];
-    
-    while (temp != NULL) {
-        if ((int)strcmp(temp->key, key) == 0) {
-            return temp;
-        }
+	if (key == NULL || map == NULL) {
+		return NULL;
+	}
+	
+	int hashPos = (int)HM_get_position_based_on_hash(key, map->capacity);
+	struct HashMapEntry *temp = map->entries[hashPos];
+	
+	while (temp != NULL) {
+		if ((int)strcmp(temp->key, key) == 0) {
+			return temp;
+		}
 
-        temp = temp->linkedEntry;
-    }
+		temp = temp->linkedEntry;
+	}
 
-    return NULL;
+	return NULL;
 }
 
 /**
@@ -329,7 +329,7 @@ struct HashMapEntry *HM_get_entry(char *key, struct HashMap *map) {
  * @param *map      Map in which to search
  */
 int HM_contains_entry(struct HashMapEntry *entry, struct HashMap *map) {
-    return HM_get_entry(entry->key, map) == NULL ? false : true;
+	return HM_get_entry(entry->key, map) == NULL ? false : true;
 }
 
 /**
@@ -341,7 +341,7 @@ int HM_contains_entry(struct HashMapEntry *entry, struct HashMap *map) {
  * @param *map      Map in which to search
  */
 int HM_contains_key(char *key, struct HashMap *map) {
-    return HM_get_entry(key, map) == NULL ? false : true;
+	return HM_get_entry(key, map) == NULL ? false : true;
 }
 
 /**
@@ -357,21 +357,21 @@ int HM_contains_key(char *key, struct HashMap *map) {
  * @param *map      Map from which the entry should be removed
  */
 void HM_remove_entry(struct HashMapEntry *entry, struct HashMap *map) {
-    int hashPos = (int)HM_get_position_based_on_hash(entry->key, map->capacity);
-    struct HashMapEntry *prevEntry = map->entries[hashPos];
-    struct HashMapEntry *temp = map->entries[hashPos];
+	int hashPos = (int)HM_get_position_based_on_hash(entry->key, map->capacity);
+	struct HashMapEntry *prevEntry = map->entries[hashPos];
+	struct HashMapEntry *temp = map->entries[hashPos];
 
-    while (temp != NULL) {
-        if ((int)strcmp(temp->key, entry->key) == 0) {
-            prevEntry->linkedEntry = temp->linkedEntry;
-            (void)HM_free_entry(temp, false);
-            map->load--;
-            break;
-        }
+	while (temp != NULL) {
+		if ((int)strcmp(temp->key, entry->key) == 0) {
+			prevEntry->linkedEntry = temp->linkedEntry;
+			(void)HM_free_entry(temp, false);
+			map->load--;
+			break;
+		}
 
-        prevEntry = temp;
-        temp = temp->linkedEntry;
-    }
+		prevEntry = temp;
+		temp = temp->linkedEntry;
+	}
 }
 
 /**
@@ -389,36 +389,36 @@ void HM_remove_entry(struct HashMapEntry *entry, struct HashMap *map) {
  * @param newCapacity   New capacity of the HashMap
  */
 void HM_resize_hashmap(struct HashMap *map, int newCapacity) {
-    int oldCapacity = map->capacity;
-    struct HashMapEntry **entries = map->entries;
-    map->entries = (struct HashMapEntry**)calloc(newCapacity, sizeof(struct HashMapEntry));
+	int oldCapacity = map->capacity;
+	struct HashMapEntry **entries = map->entries;
+	map->entries = (struct HashMapEntry**)calloc(newCapacity, sizeof(struct HashMapEntry));
 
-    if (map->entries == NULL) {
-        printf("Hashmap allocation failed!\n");
-        HM_free(map);
-        return;
-    }
-    
-    map->collissions = 0;
-    map->resizes++;
-    map->capacity = newCapacity;
+	if (map->entries == NULL) {
+		printf("Hashmap allocation failed!\n");
+		HM_free(map);
+		return;
+	}
+	
+	map->collissions = 0;
+	map->resizes++;
+	map->capacity = newCapacity;
 
-    //Re-init old entries
-    for (int i = 0; i < oldCapacity; i++) {
-        struct HashMapEntry *temp = entries[i];
+	//Re-init old entries
+	for (int i = 0; i < oldCapacity; i++) {
+		struct HashMapEntry *temp = entries[i];
 
-        while (temp != NULL) {
-            struct HashMapEntry *cache = temp->linkedEntry;
-            temp->linkedEntry = NULL;
-            (void)HM_add_internal_entry(temp, map);
-            temp = cache;
-        }
-    }
+		while (temp != NULL) {
+			struct HashMapEntry *cache = temp->linkedEntry;
+			temp->linkedEntry = NULL;
+			(void)HM_add_internal_entry(temp, map);
+			temp = cache;
+		}
+	}
 
-    if (entries != NULL) {
-        (void)free(entries);
-        entries = NULL;
-    }
+	if (entries != NULL) {
+		(void)free(entries);
+		entries = NULL;
+	}
 }
 
 /**
@@ -445,19 +445,19 @@ void HM_resize_hashmap(struct HashMap *map, int newCapacity) {
  * @param capacity  Capacity of the HashMap
  */
 int HM_get_position_based_on_hash(char *key, int capacity) {
-    if (key == NULL) {
-        return 0;
-    }
+	if (key == NULL) {
+		return 0;
+	}
 
-    double A = 0.618033988749894;
-    unsigned int hash = 0;
+	double A = 0.618033988749894;
+	unsigned int hash = 0;
 
-    for (int i = 0; key[i] != '\0'; i++) {
-        hash = (hash * 31) + key[i];
-    }
+	for (int i = 0; key[i] != '\0'; i++) {
+		hash = (hash * 31) + key[i];
+	}
 
-    double frac = (hash * A) - (unsigned int)(hash * A);
-    return (int)((capacity - 1) * frac);
+	double frac = (hash * A) - (unsigned int)(hash * A);
+	return (int)((capacity - 1) * frac);
 }
 
 /**
@@ -471,14 +471,14 @@ int HM_get_position_based_on_hash(char *key, int capacity) {
  * @param currentPrime  The current number / prime to increase to the next prime
  */
 int HM_get_next_prime_number(int currentPrime) {
-    while ((int)HM_is_prime(++currentPrime) == false) {
-        if (currentPrime <= 0) {
-            printf("INTEGER overflow in finding prime occured!\n");
-            return MAX_PRIME;
-        }
-    }
+	while ((int)HM_is_prime(++currentPrime) == false) {
+		if (currentPrime <= 0) {
+			printf("INTEGER overflow in finding prime occured!\n");
+			return MAX_PRIME;
+		}
+	}
 
-    return currentPrime;
+	return currentPrime;
 }
 
 /**
@@ -495,23 +495,23 @@ int HM_get_next_prime_number(int currentPrime) {
  * @param num   Number to check
  */
 int HM_is_prime(int num) {
-    if (num <= 1) {
-        return false;
-    } else if (num <= 3) {
-        return true;
-    }
+	if (num <= 1) {
+		return false;
+	} else if (num <= 3) {
+		return true;
+	}
 
-    if (num % 2 == 0 || num % 3 == 0) {
-        return false;
-    }
+	if (num % 2 == 0 || num % 3 == 0) {
+		return false;
+	}
 
-    for (int i = 5; i * i <= num; i += 6) {
-        if (num % i == 0 || num % (i + 2) == 0) {
-            return false;
-        }
-    }
+	for (int i = 5; i * i <= num; i += 6) {
+		if (num % i == 0 || num % (i + 2) == 0) {
+			return false;
+		}
+	}
 
-    return true;
+	return true;
 }
 
 /**
@@ -522,17 +522,17 @@ int HM_is_prime(int num) {
  * @param *map  Pointer to the HashMap to free
  */
 void HM_free(struct HashMap *map) {
-    if (map == NULL) {
-        return;
-    }
+	if (map == NULL) {
+		return;
+	}
 
-    if (map->entries != NULL) {
-        (void)HM_clear(map);
-        (void)free(map->entries);
-        map->entries = NULL;
-    }
+	if (map->entries != NULL) {
+		(void)HM_clear(map);
+		(void)free(map->entries);
+		map->entries = NULL;
+	}
 
-    (void)free(map);
+	(void)free(map);
 }
 
 /**
@@ -543,40 +543,40 @@ void HM_free(struct HashMap *map) {
  * @param *map  Pointer to the map to clear
  */
 void HM_clear(struct HashMap *map) {
-    if (map == NULL || map->entries == NULL) {
-        printf("No map to clear!\n");
-        return;
-    }
+	if (map == NULL || map->entries == NULL) {
+		printf("No map to clear!\n");
+		return;
+	}
 
-    for (int i = 0; i < map->capacity; i++) {
-        if (map->entries[i] == NULL) {
-            continue;
-        }
+	for (int i = 0; i < map->capacity; i++) {
+		if (map->entries[i] == NULL) {
+			continue;
+		}
 
-        (void)HM_free_entry(map->entries[i], true);
-    }
+		(void)HM_free_entry(map->entries[i], true);
+	}
 }
 
 void HM_free_entry(struct HashMapEntry *entry, int freeList) {
-    if (entry == NULL) {
-        return;
-    }
+	if (entry == NULL) {
+		return;
+	}
 
-    if (entry->key != NULL) {
-        (void)free(entry->key);
-        entry->key = NULL;
-    }
+	if (entry->key != NULL) {
+		(void)free(entry->key);
+		entry->key = NULL;
+	}
 
-    if (entry->value != NULL) {
-        (void)free(entry->value);
-        entry->value = NULL;
-    }
+	if (entry->value != NULL) {
+		(void)free(entry->value);
+		entry->value = NULL;
+	}
 
-    if (freeList == true && entry->linkedEntry != NULL) {
-        (void)HM_free_entry(entry->linkedEntry, freeList);
-        entry->linkedEntry = NULL;
-    }
+	if (freeList == true && entry->linkedEntry != NULL) {
+		(void)HM_free_entry(entry->linkedEntry, freeList);
+		entry->linkedEntry = NULL;
+	}
 
-    (void)free(entry);
-    entry = NULL;
+	(void)free(entry);
+	entry = NULL;
 }

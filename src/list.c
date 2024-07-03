@@ -56,18 +56,18 @@ void L_resize_list(struct List *list);
  * @param initialCapacity   The initialCapacity of the list (always at least 16)
  */
 struct List *CreateNewList(int initialCapacity) {
-    initialCapacity = initialCapacity < 16 ? 16 : initialCapacity;
-    struct List *list = (struct List*)calloc(1, sizeof(struct List));
+	initialCapacity = initialCapacity < 16 ? 16 : initialCapacity;
+	struct List *list = (struct List*)calloc(1, sizeof(struct List));
 
-    if (list == NULL) {
-        (void)printf("ERROR on reserving list!\n");
-        return NULL;
-    }
+	if (list == NULL) {
+		(void)printf("ERROR on reserving list!\n");
+		return NULL;
+	}
 
-    list->entries = (void**)calloc(initialCapacity, sizeof(void*));
-    list->size = initialCapacity;
-    list->load = 0;
-    return list;
+	list->entries = (void**)calloc(initialCapacity, sizeof(void*));
+	list->size = initialCapacity;
+	list->load = 0;
+	return list;
 }
 
 /**
@@ -83,16 +83,16 @@ struct List *CreateNewList(int initialCapacity) {
  * @param *ptr      Pointer to add into the list
  */
 void L_add_item(struct List *list, void *ptr) {
-    if (list == NULL
-        || list->entries == NULL) {
-        return;
-    }
+	if (list == NULL
+		|| list->entries == NULL) {
+		return;
+	}
 
-    if (list->load >= list->size) {
-        (void)L_resize_list(list);
-    }
+	if (list->load >= list->size) {
+		(void)L_resize_list(list);
+	}
 
-    list->entries[list->load++] = ptr;
+	list->entries[list->load++] = ptr;
 }
 
 /**
@@ -108,16 +108,16 @@ void L_add_item(struct List *list, void *ptr) {
  * @param *list     List to resize
  */
 void L_resize_list(struct List *list) {
-    size_t newSize = (size_t)(FACTOR * list->size);
-    list->entries = (void**)realloc(list->entries, sizeof(void*) * newSize);
+	size_t newSize = (size_t)(FACTOR * list->size);
+	list->entries = (void**)realloc(list->entries, sizeof(void*) * newSize);
 
-    if (list->entries == NULL) {
-        printf("ERROR ON RESIZING THE LIST!\n");
-        return;
-    }
+	if (list->entries == NULL) {
+		printf("ERROR ON RESIZING THE LIST!\n");
+		return;
+	}
 
-    (void)memset(list->entries + list->size, 0, list->size);
-    list->size = newSize;
+	(void)memset(list->entries + list->size, 0, list->size);
+	list->size = newSize;
 }
 
 /**
@@ -135,45 +135,45 @@ void L_resize_list(struct List *list) {
  * @param n         Index of the item
  */
 void *L_get_item(struct List *list, int n) {
-    if (list == NULL || list->entries == NULL
-        || n >= list->load || n < 0) {
-        return NULL;
-    }
+	if (list == NULL || list->entries == NULL
+		|| n >= list->load || n < 0) {
+		return NULL;
+	}
 
-    return list->entries[n];
+	return list->entries[n];
 }
 
 void L_print_list(struct List *list, int flag) {
-    if (list == NULL) {
-        return;
-    }
+	if (list == NULL) {
+		return;
+	}
 
-    printf("List@[%p]\n", (void*)list);
-    printf("List Capacity: %li\n", list->size);
-    printf("\n");
+	printf("List@[%p]\n", (void*)list);
+	printf("List Capacity: %li\n", list->size);
+	printf("\n");
 
-    if (flag == 0) {
-        return;
-    }
+	if (flag == 0) {
+		return;
+	}
 
-    printf("%-11s|%-23s|\n", "Index", "VALUES");
-    printf("-----------+-----------------------+\n");
+	printf("%-11s|%-23s|\n", "Index", "VALUES");
+	printf("-----------+-----------------------+\n");
 
-    for (int i = 0; i < list->size; i++) {
-        if (list->entries[i] == NULL) {
-            printf("%11i|%-23s|\n", i, "(null)");
-            continue;
-        }
+	for (int i = 0; i < list->size; i++) {
+		if (list->entries[i] == NULL) {
+			printf("%11i|%-23s|\n", i, "(null)");
+			continue;
+		}
 
-        printf("%11i|%-23p|\n", i, (void*)list->entries[i]);
-    }
+		printf("%11i|%-23p|\n", i, (void*)list->entries[i]);
+	}
 
-    return;
+	return;
 }
 
 void FREE_LIST(struct List *list) {
-    list->load = 0;
-    list->size = 0;
-    (void)free(list->entries);
-    (void)free(list);
+	list->load = 0;
+	list->size = 0;
+	(void)free(list->entries);
+	(void)free(list);
 }

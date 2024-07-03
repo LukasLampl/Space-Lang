@@ -60,7 +60,7 @@ int main() {
     ////////////////////////////////////////
 
     //0 = no errors, 1 = with errors
-    int containsSyntaxErrors = (int)CheckInput(&tokens);
+    /*int containsSyntaxErrors = (int)CheckInput(&tokens);
 
     /////////////////////////////////////////
     ///////     GENERATE PARSETREE     //////
@@ -68,15 +68,16 @@ int main() {
     if (containsSyntaxErrors != 0) {
         return -1;
     }
-
-    struct Node *root = GenerateParsetree(&tokens);
-
+*/
+GenerateParsetree(&tokens);
+    //struct Node *root = GenerateParsetree(&tokens);
+/*
     int containsSemanticErrors = (int)CheckSemantic(root);
 
     if (containsSemanticErrors != 0) {
         return -1;
     }
-
+*/
     (void)FREE_MEMORY();
     (void)printf("\n>>>>> %s has been successfully compiled. <<<<<\n", path);
 }

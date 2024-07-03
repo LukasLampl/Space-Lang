@@ -88,53 +88,53 @@ TOKENTYPES LX_fill_condition_type(char *value);
  * </p>
  */
 struct kwLookup {
-    char kwName[12];
-    TOKENTYPES kwValue;
+	char kwName[12];
+	TOKENTYPES kwValue;
 };
 
 struct symbol {
-    char symbol;
-    TOKENTYPES rep;
+	char symbol;
+	TOKENTYPES rep;
 };
 
 struct sequence {
-    char seq[3];
-    TOKENTYPES rep;
+	char seq[3];
+	TOKENTYPES rep;
 };
 
 struct symbol OPERATOR_LOOKUP[] = {
-    {'%', _OP_MODULU_},             {'!', _OP_NOT_},                {'(', _OP_RIGHT_BRACKET_},
-    {')', _OP_LEFT_BRACKET_},       {'{', _OP_RIGHT_BRACE_},        {'}', _OP_LEFT_BRACE_},
-    {'[', _OP_RIGHT_EDGE_BRACKET_}, {']', _OP_LEFT_EDGE_BRACKET_},  {'$', _OP_OVERWRITE_},
-    {'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
-    {'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
-    {'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {':', _OP_COLON_},
-    {'?', _OP_QUESTION_MARK_}
+	{'%', _OP_MODULU_},             {'!', _OP_NOT_},                {'(', _OP_RIGHT_BRACKET_},
+	{')', _OP_LEFT_BRACKET_},       {'{', _OP_RIGHT_BRACE_},        {'}', _OP_LEFT_BRACE_},
+	{'[', _OP_RIGHT_EDGE_BRACKET_}, {']', _OP_LEFT_EDGE_BRACKET_},  {'$', _OP_OVERWRITE_},
+	{'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
+	{'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
+	{'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {':', _OP_COLON_},
+	{'?', _OP_QUESTION_MARK_}
 };
 
 struct sequence DOUBLE_OPERATOR_LOOKUP[] = {
-    {"-=", _OP_MINUS_EQUALS_},               {"--", _OP_SUBTRACT_ONE_},
-    {"+=", _OP_PLUS_EQUALS_},                {"++", _OP_ADD_ONE_},
-    {"/=", _OP_DIVIDE_EQUALS_},              {"*=", _OP_MULTIPLY_EQUALS_},
-    {"!=", _OP_NOT_EQUALS_CONDITION_},       {"==", _OP_EQUALS_CONDITION_},
-    {"<", _OP_SMALLER_CONDITION_},           {">", _OP_GREATER_CONDITION_},
-    {">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_},
+	{"-=", _OP_MINUS_EQUALS_},               {"--", _OP_SUBTRACT_ONE_},
+	{"+=", _OP_PLUS_EQUALS_},                {"++", _OP_ADD_ONE_},
+	{"/=", _OP_DIVIDE_EQUALS_},              {"*=", _OP_MULTIPLY_EQUALS_},
+	{"!=", _OP_NOT_EQUALS_CONDITION_},       {"==", _OP_EQUALS_CONDITION_},
+	{"<", _OP_SMALLER_CONDITION_},           {">", _OP_GREATER_CONDITION_},
+	{">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_},
 };
 
 struct kwLookup KEYWORD_LOOKUP[] = {
-    {"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
-    {"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
-    {"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
-    {"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
-    {"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
-    {"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
-    {"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
-    {"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
-    {"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
-    {"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
-    {"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
-    {"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},
-    {"long", _KW_LONG_},           {"void", _KW_VOID_},       {"constructor", _KW_CONSTRUCTOR_}
+	{"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
+	{"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
+	{"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
+	{"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},
+	{"null", _KW_NULL_},           {"enum", _KW_ENUM_},       {"check", _KW_CHECK_},
+	{"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
+	{"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
+	{"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
+	{"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
+	{"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
+	{"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
+	{"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},
+	{"long", _KW_LONG_},           {"void", _KW_VOID_},       {"constructor", _KW_CONSTRUCTOR_}
 };
 
 /**
@@ -197,207 +197,207 @@ extern char *FILE_NAME;
  * @param **arrayOfIndividualTokenSizes     Sizes of the indiviual tokens
  */
 TOKEN* Tokenize(int **arrayOfIndividualTokenSizes) {
-    // TOKEN defined in modules.h
-    TOKENS = (struct TOKEN*)calloc((TOKEN_LENGTH + 2), sizeof(struct TOKEN));
-    maxTokensLength = TOKEN_LENGTH + 1;
-    char **input = BUFFER;
+	// TOKEN defined in modules.h
+	TOKENS = (struct TOKEN*)calloc((TOKEN_LENGTH + 2), sizeof(struct TOKEN));
+	maxTokensLength = TOKEN_LENGTH + 1;
+	char **input = BUFFER;
 
-    // When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
-    if (TOKENS == NULL) {
-        (void)IO_BUFFER_RESERVATION_EXCEPTION();
-    }
+	// When the TOKEN array couldn't be allocated, then throw an IO_BUFFER_RESERVATION_EXCEPTION (errors.h)
+	if (TOKENS == NULL) {
+		(void)IO_BUFFER_RESERVATION_EXCEPTION();
+	}
 
-    (void)LX_set_token_value_to_awaited_size(&TOKENS, arrayOfIndividualTokenSizes);
-    tokensreserved = 1;
-    
-    // Set a pointer on the token array to free it, when the program crashes or ends
-    (void)_init_error_token_cache_(&TOKENS);
-    // Set StoragePointer and Index to 0 for new counting
-    size_t storageIndex = 0;
-    size_t storagePointer = 0;
+	(void)LX_set_token_value_to_awaited_size(&TOKENS, arrayOfIndividualTokenSizes);
+	tokensreserved = 1;
+	
+	// Set a pointer on the token array to free it, when the program crashes or ends
+	(void)_init_error_token_cache_(&TOKENS);
+	// Set StoragePointer and Index to 0 for new counting
+	size_t storageIndex = 0;
+	size_t storagePointer = 0;
 
-    // CLOCK FOR DEBUG PURPOSES ONLY!!
-    clock_t start, end;
+	// CLOCK FOR DEBUG PURPOSES ONLY!!
+	clock_t start, end;
 
-    if (LEXER_DISPLAY_USED_TIME == 1) {
-        start = (clock_t)clock();
-    }
+	if (LEXER_DISPLAY_USED_TIME == 1) {
+		start = (clock_t)clock();
+	}
 
-    size_t lineNumber = 0;
+	size_t lineNumber = 0;
 
-    for (size_t i = 0; i < BUFFER_LENGTH; i++) {
-        // When the input character at index i is a hashtag, then skip the input till the next hashtag
-        if ((*input)[i] == '/'
-            && ((*input)[i + 1] == '/' || (*input)[i + 1] == '*')) {
-            i += (int)LX_skip_comment(input, i, &lineNumber);
-            continue;
-        }
+	for (size_t i = 0; i < BUFFER_LENGTH; i++) {
+		// When the input character at index i is a hashtag, then skip the input till the next hashtag
+		if ((*input)[i] == '/'
+			&& ((*input)[i + 1] == '/' || (*input)[i + 1] == '*')) {
+			i += (int)LX_skip_comment(input, i, &lineNumber);
+			continue;
+		}
 
-        if (storagePointer > maxTokensLength) {
-            (void)LEXER_NULL_TOKEN_EXCEPTION();
-        }
+		if (storagePointer > maxTokensLength) {
+			(void)LEXER_NULL_TOKEN_EXCEPTION();
+		}
 
-        // Check if the Size is bigger than the expected, if true, then increase the size of the token value
-        if (storageIndex > TOKENS[storagePointer].size) {
-            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
-            (void)LX_resize_tokens_value(&TOKENS[storagePointer], TOKENS[storagePointer].size);
-        } else if (storageIndex == 0) {
-            TOKENS[storagePointer].tokenStart = i;
-        }
+		// Check if the Size is bigger than the expected, if true, then increase the size of the token value
+		if (storageIndex > TOKENS[storagePointer].size) {
+			(void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
+			(void)LX_resize_tokens_value(&TOKENS[storagePointer], TOKENS[storagePointer].size);
+		} else if (storageIndex == 0) {
+			TOKENS[storagePointer].tokenStart = i;
+		}
 
-        // Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
-        int isWhiteSpace = (int)is_space((*input)[i]);
-        int isOperator = isWhiteSpace != 1 ? (int)check_for_operator((*input)[i]) : 0; //Checks if input at i is an operator from above
-        // Check if the input character at index i is the beginning of an string or character array
-        if ((*input)[i] == '"' || (*input)[i] == '\'') {
-            storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
-            i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, (*input)[i], &lineNumber);
-            (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-            storagePointer++;
-            storageIndex = 0;
-            continue;
-        }
+		// Checks if input is a whitespace (if isspace() returns a non-zero number the integer is set to 1 else to 0)
+		int isWhiteSpace = (int)is_space((*input)[i]);
+		int isOperator = isWhiteSpace != 1 ? (int)check_for_operator((*input)[i]) : 0; //Checks if input at i is an operator from above
+		// Check if the input character at index i is the beginning of an string or character array
+		if ((*input)[i] == '"' || (*input)[i] == '\'') {
+			storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
+			i += (int)LX_write_string_in_token(&TOKENS[storagePointer], input, i, (*input)[i], &lineNumber);
+			(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+			storagePointer++;
+			storageIndex = 0;
+			continue;
+		}
 
-        if (i + 1 >= BUFFER_LENGTH) {
-            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
-            (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-        }
+		if (i + 1 >= BUFFER_LENGTH) {
+			(void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
+			(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+		}
 
-        // If the input character at index i is a whitespace, then filter the whitespace character
-        if (isWhiteSpace > 0) {
-            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
+		// If the input character at index i is a whitespace, then filter the whitespace character
+		if (isWhiteSpace > 0) {
+			(void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
 
-            // If the current token is already filled or not, if then add "\0" to close the string  
-            if ((int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber)) { 
-                if (TOKENS[storagePointer].size > storageIndex) {
-                    TOKENS[storagePointer].value[storageIndex] = '\0';
-                } else {
-                    TOKENS[storagePointer].value[storageIndex - 1] = '\0';
-                }
+			// If the current token is already filled or not, if then add "\0" to close the string  
+			if ((int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber)) { 
+				if (TOKENS[storagePointer].size > storageIndex) {
+					TOKENS[storagePointer].value[storageIndex] = '\0';
+				} else {
+					TOKENS[storagePointer].value[storageIndex - 1] = '\0';
+				}
 
-                storagePointer++;
-            }
+				storagePointer++;
+			}
 
-            i += (int)LX_skip_whitespaces(input, i, &lineNumber);
-            storageIndex = 0;
-            continue;
+			i += (int)LX_skip_whitespaces(input, i, &lineNumber);
+			storageIndex = 0;
+			continue;
 
-        // Execute if input at i is an operator
-        } else if (isOperator) {
-            // Check if the TOKEN could be a FLOAT or not
-            if ((*input)[i] == '.' 
-                && ((int)is_digit((*input)[i - 1])
-                && (int)is_digit((*input)[i + 1]))) {
-                (void)LX_put_type_float_in_token(&TOKENS[storagePointer], storageIndex);
-                storageIndex++;
-                continue;
-            } else if ((*input)[i] == '*') {
-                if ((int)is_space((*input)[i + 1]) == 0
-                    && (int)is_digit((*input)[i + 1]) == 0) {
-                    int ptrRet = (int)LX_write_pointer_in_token(&TOKENS[storagePointer], input, i);
+		// Execute if input at i is an operator
+		} else if (isOperator) {
+			// Check if the TOKEN could be a FLOAT or not
+			if ((*input)[i] == '.' 
+				&& ((int)is_digit((*input)[i - 1])
+				&& (int)is_digit((*input)[i + 1]))) {
+				(void)LX_put_type_float_in_token(&TOKENS[storagePointer], storageIndex);
+				storageIndex++;
+				continue;
+			} else if ((*input)[i] == '*') {
+				if ((int)is_space((*input)[i + 1]) == 0
+					&& (int)is_digit((*input)[i + 1]) == 0) {
+					int ptrRet = (int)LX_write_pointer_in_token(&TOKENS[storagePointer], input, i);
 
-                    if (ptrRet > 0) {
-                        i += ptrRet - 1;
-                        storageIndex = ptrRet - 1;
-                        (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-                        storageIndex++;
-                    }
+					if (ptrRet > 0) {
+						i += ptrRet - 1;
+						storageIndex = ptrRet - 1;
+						(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+						storageIndex++;
+					}
 
-                    continue;
-                }
-            } else if ((*input)[i] == '-' && (int)is_digit((*input)[i + 1]) == 1) {
-                storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
-                storageIndex = 0;
-                TOKENS[storagePointer].value[storageIndex++] = (*input)[i];
-                TOKENS[storagePointer].type = _NUMBER_;
-                continue;
-            }
+					continue;
+				}
+			} else if ((*input)[i] == '-' && (int)is_digit((*input)[i + 1]) == 1) {
+				storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber);
+				storageIndex = 0;
+				TOKENS[storagePointer].value[storageIndex++] = (*input)[i];
+				TOKENS[storagePointer].type = _NUMBER_;
+				continue;
+			}
 
-            // Check if the current token is used or not, and if it increases storagePointer by 1
-            (void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
-            storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber); 
-            // Check whether the input could be an ELEMENT ACCESSOR or not
-            if (((*input)[i] == '-' || (*input)[i] == '=') && (*input)[i + 1] == '>') {
-                (void)LX_write_class_accessor_or_creator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
-                TOKENS[storagePointer].tokenStart = i;
-                storagePointer++;
-                storageIndex = 0;
-                i++;
-                continue;
-            } else if ((*input)[i] == '&') {
-                if ((*input)[i + 1] == '(' && (*input)[i + 2] == '*') {
-                    i += (int)LX_is_reference_on_pointer(&TOKENS[storagePointer], input, i);
-                    (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-                    TOKENS[storagePointer].tokenStart = i;
-                    storageIndex = 0;
-                    storagePointer++;
-                    continue;
-                } else {
-                    (void)LX_write_reference_in_token(&TOKENS[storagePointer]);
-                    (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-                    TOKENS[storagePointer].tokenStart = i;
-                    storageIndex++;
-                    continue;
-                }
+			// Check if the current token is used or not, and if it increases storagePointer by 1
+			(void)LX_set_keyword_type_to_token(&TOKENS[storagePointer]);
+			storagePointer += (int)LX_token_clearance_check(&TOKENS[storagePointer], lineNumber); 
+			// Check whether the input could be an ELEMENT ACCESSOR or not
+			if (((*input)[i] == '-' || (*input)[i] == '=') && (*input)[i + 1] == '>') {
+				(void)LX_write_class_accessor_or_creator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
+				TOKENS[storagePointer].tokenStart = i;
+				storagePointer++;
+				storageIndex = 0;
+				i++;
+				continue;
+			} else if ((*input)[i] == '&') {
+				if ((*input)[i + 1] == '(' && (*input)[i + 2] == '*') {
+					i += (int)LX_is_reference_on_pointer(&TOKENS[storagePointer], input, i);
+					(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+					TOKENS[storagePointer].tokenStart = i;
+					storageIndex = 0;
+					storagePointer++;
+					continue;
+				} else {
+					(void)LX_write_reference_in_token(&TOKENS[storagePointer]);
+					(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+					TOKENS[storagePointer].tokenStart = i;
+					storageIndex++;
+					continue;
+				}
 
-            // Figure out whether the input is a double operator like "++" or "--" or not
-            } else if ((int)LX_check_for_double_operator((*input)[i], (*input)[i + 1])) {
-                TOKENS[storagePointer].tokenStart = i;
-                (void)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);   
-                (void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
-                TOKENS[storagePointer].tokenStart = ++i;
-                storagePointer++;
-                storageIndex = 0;
-                continue;
-            }
-            //If non if the above is approved, the input gets processed as a 'normal' Operator
-            TOKENS[storagePointer].tokenStart = i;
-            (void)LX_write_default_operator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
-            storagePointer++;
-            storageIndex = 0;
-            continue;
-        } else {
-            TOKEN *token = &TOKENS[storagePointer];
+			// Figure out whether the input is a double operator like "++" or "--" or not
+			} else if ((int)LX_check_for_double_operator((*input)[i], (*input)[i + 1])) {
+				TOKENS[storagePointer].tokenStart = i;
+				(void)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);   
+				(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
+				TOKENS[storagePointer].tokenStart = ++i;
+				storagePointer++;
+				storageIndex = 0;
+				continue;
+			}
+			//If non if the above is approved, the input gets processed as a 'normal' Operator
+			TOKENS[storagePointer].tokenStart = i;
+			(void)LX_write_default_operator_in_token(&TOKENS[storagePointer], (*input)[i], lineNumber);
+			storagePointer++;
+			storageIndex = 0;
+			continue;
+		} else {
+			TOKEN *token = &TOKENS[storagePointer];
 
-            if (token->size > storageIndex + 1) {
-                // Sets the rest as IDENTIFIER. Adding the current input to the current token value
-                token->value[storageIndex++] = (*input)[i];
-                token->line = lineNumber;
-                (void)LX_check_for_number(token);
+			if (token->size > storageIndex + 1) {
+				// Sets the rest as IDENTIFIER. Adding the current input to the current token value
+				token->value[storageIndex++] = (*input)[i];
+				token->line = lineNumber;
+				(void)LX_check_for_number(token);
 
-                if (token->type != _FLOAT_
-                    && token->type != _NUMBER_
-                    && token->type != _REFERENCE_
-                    && token->type != _POINTER_) {
-                    token->type = _IDENTIFIER_;
-                }
-            }
-        }
-    }
-    
-    /////////////////////////
-    ///     EOF TOKEN     ///
-    /////////////////////////
-    storagePointer += (int)LX_eof_token_clearance_check(&(TOKENS[storagePointer]), lineNumber);
-    (void)LX_set_EOF_token(&TOKENS[storagePointer]);
-    maxTokensLength = storagePointer > maxTokensLength ? storagePointer : maxTokensLength;
-    storagePointer--;
+				if (token->type != _FLOAT_
+					&& token->type != _NUMBER_
+					&& token->type != _REFERENCE_
+					&& token->type != _POINTER_) {
+					token->type = _IDENTIFIER_;
+				}
+			}
+		}
+	}
+	
+	/////////////////////////
+	///     EOF TOKEN     ///
+	/////////////////////////
+	storagePointer += (int)LX_eof_token_clearance_check(&(TOKENS[storagePointer]), lineNumber);
+	(void)LX_set_EOF_token(&TOKENS[storagePointer]);
+	maxTokensLength = storagePointer > maxTokensLength ? storagePointer : maxTokensLength;
+	storagePointer--;
 
-    // END CLOCK AND PRINT RESULT
-    if (LEXER_DISPLAY_USED_TIME == 1) {
-        end = (clock_t)clock();
-    }
+	// END CLOCK AND PRINT RESULT
+	if (LEXER_DISPLAY_USED_TIME == 1) {
+		end = (clock_t)clock();
+	}
 
-    if (LEXER_DEBUG_MODE == 1) {
-        (void)LX_print_result(TOKENS, storagePointer);
-    }
+	if (LEXER_DEBUG_MODE == 1) {
+		(void)LX_print_result(TOKENS, storagePointer);
+	}
 
-    if (LEXER_DISPLAY_USED_TIME == 1) {
-        (void)printf("Finished with %li tokens and %li lines in total.\n", storagePointer + 1, lineNumber + 1);
-        (void)LX_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
-    }
+	if (LEXER_DISPLAY_USED_TIME == 1) {
+		(void)printf("Finished with %li tokens and %li lines in total.\n", storagePointer + 1, lineNumber + 1);
+		(void)LX_print_cpu_time(((double) (end - start)) / CLOCKS_PER_SEC);
+	}
 
-    return TOKENS;
+	return TOKENS;
 }
 
 /**
@@ -415,17 +415,17 @@ TOKEN* Tokenize(int **arrayOfIndividualTokenSizes) {
  * @param lineNumber    Variable that holds the current line number
  */
 int LX_eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
-    if (token != NULL && token->value != NULL) {
-        if (token->type > _LII_ || token->size == 0 || token->type == __EOF__) {
-            return 0;
-        } else {
-            if (token->value[0] != 0) {
-                return 1;
-            }
-        }
-    }
+	if (token != NULL && token->value != NULL) {
+		if (token->type > _LII_ || token->size == 0 || token->type == __EOF__) {
+			return 0;
+		} else {
+			if (token->value[0] != 0) {
+				return 1;
+			}
+		}
+	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -441,36 +441,36 @@ int LX_eof_token_clearance_check(TOKEN *token, size_t lineNumber) {
  * @param currentSymbolIndex    Current index at the buffer
  */
 int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbolIndex) {
-    if ((*buffer)[currentSymbolIndex + 1] != '(') {
-        return 0;
-    }
+	if ((*buffer)[currentSymbolIndex + 1] != '(') {
+		return 0;
+	}
 
-    int symbolsToSkip = 0;
+	int symbolsToSkip = 0;
 
-    while ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')'
-        && (int)is_space((*buffer)[currentSymbolIndex + symbolsToSkip + 1]) == 0
-        && currentSymbolIndex + symbolsToSkip + 1 < BUFFER_LENGTH) {
-        if (token->size > symbolsToSkip + 2) {
-            token->value[symbolsToSkip + 2] = (*buffer)[currentSymbolIndex + symbolsToSkip + 2];
-        }
+	while ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')'
+		&& (int)is_space((*buffer)[currentSymbolIndex + symbolsToSkip + 1]) == 0
+		&& currentSymbolIndex + symbolsToSkip + 1 < BUFFER_LENGTH) {
+		if (token->size > symbolsToSkip + 2) {
+			token->value[symbolsToSkip + 2] = (*buffer)[currentSymbolIndex + symbolsToSkip + 2];
+		}
 
-        symbolsToSkip++;
-    }
+		symbolsToSkip++;
+	}
 
-    if ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')') {
-        token->value = "";
-        return 0;
-    }
+	if ((*buffer)[currentSymbolIndex + symbolsToSkip + 1] != ')') {
+		token->value = "";
+		return 0;
+	}
 
-    if (token->size >= symbolsToSkip + 2) {
-        token->value[0] = '&';
-        token->value[1] = '(';
-        token->value[symbolsToSkip + 1] = ')';
-        token->value[symbolsToSkip + 2] = '\0';
-    	token->type = _REFERENCE_ON_POINTER_;
-    }
+	if (token->size >= symbolsToSkip + 2) {
+		token->value[0] = '&';
+		token->value[1] = '(';
+		token->value[symbolsToSkip + 1] = ')';
+		token->value[symbolsToSkip + 2] = '\0';
+		token->type = _REFERENCE_ON_POINTER_;
+	}
 
-    return symbolsToSkip + 1;
+	return symbolsToSkip + 1;
 }
 
 /**
@@ -483,39 +483,39 @@ int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbol
  * @param **buffer              Source code buffer
  */
 int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferCharPos) {
-    if (token != NULL) {
-        int pointers = 0;
+	if (token != NULL) {
+		int pointers = 0;
 
-        for (size_t i = 0; i + currentBufferCharPos < BUFFER_LENGTH; i++) {
-            if ((*buffer)[currentBufferCharPos + i] == '*') {
-                pointers++;
-                continue;
-            }
+		for (size_t i = 0; i + currentBufferCharPos < BUFFER_LENGTH; i++) {
+			if ((*buffer)[currentBufferCharPos + i] == '*') {
+				pointers++;
+				continue;
+			}
 
-            if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
-                || (int)is_digit((*buffer)[currentBufferCharPos + i]) == 1) {
-                LEXER_UNFINISHED_POINTER_EXCEPTION();
-            } else if ((int)check_for_operator((*buffer)[currentBufferCharPos + i]) == 1) {
-                return 0;
-            } else {
-                break;
-            }
-        }
+			if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
+				|| (int)is_digit((*buffer)[currentBufferCharPos + i]) == 1) {
+				LEXER_UNFINISHED_POINTER_EXCEPTION();
+			} else if ((int)check_for_operator((*buffer)[currentBufferCharPos + i]) == 1) {
+				return 0;
+			} else {
+				break;
+			}
+		}
 
-        while (token->size < pointers + 1) {
-            (void)LX_resize_tokens_value(token, token->size);
-        }
+		while (token->size < pointers + 1) {
+			(void)LX_resize_tokens_value(token, token->size);
+		}
 
-        for (int i = 0; i < pointers; i++) {
-            token->value[i] = '*';
-        }
+		for (int i = 0; i < pointers; i++) {
+			token->value[i] = '*';
+		}
 
-        token->value[pointers + 1] = '\0';
-        token->type = _POINTER_;
-        return pointers;
-    }
+		token->value[pointers + 1] = '\0';
+		token->type = _POINTER_;
+		return pointers;
+	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -526,14 +526,14 @@ int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferC
  * @param *token    Token to write into
  */
 void LX_write_reference_in_token(TOKEN *token) {
-    if (token != NULL) {
-        token->type = _REFERENCE_;
+	if (token != NULL) {
+		token->type = _REFERENCE_;
 
-        if (token->size > 1) {
-            token->value[0] = '&';
-            token->value[1] = '\0';
-        }
-    }
+		if (token->size > 1) {
+			token->value[0] = '&';
+			token->value[1] = '\0';
+		}
+	}
 }
 
 /**
@@ -545,7 +545,7 @@ void LX_write_reference_in_token(TOKEN *token) {
  * @param lineNumber    Line number to set
  */
 void LX_set_line_number(TOKEN *token, size_t lineNumber) {
-    token->line = lineNumber;
+	token->line = lineNumber;
 }
 
 /**
@@ -562,18 +562,18 @@ void LX_set_line_number(TOKEN *token, size_t lineNumber) {
  * @param **tokenLengthsArray   Sizes of the individual tokens
  */
 void LX_set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray) {
-    if (*tokens != NULL && tokenLengthsArray != NULL) {
-        for (int i = 0; i < maxTokensLength; i++) {
-            // Calloc as much space as predicted; Tokens at i has the value length of tokenLengths at i
-            (*tokens)[i].value = (char*)calloc((*tokenLengthsArray)[i], sizeof(char));
-            (*tokens)[i].size = (*tokenLengthsArray)[i];
+	if (*tokens != NULL && tokenLengthsArray != NULL) {
+		for (int i = 0; i < maxTokensLength; i++) {
+			// Calloc as much space as predicted; Tokens at i has the value length of tokenLengths at i
+			(*tokens)[i].value = (char*)calloc((*tokenLengthsArray)[i], sizeof(char));
+			(*tokens)[i].size = (*tokenLengthsArray)[i];
 
-            // If the allocation of the memory should fail an error gets called
-            if ((*tokens)[i].value == NULL) {
-                (void)IO_BUFFER_RESERVATION_EXCEPTION();
-            }
-        }
-    }
+			// If the allocation of the memory should fail an error gets called
+			if ((*tokens)[i].value == NULL) {
+				(void)IO_BUFFER_RESERVATION_EXCEPTION();
+			}
+		}
+	}
 }
 
 /**
@@ -592,20 +592,20 @@ void LX_set_token_value_to_awaited_size(TOKEN **tokens, int **tokenLengthsArray)
  * @param oldSize   Size of the token before the resize
  */
 void LX_resize_tokens_value(TOKEN *token, size_t oldSize) {
-    int newSize = (int)(oldSize * 1.25);
-    char *newValue = (char*)realloc(token->value, sizeof(char) * newSize);
+	int newSize = (int)(oldSize * 1.25);
+	char *newValue = (char*)realloc(token->value, sizeof(char) * newSize);
 
-    if (token->value == NULL) {
-        (void)IO_BUFFER_RESERVATION_EXCEPTION();
-    }
+	if (token->value == NULL) {
+		(void)IO_BUFFER_RESERVATION_EXCEPTION();
+	}
 
-    token->value = newValue;
-    token->size = newSize;
+	token->value = newValue;
+	token->size = newSize;
 
-    // Set the new allocated memory to '0'
-    if (token->value != NULL) {
-        (void)memset(token->value + oldSize, 0, sizeof(char) * (oldSize * 0.25));
-    }
+	// Set the new allocated memory to '0'
+	if (token->value != NULL) {
+		(void)memset(token->value + oldSize, 0, sizeof(char) * (oldSize * 0.25));
+	}
 }
 
 /**
@@ -623,14 +623,14 @@ void LX_resize_tokens_value(TOKEN *token, size_t oldSize) {
  * @param lineNumber    Variable that holds the current line number
  */
 int LX_token_clearance_check(TOKEN *token, size_t lineNumber) {
-    if (token != NULL && token->value != NULL) {
-        if (token->value[0] != 0) {
-            token->line = lineNumber;
-            return 1;
-        }
-    }
+	if (token != NULL && token->value != NULL) {
+		if (token->value[0] != 0) {
+			token->line = lineNumber;
+			return 1;
+		}
+	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -652,30 +652,30 @@ int LX_token_clearance_check(TOKEN *token, size_t lineNumber) {
  * @param *lineNumber   Pointer to the lineNumber
  */
 int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber) {
-    char crucialChar = (*input)[currentIndex + 1];
-    // The index of how much characters has to be skipped
-    int jumpForward = 1;
-    // Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
-    while ((jumpForward + currentIndex) < BUFFER_LENGTH) {
-        //Check for '\n'
-        if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
-            (*lineNumber)++;
-        }
+	char crucialChar = (*input)[currentIndex + 1];
+	// The index of how much characters has to be skipped
+	int jumpForward = 1;
+	// Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
+	while ((jumpForward + currentIndex) < BUFFER_LENGTH) {
+		//Check for '\n'
+		if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
+			(*lineNumber)++;
+		}
 
-        if (crucialChar == '*'
-            && (*input)[currentIndex + jumpForward] == '*'
-            && (*input)[currentIndex + jumpForward + 1] == '/') {
-            jumpForward++;
-            break;
-        } else if (crucialChar == '/'
-            && (*input)[currentIndex + jumpForward] == '\n') {
-            break;
-        }
+		if (crucialChar == '*'
+			&& (*input)[currentIndex + jumpForward] == '*'
+			&& (*input)[currentIndex + jumpForward + 1] == '/') {
+			jumpForward++;
+			break;
+		} else if (crucialChar == '/'
+			&& (*input)[currentIndex + jumpForward] == '\n') {
+			break;
+		}
 
-        jumpForward++;
-    }
+		jumpForward++;
+	}
 
-    return jumpForward;
+	return jumpForward;
 }
 
 /**
@@ -692,61 +692,61 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
  * @param *lineNumber           Current line number
  */
 int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInputIndex, const char crucialCharacter, size_t *lineNumber) {
-    int jumpForward = 1;
+	int jumpForward = 1;
 
-    if (input != NULL && token != NULL && token->value != NULL) {
-        int currentIncremental = 1;
-        int currentTokenSize = (((token->size * currentIncremental) - 1));
+	if (input != NULL && token != NULL && token->value != NULL) {
+		int currentIncremental = 1;
+		int currentTokenSize = (((token->size * currentIncremental) - 1));
 
-        // write the current character into the current token value
-        // while the input is not the crucial character again the input gets set into the current token value
-        while (((*input)[currentInputIndex + jumpForward] != crucialCharacter)
-            && (currentInputIndex + jumpForward) < BUFFER_LENGTH) {
-            // If the string size is bigger than size, resize the token
-            if (jumpForward + 1 >= currentTokenSize) {
-                (void)LX_resize_tokens_value(token, currentTokenSize);
-                currentIncremental++;
-                currentTokenSize = (((token->size * currentIncremental) - 1));
-            }
+		// write the current character into the current token value
+		// while the input is not the crucial character again the input gets set into the current token value
+		while (((*input)[currentInputIndex + jumpForward] != crucialCharacter)
+			&& (currentInputIndex + jumpForward) < BUFFER_LENGTH) {
+			// If the string size is bigger than size, resize the token
+			if (jumpForward + 1 >= currentTokenSize) {
+				(void)LX_resize_tokens_value(token, currentTokenSize);
+				currentIncremental++;
+				currentTokenSize = (((token->size * currentIncremental) - 1));
+			}
 
-            if (token->size > jumpForward) {
-                token->value[jumpForward] = (*input)[currentInputIndex + jumpForward];
-            }
+			if (token->size > jumpForward) {
+				token->value[jumpForward] = (*input)[currentInputIndex + jumpForward];
+			}
 
-            if ((int)is_space((*input)[currentInputIndex + jumpForward]) == 2) {
-                (*lineNumber)++;
-            }
+			if ((int)is_space((*input)[currentInputIndex + jumpForward]) == 2) {
+				(*lineNumber)++;
+			}
 
-            jumpForward++;
-        }
+			jumpForward++;
+		}
 
-        if ((*input)[currentInputIndex + jumpForward] != crucialCharacter) {
-            (void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber);
-        }
+		if ((*input)[currentInputIndex + jumpForward] != crucialCharacter) {
+			(void)LEXER_UNFINISHED_STRING_EXCEPTION(input, currentInputIndex, *lineNumber);
+		}
 
-        if (crucialCharacter == '"') {
-            token->type = _STRING_;
-        } else if (crucialCharacter == '\'') {
-            token->type = _CHARACTER_ARRAY_;
-        }
+		if (crucialCharacter == '"') {
+			token->type = _STRING_;
+		} else if (crucialCharacter == '\'') {
+			token->type = _CHARACTER_ARRAY_;
+		}
 
-        token->value[0] = crucialCharacter;
+		token->value[0] = crucialCharacter;
 
-        if (token->size > jumpForward) {
-            token->value[jumpForward] = crucialCharacter;
-        } else {
-            token->value[token->size - 1] = crucialCharacter;
-        }
+		if (token->size > jumpForward) {
+			token->value[jumpForward] = crucialCharacter;
+		} else {
+			token->value[token->size - 1] = crucialCharacter;
+		}
 
-        // End the whole token with the '\0' character
-        if (token->size >= jumpForward + 1) {
-            token->value[jumpForward + 1] = '\0';
-        } else {
-            token->value[token->size - 1] = crucialCharacter;
-        }
-    }
+		// End the whole token with the '\0' character
+		if (token->size >= jumpForward + 1) {
+			token->value[jumpForward + 1] = '\0';
+		} else {
+			token->value[token->size - 1] = crucialCharacter;
+		}
+	}
 
-    return jumpForward;
+	return jumpForward;
 }
 
 /**
@@ -761,23 +761,23 @@ int LX_write_string_in_token(TOKEN *token, char **input, const size_t currentInp
  * @param *lineNumber           Current line number
  */
 int LX_skip_whitespaces(char **input, size_t currentInputIndex, size_t *lineNumber) {
-    int jumpForward = 0;
+	int jumpForward = 0;
 
-    while ((currentInputIndex + jumpForward) < BUFFER_LENGTH) {
-        int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward)]);
-        
-        if (whitespaceChar == 0) {
-            break;
-        } else if (whitespaceChar == 2) {
-            (*lineNumber)++;
-        }
+	while ((currentInputIndex + jumpForward) < BUFFER_LENGTH) {
+		int whitespaceChar = (int)is_space((*input)[(currentInputIndex + jumpForward)]);
+		
+		if (whitespaceChar == 0) {
+			break;
+		} else if (whitespaceChar == 2) {
+			(*lineNumber)++;
+		}
 
-        jumpForward++;
-        continue;
-    }
+		jumpForward++;
+		continue;
+	}
 
-    // return the value of how much the input index has to skip until there's another non whitespace character
-    return jumpForward - 1;
+	// return the value of how much the input index has to skip until there's another non whitespace character
+	return jumpForward - 1;
 }
 
 /**
@@ -789,13 +789,13 @@ int LX_skip_whitespaces(char **input, size_t currentInputIndex, size_t *lineNumb
  * @param symbolIndex   Position of the dot in the buffer
  */
 void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
-    if (token != NULL && token->value != NULL) {
-        token->type = _FLOAT_;
+	if (token != NULL && token->value != NULL) {
+		token->type = _FLOAT_;
 
-        if (token->size > symbolIndex) {
-            token->value[symbolIndex] = '.';
-        }
-    }
+		if (token->size > symbolIndex) {
+			token->value[symbolIndex] = '.';
+		}
+	}
 }
 
 /**
@@ -812,38 +812,38 @@ void LX_put_type_float_in_token(TOKEN *token, const size_t symbolIndex) {
  * @param lineNumber    Current line number
  */
 void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar, size_t lineNumber) {
-    if (token != NULL && token->value != NULL) {
-        char src[3];
-        src[0] = crucialChar;
-        src[1] = '>';
-        src[2] = '\0';
-        
-        // Check for possible buffer overflow (important when changes occour)
-        if (strlen(src) <= token->size) {
-            (void)strncpy(token->value, src, token->size);
-        } else {
-            int length = (int)strlen(src) * sizeof(char) + sizeof(char);
-            token->value = (char*)realloc(token->value, length);
+	if (token != NULL && token->value != NULL) {
+		char src[3];
+		src[0] = crucialChar;
+		src[1] = '>';
+		src[2] = '\0';
+		
+		// Check for possible buffer overflow (important when changes occour)
+		if (strlen(src) <= token->size) {
+			(void)strncpy(token->value, src, token->size);
+		} else {
+			int length = (int)strlen(src) * sizeof(char) + sizeof(char);
+			token->value = (char*)realloc(token->value, length);
 
-            if (token->value == NULL) {
-                (void)IO_BUFFER_RESERVATION_EXCEPTION();
-            }
+			if (token->value == NULL) {
+				(void)IO_BUFFER_RESERVATION_EXCEPTION();
+			}
 
-            (void)strncpy(token->value, src, token->size);
-            token->size = length;
-        }
-        
-        token->line = lineNumber;
+			(void)strncpy(token->value, src, token->size);
+			token->size = length;
+		}
+		
+		token->line = lineNumber;
 
-        switch (crucialChar) {
-        case '-':
-            token->type = _OP_CLASS_ACCESSOR_;
-            break;
-        case '=':
-            token->type = _OP_CLASS_CREATOR_;
-            break;
-        }
-    }
+		switch (crucialChar) {
+		case '-':
+			token->type = _OP_CLASS_ACCESSOR_;
+			break;
+		case '=':
+			token->type = _OP_CLASS_CREATOR_;
+			break;
+		}
+	}
 }
 
 /**
@@ -861,13 +861,13 @@ void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar,
  * @param nextChar      Second char of the double operator
  */
 void LX_write_double_operator_in_token(TOKEN *token, char currentChar, char nextChar) {
-    if (token != NULL && token->value != NULL) {
-        token->value[0] = currentChar;
-        token->value[1] = nextChar;
-        token->value[2] = '\0';
+	if (token != NULL && token->value != NULL) {
+		token->value[0] = currentChar;
+		token->value[1] = nextChar;
+		token->value[2] = '\0';
 
-        token->type = (TOKENTYPES)LX_fill_condition_type(token->value);
-    }
+		token->type = (TOKENTYPES)LX_fill_condition_type(token->value);
+	}
 }
 
 /**
@@ -885,13 +885,13 @@ void LX_write_double_operator_in_token(TOKEN *token, char currentChar, char next
  * @param lineNumber    Line of the token
  */
 void LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t lineNumber) {
-    if (token != NULL && token->value != NULL) {
-        token->value[0] = currentChar;
-        token->value[1] = '\0';
-        (void)LX_set_line_number(token, lineNumber);
+	if (token != NULL && token->value != NULL) {
+		token->value[0] = currentChar;
+		token->value[1] = '\0';
+		(void)LX_set_line_number(token, lineNumber);
 
-        token->type = (TOKENTYPES)LX_fill_operator_type(token->value);
-    }
+		token->type = (TOKENTYPES)LX_fill_operator_type(token->value);
+	}
 }
 
 /**
@@ -906,22 +906,22 @@ void LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t l
  * @param *token    Token to write the EOF indicator into
  */
 void LX_set_EOF_token(TOKEN *token) {
-    if (token != NULL) {
-        char *src = "$EOF$\0";
-        token->value = (char*)calloc(sizeof(char), 7);
+	if (token != NULL) {
+		char *src = "$EOF$\0";
+		token->value = (char*)calloc(sizeof(char), 7);
 
-        if (token->value == NULL) {
-            printf("ERROR ON ALLOCATIONG MEMORY FOR EOF TOKEN!\n");
-        }
+		if (token->value == NULL) {
+			printf("ERROR ON ALLOCATIONG MEMORY FOR EOF TOKEN!\n");
+		}
 
-        (void)strncpy(token->value, src, 6 * sizeof(char));
-        
-        token->value[6] = '\0';
-        token->type = __EOF__;
-        token->size = 6;
-        token->line = -1;
-        token->tokenStart = -1;
-    }
+		(void)strncpy(token->value, src, 6 * sizeof(char));
+		
+		token->value[6] = '\0';
+		token->type = __EOF__;
+		token->size = 6;
+		token->line = -1;
+		token->tokenStart = -1;
+	}
 }
 
 /**
@@ -932,18 +932,18 @@ void LX_set_EOF_token(TOKEN *token) {
  * @param *token    Token to set the keyword in
  */
 void LX_set_keyword_type_to_token(TOKEN *token) {
-    if (token == NULL) {
-        (void)LEXER_TOKEN_ERROR_EXCEPTION();
-    }
+	if (token == NULL) {
+		(void)LEXER_TOKEN_ERROR_EXCEPTION();
+	}
 
-    if (token != NULL && token->value != NULL) {
-        if (token->type != _IDENTIFIER_) {
-            return;
-        }
-        
-        TOKENTYPES type = (TOKENTYPES)LX_get_keyword_type(token->value);
-        token->type = type;
-    }
+	if (token != NULL && token->value != NULL) {
+		if (token->type != _IDENTIFIER_) {
+			return;
+		}
+		
+		TOKENTYPES type = (TOKENTYPES)LX_get_keyword_type(token->value);
+		token->type = type;
+	}
 }
 
 /**
@@ -960,16 +960,16 @@ void LX_set_keyword_type_to_token(TOKEN *token) {
  * @param *token    Token to check
  */
 int LX_check_for_number(TOKEN *token) {
-    if (token == NULL) {
-        (void)LEXER_TOKEN_ERROR_EXCEPTION();
-    }
+	if (token == NULL) {
+		(void)LEXER_TOKEN_ERROR_EXCEPTION();
+	}
 
-    if ((int)is_digit(token->value[0]) && token->type != _FLOAT_) {
-        token->type = _NUMBER_;
-        return 1;
-    }
+	if ((int)is_digit(token->value[0]) && token->type != _FLOAT_) {
+		token->type = _NUMBER_;
+		return 1;
+	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -987,38 +987,38 @@ int LX_check_for_number(TOKEN *token) {
  * @param *value    Value to convert
  */
 TOKENTYPES LX_fill_operator_type(char *value) {
-    int length = (sizeof(OPERATOR_LOOKUP) / sizeof(OPERATOR_LOOKUP[0]));
+	int length = (sizeof(OPERATOR_LOOKUP) / sizeof(OPERATOR_LOOKUP[0]));
 
-    for (int i = 0; i < length; i++) {
-        // If match is found check if it is a double operator
-        if ((char*)strchr(value, OPERATOR_LOOKUP[i].symbol) != NULL) {
-            switch (OPERATOR_LOOKUP[i].rep) {
-            case _OP_EQUALS_:
-            case _OP_PLUS_:
-            case _OP_NOT_:
-            case _OP_MINUS_:
-            case _OP_DIVIDE_:
-            case _OP_MULTIPLY_: {
-                TOKENTYPES possibleCondition = (TOKENTYPES)LX_fill_condition_type(value);
+	for (int i = 0; i < length; i++) {
+		// If match is found check if it is a double operator
+		if ((char*)strchr(value, OPERATOR_LOOKUP[i].symbol) != NULL) {
+			switch (OPERATOR_LOOKUP[i].rep) {
+			case _OP_EQUALS_:
+			case _OP_PLUS_:
+			case _OP_NOT_:
+			case _OP_MINUS_:
+			case _OP_DIVIDE_:
+			case _OP_MULTIPLY_: {
+				TOKENTYPES possibleCondition = (TOKENTYPES)LX_fill_condition_type(value);
 
-                if (possibleCondition != _IDENTIFIER_) {
-                    return possibleCondition;
-                }
-            }
-            default:
-                return OPERATOR_LOOKUP[i].rep;
-            }
-        }
-    }
+				if (possibleCondition != _IDENTIFIER_) {
+					return possibleCondition;
+				}
+			}
+			default:
+				return OPERATOR_LOOKUP[i].rep;
+			}
+		}
+	}
 
-    // When none of the above character could be detected, then the fill_condition_type() is called
-    TOKENTYPES alternativeReturnType = LX_fill_condition_type(value);
+	// When none of the above character could be detected, then the fill_condition_type() is called
+	TOKENTYPES alternativeReturnType = LX_fill_condition_type(value);
 
-    if (alternativeReturnType == _UNDEF_) {
-        (void)LEXER_NULL_TOKEN_VALUE_EXCEPTION();
-    }
+	if (alternativeReturnType == _UNDEF_) {
+		(void)LEXER_NULL_TOKEN_VALUE_EXCEPTION();
+	}
 
-    return alternativeReturnType;
+	return alternativeReturnType;
 }
 
 /**
@@ -1036,20 +1036,20 @@ TOKENTYPES LX_fill_operator_type(char *value) {
  * @param *value    Value to convert
  */
 TOKENTYPES LX_fill_condition_type(char *value) {
-    if (value == NULL) {
-        return _UNDEF_;
-    }
+	if (value == NULL) {
+		return _UNDEF_;
+	}
 
-    int length = (sizeof(DOUBLE_OPERATOR_LOOKUP) / sizeof(DOUBLE_OPERATOR_LOOKUP[0]));
+	int length = (sizeof(DOUBLE_OPERATOR_LOOKUP) / sizeof(DOUBLE_OPERATOR_LOOKUP[0]));
 
-    for (int i = 0; i < length; i++) {
-        // Compare the input with the lookup
-        if ((char*)strstr(value, DOUBLE_OPERATOR_LOOKUP[i].seq) != NULL) {
-            return DOUBLE_OPERATOR_LOOKUP[i].rep;
-        }
-    }
+	for (int i = 0; i < length; i++) {
+		// Compare the input with the lookup
+		if ((char*)strstr(value, DOUBLE_OPERATOR_LOOKUP[i].seq) != NULL) {
+			return DOUBLE_OPERATOR_LOOKUP[i].rep;
+		}
+	}
 
-    return _IDENTIFIER_;
+	return _IDENTIFIER_;
 }
 
 /**
@@ -1067,20 +1067,20 @@ TOKENTYPES LX_fill_condition_type(char *value) {
  * @param *tokens   Token to free
  */
 int FREE_TOKENS(TOKEN *tokens) {
-    if (tokensreserved == 1 && tokens != NULL) {
-        for (int i = 0; i < maxTokensLength; i++) {
-            if (tokens[i].value != NULL) {
-                (void)free(tokens[i].value);
-                tokens[i].value = NULL;
-            }
-        }
+	if (tokensreserved == 1 && tokens != NULL) {
+		for (int i = 0; i < maxTokensLength; i++) {
+			if (tokens[i].value != NULL) {
+				(void)free(tokens[i].value);
+				tokens[i].value = NULL;
+			}
+		}
 
-        (void)free(tokens);
-        tokens = NULL;
-        tokensreserved = 0;
-    }
+		(void)free(tokens);
+		tokens = NULL;
+		tokensreserved = 0;
+	}
 
-    return 1;
+	return 1;
 }
 
 /**
@@ -1099,21 +1099,21 @@ int FREE_TOKENS(TOKEN *tokens) {
  * @param nextChar      Second char of the possible double operator
  */
 int LX_check_for_double_operator(char currentChar, char nextChar) {
-    if ((currentChar == '+' && nextChar == '+')
-        || (currentChar == '-' && nextChar == '-')) {
-        return 1;
-    } else if ((currentChar == '-' || currentChar == '+'
-        || currentChar == '*' || currentChar == '/')
-        && nextChar == '=') {
-        return 1;
-    } else if ((currentChar = '<' || currentChar == '>')
-        && nextChar == '=') {
-        return 1;
-    } else if (currentChar == '=' && nextChar == '=') {
-        return 1;
-    } else {
-        return 0;
-    }
+	if ((currentChar == '+' && nextChar == '+')
+		|| (currentChar == '-' && nextChar == '-')) {
+		return 1;
+	} else if ((currentChar == '-' || currentChar == '+'
+		|| currentChar == '*' || currentChar == '/')
+		&& nextChar == '=') {
+		return 1;
+	} else if ((currentChar = '<' || currentChar == '>')
+		&& nextChar == '=') {
+		return 1;
+	} else if (currentChar == '=' && nextChar == '=') {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 /**
@@ -1125,20 +1125,20 @@ int LX_check_for_double_operator(char currentChar, char nextChar) {
  * @param currentTokenIndex     Size of the token array
  */
 void LX_print_result(TOKEN *tokens, size_t currenTokenIndex) {
-    if (tokens != NULL) {
-        (void)printf("\n>>>>>>>>>>>>>>>>>>>>    LEXER    <<<<<<<<<<<<<<<<<<<<\n\n");
+	if (tokens != NULL) {
+		(void)printf("\n>>>>>>>>>>>>>>>>>>>>    LEXER    <<<<<<<<<<<<<<<<<<<<\n\n");
 
-        for (size_t i = 0; i < currenTokenIndex + 2; i++) {
-            if (tokens[i].value == NULL) {
-                printf("Token: (NULL)\n");
-                continue;
-            }
+		for (size_t i = 0; i < currenTokenIndex + 2; i++) {
+			if (tokens[i].value == NULL) {
+				printf("Token: (NULL)\n");
+				continue;
+			}
 
-            (void)printf("Token: %3lu | Type: %-2d | Size: %3li | Line: %3li | Start of TOKEN: %3li -> Token: %s\n", i, (int)tokens[i].type, tokens[i].size, tokens[i].line, tokens[i].tokenStart, tokens[i].value);
-        }
+			(void)printf("Token: %3lu | Type: %-2d | Size: %3li | Line: %3li | Start of TOKEN: %3li -> Token: %s\n", i, (int)tokens[i].type, tokens[i].size, tokens[i].line, tokens[i].tokenStart, tokens[i].value);
+		}
 
-        (void)printf("\n>>>>>    Buffer successfully lexed    <<<<<\n");
-    }
+		(void)printf("\n>>>>>    Buffer successfully lexed    <<<<<\n");
+	}
 }
 
 /**
@@ -1156,19 +1156,19 @@ void LX_print_result(TOKEN *tokens, size_t currenTokenIndex) {
  * @param *value    Value to convert
  */
 TOKENTYPES LX_get_keyword_type(const char *value) {
-    if (value == NULL || (int)is_empty_string(value) == 1) {
-        return _UNDEF_;
-    }
+	if (value == NULL || (int)is_empty_string(value) == 1) {
+		return _UNDEF_;
+	}
 
-    int length = (sizeof(KEYWORD_LOOKUP) / sizeof(KEYWORD_LOOKUP[0]));
-    
-    for (int i = 0; i < length; i++) {
-        if ((int)strcmp(value, KEYWORD_LOOKUP[i].kwName) == 0) {
-            return KEYWORD_LOOKUP[i].kwValue;
-        }
-    }
+	int length = (sizeof(KEYWORD_LOOKUP) / sizeof(KEYWORD_LOOKUP[0]));
+	
+	for (int i = 0; i < length; i++) {
+		if ((int)strcmp(value, KEYWORD_LOOKUP[i].kwName) == 0) {
+			return KEYWORD_LOOKUP[i].kwValue;
+		}
+	}
 
-    return _IDENTIFIER_;
+	return _IDENTIFIER_;
 }
 
 /**
@@ -1179,5 +1179,5 @@ TOKENTYPES LX_get_keyword_type(const char *value) {
  * @param cpu_time_used     CPU time that was used to run the lexer module
  */
 void LX_print_cpu_time(float cpu_time_used) {
-    (void)printf("\nCPU time used for LEXING: %f seconds\n", cpu_time_used);
+	(void)printf("\nCPU time used for LEXING: %f seconds\n", cpu_time_used);
 }
