@@ -1554,8 +1554,8 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 		
 		switch ((*tokens)[startPos + skip + 1].type) {
 		case _OP_RIGHT_BRACE_:
-			rep = PG_create_array_init_tree(tokens, startPos + skip, 0);
-			rep.tokensToSkip++;
+			rep = PG_create_array_init_tree(tokens, startPos + skip + 2, 0);
+			rep.tokensToSkip += 2;
 			break;
 		case _KW_NULL_: {
 			Node *nullNode = PG_create_node("NULL", _NULL_NODE_, (*tokens)[startPos + skip + 1].line, (*tokens)[startPos + skip + 1].tokenStart);
@@ -1570,6 +1570,7 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 		}
 		default:
 			rep = PG_create_member_access_tree(tokens, startPos + skip + 1, false);
+			rep.tokensToSkip++;
 			break;
 		}
 
@@ -1608,21 +1609,26 @@ NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim) {
 	//Automatic '\0' added
 	(void)snprintf(name, size, "d_%i", dim);
 	Node *topNode = PG_create_node(name, _ARRAY_ASSIGNMENT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
-	int jumper = 2; //Skip "=" and first "{"
+	int jumper = 0;
 	int detailsPointer = 0;
+	int running = true;
 	int argCount = (int)PG_predict_array_init_count(tokens, startPos);
 	(void)PG_allocate_node_details(topNode, argCount);
 
-	while (startPos + jumper < TOKEN_LENGTH) {
+	while (startPos + jumper < TOKEN_LENGTH && running == true) {
 		TOKEN *currentToken = &(*tokens)[startPos + jumper];
 		
-		if (currentToken->type == _OP_RIGHT_BRACE_) {
-			NodeReport arrInitReport = PG_create_array_init_tree(tokens, startPos + jumper, dim + 1);
-			jumper += arrInitReport.tokensToSkip;
+		switch (currentToken->type) {
+		case _OP_RIGHT_BRACE_: {
+			NodeReport arrInitReport = PG_create_array_init_tree(tokens, startPos + jumper + 1, dim + 1);
+			jumper += arrInitReport.tokensToSkip + 1;
 			topNode->details[detailsPointer++] = arrInitReport.node;
-		} else if (currentToken->type == _OP_LEFT_BRACE_) {
 			break;
-		} else if (currentToken->type == _OP_COMMA_) {
+		}
+		case _OP_LEFT_BRACE_:
+			running = false;
+			break;
+		case _OP_COMMA_:
 			if (detailsPointer == 0) {
 				TOKEN *prevToken = &(*tokens)[startPos + jumper - 1];
 				enum NodeType prevType = PG_get_node_type_by_value(&prevToken->value);
@@ -1634,15 +1640,19 @@ NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim) {
 				enum NodeType nextType = PG_get_node_type_by_value(&nextToken->value);
 				topNode->details[detailsPointer++] = PG_create_node(nextToken->value, nextType, nextToken->line, nextToken->tokenStart);
 			}
+
+			break;
+		default: break;
 		}
 
 		jumper++;
 	}
 
 	if (detailsPointer == 0) {
-		TOKEN *token = &(*tokens)[startPos + 1];
+		TOKEN *token = &(*tokens)[startPos];
 		enum NodeType type = PG_get_node_type_by_value(&token->value);
 		topNode->details[detailsPointer] = PG_create_node(token->value, type, token->line, token->tokenStart);
+		jumper = 1;
 	}
 
 	return PG_create_node_report(topNode, jumper);
@@ -1657,26 +1667,45 @@ Params: TOKEN **tokens => Pointer to tokens;
 int PG_predict_array_init_count(TOKEN **tokens, size_t startPos) {
 	int openBraces = 0;
 	int jumper = 0;
-	int count = 1;
+	int count = 0;
+	int isRunning = true;
+	TOKEN *prevToken = &(*tokens)[startPos];
 
-	while (startPos + jumper < TOKEN_LENGTH) {
+	while (startPos + jumper < TOKEN_LENGTH && isRunning == true) {
 		TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
-		if (currentToken->type == _OP_RIGHT_BRACE_) {
+		switch (currentToken->type) {
+		case _OP_RIGHT_BRACE_:
 			openBraces++;
-		} else if (currentToken->type == _OP_COMMA_) {
-			if (openBraces == 1) {
-				count++;
-			} else if (openBraces == 0) {
-				break;
-			}
-		} else if (currentToken->type == _OP_LEFT_BRACE_) {
-			openBraces--;
-		} else if (currentToken->type == _OP_SEMICOLON_) {
 			break;
+		case _OP_COMMA_:
+			if (openBraces == 0) {
+				count += count == 0 ? 2 : count > 0 ? 1 : 0;
+			}
+
+			break;
+		case _OP_LEFT_BRACE_:
+			openBraces--;
+
+			if (openBraces < 0) {
+				if (prevToken->type != _OP_RIGHT_BRACE_
+					&& count == 0) {
+					count++;
+				}
+
+				isRunning = false;
+				continue;
+			}
+
+			break;
+		case _OP_SEMICOLON_:
+			isRunning = false;
+			continue;
+		default: break;
 		}
 
 		jumper++;
+		prevToken = currentToken;
 	}
 
 	return count;
@@ -1799,12 +1828,11 @@ NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
 	if ((*tokens)[startPos + skip].type == _OP_EQUALS_) {
 		size_t bounds = (size_t)PG_get_size_till_next_semicolon(tokens, startPos + skip + 1);
 		NodeReport termReport = PG_create_simple_term_node(tokens, startPos + skip + 1, bounds);
-		Node *valueNode = termReport.node;
-		varNode->rightNode = valueNode;
-		skip += termReport.tokensToSkip;
+		varNode->rightNode = termReport.node;
+		skip += termReport.tokensToSkip + 1;
 	}
 
-	return PG_create_node_report(varNode, skip + 1);
+	return PG_create_node_report(varNode, skip);
 }
 
 /**
@@ -2959,7 +2987,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 
 	if (cache == NULL) {
 		int useOptionalTyping = boundaries < 3 ? false : true;
-		NodeReport assignRep = PG_assign_processed_node_to_node(tokens, startPos - 1, useOptionalTyping);
+		NodeReport assignRep = PG_assign_processed_node_to_node(tokens, startPos, useOptionalTyping);
 		cache = assignRep.node;
 	}
 
@@ -3483,11 +3511,10 @@ int PG_propagate_back_till_iden(TOKEN **tokens, size_t startPos) {
  */
 int PG_propagate_offset_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction) {
 	switch (direction) {
-	case LEFT: return -1 * (PG_back_shift_array_access(tokens, startPos)) - 1;
-	case RIGHT: return 1;
-	case STAY:
-	default:
-		return 0;
+	case LEFT:	return -1 * (PG_back_shift_array_access(tokens, startPos)) - 1;
+	case RIGHT:	return 1;
+	case STAY:	return 0;
+	default:	return 0;
 	}
 }
 
@@ -3644,6 +3671,7 @@ int PG_handle_LBracket_function_call(TOKEN **tokens, size_t startPos) {
 		}
 		
 		if (openEdgeBrackets != 0) {
+			jumper++;
 			continue;
 		}
 		
@@ -3656,6 +3684,9 @@ int PG_handle_LBracket_function_call(TOKEN **tokens, size_t startPos) {
 				&& (*tokens)[startPos - jumper - 1].type == _IDENTIFIER_) {
 				return jumper;
 			}
+		} else if (tok->type == _OP_EQUALS_
+			|| tok->type == _OP_SEMICOLON_) {
+			return 0;
 		}
 
 		jumper++;

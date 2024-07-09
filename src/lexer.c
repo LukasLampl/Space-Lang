@@ -1106,7 +1106,7 @@ int LX_check_for_double_operator(char currentChar, char nextChar) {
 		|| currentChar == '*' || currentChar == '/')
 		&& nextChar == '=') {
 		return 1;
-	} else if ((currentChar = '<' || currentChar == '>')
+	} else if ((currentChar = '<' || currentChar == '>' || currentChar == '!')
 		&& nextChar == '=') {
 		return 1;
 	} else if (currentChar == '=' && nextChar == '=') {

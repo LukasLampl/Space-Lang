@@ -412,14 +412,12 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
 			struct VarDec expected = {type.type, 0, NULL, constant};
 			struct SemanticReport rep = SA_create_expected_got_report(expected, type, varNode->details[0]);
 			(void)THROW_TYPE_MISMATCH_EXCEPTION(rep);
-			return;
 		}
 
 		struct SemanticReport assignmentRep = SA_evaluate_assignment(type, varNode->rightNode, actualTable);
 
 		if (assignmentRep.status == ERROR) {
 			(void)THROW_ASSIGNED_EXCEPTION(assignmentRep);
-			return;
 		}
 	}
 
@@ -469,7 +467,6 @@ void SA_add_conditional_variable_to_table(SemanticTable *table, Node *varNode) {
 
 		if (assignmentRep.status == ERROR) {
 			(void)THROW_ASSIGNED_EXCEPTION(assignmentRep);
-			return;
 		}
 	}
 
@@ -504,7 +501,6 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 
 			if (classEntry.entry == NULL) {
 				(void)THROW_NOT_DEFINED_EXCEPTION(valueNode);
-				return;
 			}
 
 			SemanticTable *classTable = (SemanticTable*)classEntry.entry->reference;
@@ -512,7 +508,6 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 
 			if (containsConstructor.status == NA) {
 				(void)THROW_NOT_DEFINED_EXCEPTION(valueNode);
-				return;
 			}
 		}
 	}
@@ -567,7 +562,6 @@ void SA_add_array_variable_to_table(SemanticTable *table, Node *varNode) {
 
 		if (assignmentRep.status == ERROR) {
 			(void)THROW_ASSIGNED_EXCEPTION(assignmentRep);
-			return;
 		}
 	}
 
@@ -1805,28 +1799,37 @@ struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedT
 }
 
 struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
-	expectedType.dimension -= 1;
-	
-	for (int i = 0; i < topNode->detailsCount; i++) {
-		Node *currentNode = topNode->details[i];
+	if (topNode->type == _ARRAY_ASSIGNMENT_NODE_) {
+		struct VarDec cpyType = expectedType;
+		cpyType.dimension -= 1;
 
-		if (currentNode->type == _ARRAY_ASSIGNMENT_NODE_) {
-			if (expectedType.dimension - 1 < 0) {
-				char *msg = "Negative arrays are not allowed.";
-				char *exp = "There's no negative dimension in the SPACE-Lang.";
-				char *sugg = "Maybe remove array accesses, that access deeper than allowed.";
-				struct ErrorContainer errCont = {msg, exp, sugg};
-				return SA_create_semantic_report(nullDec, ERROR, currentNode, NO_SUCH_ARRAY_DIMENSION_EXCEPTION, errCont);
-			}
+		for (int i = 0; i < topNode->detailsCount; i++) {
+			Node *currentNode = topNode->details[i];
 
-			struct SemanticReport innerRep = SA_evaluate_array_assignment(expectedType, currentNode, table);
+			if (currentNode->type == _ARRAY_ASSIGNMENT_NODE_) {
+				if (cpyType.dimension - 1 < 0) {
+					char *msg = "Negative arrays are not allowed.";
+					char *exp = "There's no negative dimension in the SPACE-Lang.";
+					char *sugg = "Maybe remove array accesses, that access deeper than allowed.";
+					struct ErrorContainer errCont = {msg, exp, sugg};
+					return SA_create_semantic_report(nullDec, ERROR, currentNode, NO_SUCH_ARRAY_DIMENSION_EXCEPTION, errCont);
+				}
 
-			if (innerRep.status == ERROR) {
-				return innerRep;
+				struct SemanticReport innerRep = SA_evaluate_array_assignment(cpyType, currentNode, table);
+
+				if (innerRep.status == ERROR) {
+					return innerRep;
+				}
+			} else {
+				struct SemanticReport termRep = SA_evaluate_simple_term(cpyType, currentNode, table);
+
+				if (termRep.status == ERROR) {
+					return termRep;
+				}
 			}
 		}
-
-		struct SemanticReport termRep = SA_evaluate_simple_term(expectedType, currentNode, table);
+	} else {
+		struct SemanticReport termRep = SA_evaluate_simple_term(expectedType, topNode, table);
 
 		if (termRep.status == ERROR) {
 			return termRep;
@@ -2451,7 +2454,7 @@ void THROW_EXCEPTION(char *message, struct SemanticReport rep) {
 	}
 	
 	if (container.explanation != NULL) {
-		(void)printf("    Explaination: %s\n", container.explanation);
+		(void)printf("    Explanation: %s\n", container.explanation);
 	}
 
 	if (container.suggestion != NULL) {
