@@ -1,0 +1,8 @@
+class Object => {
+
+}
+
+function cO() -> Object {
+    var:Object objArr[];
+    return objArr;
+}

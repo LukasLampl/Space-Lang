@@ -759,6 +759,13 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
 			return isCondAssignment;
 		}
 
+		SyntaxReport isArrCreation = SA_is_array_assignment_element(tokens, startPos + 1, 0);
+
+		if (isArrCreation.errorOccured == false) {
+			isArrCreation.tokensToSkip++;
+			return isArrCreation;
+		}
+
 		SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + 1, false);
 
 		if (isSimpleTerm.errorOccured == true) {

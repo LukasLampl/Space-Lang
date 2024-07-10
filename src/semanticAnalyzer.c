@@ -126,6 +126,7 @@ void SA_add_if_to_table(SemanticTable *table, Node *ifNode);
 void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *parentNode, int index);
 void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode, int index);
 void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrContinueNode);
+void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 
 int SA_count_set_array_var_dimensions(Node *arrayVar);
 int SA_is_break_or_continue_placement_valid(SemanticTable *table);
@@ -136,6 +137,7 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
 int SA_get_node_param_count(struct Node *paramHolder);
 
+struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *node);
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
@@ -279,6 +281,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 		case _CONTINUE_STMT_NODE_:
 		case _BREAK_STMT_NODE_:
 			(void)SA_check_break_or_continue_to_table(table, currentNode);
+			break;
+		case _RETURN_STMT_NODE_:
+			(void)SA_add_return_to_table(table, currentNode);
 			break;
 		default: continue;
 		}
@@ -493,22 +498,10 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 	}
 
 	if (varNode->rightNode != NULL) {
-		struct Node *valueNode = varNode->rightNode;
+		struct SemanticReport instanceRep = SA_evaluate_instance_creation(table, varNode->rightNode);
 
-		if (valueNode->type == _FUNCTION_CALL_NODE_) {
-			SemanticTable *topTable = SA_get_next_table_of_type(table, MAIN);
-			struct SemanticEntryReport classEntry = SA_get_entry_if_available(valueNode, topTable);
-
-			if (classEntry.entry == NULL) {
-				(void)THROW_NOT_DEFINED_EXCEPTION(valueNode);
-			}
-
-			SemanticTable *classTable = (SemanticTable*)classEntry.entry->reference;
-			struct SemanticReport containsConstructor = SA_contains_constructor_of_type(classTable, valueNode, CONSTRUCTOR_CHECK_CALL);
-
-			if (containsConstructor.status == NA) {
-				(void)THROW_NOT_DEFINED_EXCEPTION(valueNode);
-			}
+		if (instanceRep.status == ERROR) {
+			(void)THROW_ASSIGNED_EXCEPTION(instanceRep);
 		}
 	}
 
@@ -536,8 +529,8 @@ void SA_add_array_variable_to_table(SemanticTable *table, Node *varNode) {
 	}
 
 	int constant = varNode->type == _ARRAY_VAR_NODE_ ? false : true;
-	struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0], constant);
 	int setDimensions = (int)SA_count_set_array_var_dimensions(varNode);
+	struct VarDec type = SA_get_VarType(varNode->details == NULL ? NULL : varNode->details[0], constant);
 
 	if (type.dimension != 0) {
 		char *msg = "Setting array var type is not allowed when an array is defined.";
@@ -546,7 +539,6 @@ void SA_add_array_variable_to_table(SemanticTable *table, Node *varNode) {
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, varNode->details[0], WRONG_ARGUMENT_EXCPEPTION, errCont);
 		(void)THROW_ASSIGNED_EXCEPTION(rep);
-		return;
 	}
 
 	type.dimension = setDimensions;
@@ -882,6 +874,43 @@ void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrCont
 	}
 }
 
+void SA_add_return_to_table(SemanticTable *table, Node *returnNode) {
+	SemanticTable *potentialFunctionTable = SA_get_next_table_of_type(table, FUNCTION);
+
+	if (potentialFunctionTable->type != FUNCTION) {
+		char *msg = "Returns statements are only allowed within a scope of a function.";
+		char *exp = "If a return statement is not within a function scope, nothing can be returned as a \"result\".";
+		char *sugg = "Maybe wrap the \"return\" into a function or remove the \"return\" statement.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, returnNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	struct HashMapEntry *hashFunctionEntry = HM_get_entry(potentialFunctionTable->name, potentialFunctionTable->parent->symbolTable);
+	struct SemanticEntry *functionEntry = (struct SemanticEntry*)(hashFunctionEntry->value);
+	struct VarDec awaitedType = functionEntry->dec;
+	struct SemanticReport rep = nullRep;
+
+	if ((int)SA_is_node_arithmetic_operator(returnNode->leftNode) == true) {
+		rep = SA_evaluate_simple_term(awaitedType, returnNode->leftNode, table);
+	} else if (returnNode->leftNode->type == _INHERITED_CLASS_NODE_) {
+		rep = SA_evaluate_instance_creation(table, returnNode->leftNode);
+	} else {
+		rep = SA_evaluate_simple_term(awaitedType, returnNode->leftNode, table);
+	}
+
+	if (rep.status == ERROR) {
+		(void)THROW_ASSIGNED_EXCEPTION(rep);
+	} else if ((int)SA_are_VarTypes_equal(awaitedType, rep.dec, false) == false) {
+		struct SemanticReport errRep = SA_create_expected_got_report(awaitedType, rep.dec, returnNode);
+		(void)THROW_TYPE_MISMATCH_EXCEPTION(errRep);
+	}
+
+	char *name = SA_get_string("return");
+	(void)HM_add_entry(name, NULL, table->symbolTable);
+}
+
 int SA_count_set_array_var_dimensions(Node *arrayVar) {
 	int dims = 0;
 
@@ -971,6 +1000,41 @@ struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *
 
 		return nullRep;
 	}
+}
+
+struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *node) {
+	struct VarDec dec = nullDec;
+
+	if (node->type == _INHERITED_CLASS_NODE_) {
+		SemanticTable *topTable = SA_get_next_table_of_type(table, MAIN);
+		struct SemanticEntryReport classEntry = SA_get_entry_if_available(node, topTable);
+
+		if (classEntry.entry == NULL) {
+			return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
+		}
+		
+		dec.type = CLASS_REF;
+		dec.classType = classEntry.entry->name;
+		
+		if (node->detailsCount == 0) { //Empty constructor
+			return SA_create_semantic_report(dec, SUCCESS, NULL, NONE, nullCont);
+		}
+
+		SemanticTable *classTable = (SemanticTable*)classEntry.entry->reference;
+		struct SemanticReport containsConstructor = SA_contains_constructor_of_type(classTable, node, CONSTRUCTOR_CHECK_CALL);
+
+		if (containsConstructor.status == NA) {
+			return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
+		}
+	} else {
+		char *msg = "Inherited var assignment is not a inheritance of a class.";
+		char *exp = "A var, that awaits an inherited class, cannot be assigned to a non-class statement";
+		char *sugg = "Maybe remove the instance creation or inherit from an existing class.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		return SA_create_semantic_report(nullDec, ERROR, node, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+	}
+
+	return SA_create_semantic_report(dec, SUCCESS, NULL, NONE, nullCont);
 }
 
 char *SA_get_string(char bufferString[]) {
@@ -1441,8 +1505,8 @@ struct SemanticReport SA_create_expected_got_report(struct VarDec expected, stru
 		return SA_create_semantic_report(nullDec, ERROR, errorNode, TYPE_MISMATCH_EXCEPTION, nullCont);
 	}
 
-	(void)snprintf(buffer, (length + 32 + 1) * sizeof(char), "Expected %s, but got %s instead.", expected_str, got_str);
-	(void)snprintf(sugg, (length + 26 + 1) * sizeof(char), "Maybe change the %s to %s.", got_str, expected_str);
+	(void)snprintf(buffer, (length + 32 + 1) * sizeof(char), "Expected \"%s\", but got \"%s\" instead.", expected_str, got_str);
+	(void)snprintf(sugg, (length + 26 + 1) * sizeof(char), "Maybe change the \"%s\" to \"%s\".", got_str, expected_str);
 	char *exp = "Typesafety is active, so types have to either match strictly or be converted to the according type.";
 	struct ErrorContainer errCont = {buffer, exp, sugg};
 	(void)free(expected_str);
@@ -1599,22 +1663,21 @@ struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Vis
 			return nullRep;
 		}
 	}
-	
+
 	SemanticTable *nextClassTable = SA_get_next_table_of_type(currentScope, CLASS);
 
-	if (nextClassTable == NULL) {
+	if (nextClassTable == NULL || currentScope->name == NULL
+		|| nextClassTable->name == NULL) {
 		return nullRep;
-	} if ((int)strcmp(currentScope->name, nextClassTable->name) == 0
+	} else if ((int)strcmp(currentScope->name, nextClassTable->name) == 0
 		&& nextClassTable->type != MAIN) {
 		return nullRep;
-	} else {
-		if (vis == PRIVATE || vis == SECURE) {
-			char *msg = "Tried to access \"hidden\" declaration.";
-			char *exp = "It is not possible to access a variable or class that is \"hidden\" externally.";
-			char *sugg = "Maybe change the modifier to \"global\".";
-			struct ErrorContainer errCont = {msg, exp, sugg};
-			return SA_create_semantic_report(nullDec, ERROR, node, MODIFIER_EXCEPTION, errCont);
-		}
+	} else if (vis == PRIVATE || vis == SECURE) {
+		char *msg = "Tried to access \"hidden\" declaration.";
+		char *exp = "It is not possible to access a variable or class that is \"hidden\" externally.";
+		char *sugg = "Maybe change the modifier to \"global\".";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		return SA_create_semantic_report(nullDec, ERROR, node, MODIFIER_EXCEPTION, errCont);
 	}
 
 	return nullRep;
@@ -1940,6 +2003,8 @@ int SA_are_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
 		if ((int)strcmp(type1.classType, type2.classType) == 0
 			&& type1.dimension == type2.dimension) {
 			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -1986,6 +2051,8 @@ int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
 		if ((int)strcmp(type1.classType, type2.classType) == 0
 			&& type1.dimension == type2.dimension) {
 			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -2364,8 +2431,14 @@ void THROW_STATEMENT_MISPLACEMENT_EXEPTION(struct SemanticReport rep) {
 
 void THROW_TYPE_MISMATCH_EXCEPTION(struct SemanticReport rep) {
 	(void)THROW_EXCEPTION("TypeMismatchException", rep);
-	(void)free(rep.container.description);
-	(void)free(rep.container.suggestion);
+
+	if (rep.container.description != NULL) {
+		(void)free(rep.container.description);
+	}
+
+	if (rep.container.suggestion != NULL) {
+		(void)free(rep.container.suggestion);
+	}
 }
 
 void THROW_NOT_DEFINED_EXCEPTION(Node *node) {

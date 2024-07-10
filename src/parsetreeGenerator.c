@@ -1152,6 +1152,11 @@ NodeReport PG_create_return_statement_tree(TOKEN **tokens, size_t startPos) {
 		NodeReport condReport = PG_create_condition_assignment_tree(tokens, startPos + 1);
 		topNode->leftNode = condReport.node;
 		skip += condReport.tokensToSkip;
+	} else if ((*tokens)[startPos + 1].type == _OP_RIGHT_BRACE_) {
+		int dims = (int)PG_predict_array_init_count(tokens, startPos + 1);
+		NodeReport arrRep = PG_create_array_init_tree(tokens, startPos + 2, dims);
+		topNode->leftNode = arrRep.node;
+		skip += arrRep.tokensToSkip + 1;
 	} else {
 		int bounds = (int)PG_get_term_bounds(tokens, startPos + 1);
 		NodeReport termReport = PG_create_simple_term_node(tokens, startPos + 1, bounds);
@@ -1386,6 +1391,7 @@ NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
 	
 	NodeReport classPathRep = PG_create_member_access_tree(tokens, startPos + skip, false);
 	topNode->rightNode = classPathRep.node;
+	topNode->rightNode->type = _INHERITED_CLASS_NODE_;
 	skip += classPathRep.tokensToSkip;
 	return PG_create_node_report(topNode, skip + 1);
 }
