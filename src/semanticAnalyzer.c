@@ -127,6 +127,7 @@ void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *paren
 void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode, int index);
 void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrContinueNode);
 void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
+void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 
 int SA_count_set_array_var_dimensions(Node *arrayVar);
 int SA_count_total_array_dimensions(Node *arrayNode);
@@ -285,6 +286,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 			break;
 		case _RETURN_STMT_NODE_:
 			(void)SA_add_return_to_table(table, currentNode);
+			break;
+		case _FOR_STMT_NODE_:
+			(void)SA_add_for_to_table(table, currentNode);
 			break;
 		default: continue;
 		}
@@ -921,6 +925,32 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode) {
 
 	char *name = SA_get_string("return");
 	(void)HM_add_entry(name, NULL, table->symbolTable);
+}
+
+void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
+	if (table->type == CLASS || table->type == ENUM) {
+		char *msg = "For loops ore not allowed in classes or enums.";
+		char *exp = "There is no possible way for a function to execute the loop.";
+		char *sugg = "Maybe move the \"for\" into a function, constructor or remove the \"for\".";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, forNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	char *name = SA_get_string("for");
+	SemanticTable *forTable = SA_create_new_scope_table(forNode->rightNode, FOR, table, NULL, forNode->line, forNode->position);
+	struct SemanticEntry *forEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, FOR, forTable, forNode->line, forNode->position);
+	(void)HM_add_entry(name, forEntry, table->symbolTable);
+
+	(void)SA_add_array_variable_to_table(forTable, forNode->leftNode);
+	struct SemanticReport conditionRep = SA_evaluate_chained_condition(forTable, forNode->details[0]);
+
+	if (conditionRep.status == ERROR) {
+		(void)THROW_ASSIGNED_EXCEPTION(conditionRep);
+	}
+
+	(void)SA_manage_runnable(forNode->rightNode, forTable);
 }
 
 int SA_count_set_array_var_dimensions(Node *arrayVar) {
