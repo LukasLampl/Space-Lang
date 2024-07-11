@@ -64,9 +64,9 @@
 - [X] Valid conditions
    - [X] Valid scope placement (FUNCTION or MAIN only)
 
-- [ ] Check returns statements
-   - [ ] Valid return value
-   - [ ] Valid scope placement (FUNCTION only)
+- [X] Check returns statements
+   - [X] Valid return value
+   - [X] Valid scope placement (FUNCTION only)
 
 - [X] Check continue statements
    - [X] Valid scope placement (LOOP only)

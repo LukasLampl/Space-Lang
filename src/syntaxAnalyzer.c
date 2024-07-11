@@ -756,6 +756,7 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
 		SyntaxReport isCondAssignment = SA_is_conditional_assignment(tokens, startPos + 1, true);
 		
 		if (isCondAssignment.errorOccured == false) {
+			isCondAssignment.tokensToSkip += 2;
 			return isCondAssignment;
 		}
 

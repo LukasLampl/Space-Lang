@@ -129,6 +129,7 @@ void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrCont
 void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 
 int SA_count_set_array_var_dimensions(Node *arrayVar);
+int SA_count_total_array_dimensions(Node *arrayNode);
 int SA_is_break_or_continue_placement_valid(SemanticTable *table);
 char *SA_get_string(char bufferString[]);
 struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *rootNode);
@@ -896,6 +897,17 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode) {
 		rep = SA_evaluate_simple_term(awaitedType, returnNode->leftNode, table);
 	} else if (returnNode->leftNode->type == _INHERITED_CLASS_NODE_) {
 		rep = SA_evaluate_instance_creation(table, returnNode->leftNode);
+	} else if (returnNode->leftNode->type == _ARRAY_ASSIGNMENT_NODE_) {
+		rep = SA_evaluate_array_assignment(awaitedType, returnNode->leftNode, table);
+
+		//If a array is returned, but a non-array was awaited, a NO_SUCH_ARRAY_DIM... is thrown
+		if (rep.status == ERROR && rep.errorType == NO_SUCH_ARRAY_DIMENSION_EXCEPTION) {
+			int foundDim = (int)SA_count_total_array_dimensions(returnNode->leftNode);
+			struct VarDec gotType = {awaitedType.type, foundDim, NULL, false};
+			rep = SA_create_expected_got_report(awaitedType, gotType, rep.errorNode);
+		}
+	} else if (returnNode->leftNode->type == _CONDITIONAL_ASSIGNMENT_NODE_) {
+		rep = SA_evaluate_conditional_assignment(awaitedType, returnNode->leftNode, table);
 	} else {
 		rep = SA_evaluate_simple_term(awaitedType, returnNode->leftNode, table);
 	}
@@ -916,6 +928,22 @@ int SA_count_set_array_var_dimensions(Node *arrayVar) {
 
 	for (int i = 0; i < arrayVar->detailsCount; i++) {
 		dims += arrayVar->details[i]->type != _VAR_TYPE_NODE_ ? 1 : 0;
+	}
+
+	return dims;
+}
+
+int SA_count_total_array_dimensions(Node *arrayNode) {
+	int dims = 1;
+
+	for (int i = 0; i < arrayNode->detailsCount; i++) {
+		Node *curNode = arrayNode->details[i];
+
+		if (curNode == NULL) {
+			continue;
+		} else if (curNode->type == _ARRAY_ASSIGNMENT_NODE_) {
+			dims += SA_count_total_array_dimensions(curNode);
+		};
 	}
 
 	return dims;
@@ -1858,7 +1886,7 @@ struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedT
 		}
 	}
 
-	return nullRep;
+	return SA_create_semantic_report(expectedType, SUCCESS, NULL, NONE, nullCont);
 }
 
 struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
@@ -1866,18 +1894,18 @@ struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, N
 		struct VarDec cpyType = expectedType;
 		cpyType.dimension -= 1;
 
+		if (cpyType.dimension < 0) {
+			char *msg = "Negative arrays are not allowed.";
+			char *exp = "There's no negative dimension in the SPACE-Lang.";
+			char *sugg = "Maybe remove array accesses, that access deeper than allowed.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			return SA_create_semantic_report(nullDec, ERROR, topNode, NO_SUCH_ARRAY_DIMENSION_EXCEPTION, errCont);
+		}
+
 		for (int i = 0; i < topNode->detailsCount; i++) {
 			Node *currentNode = topNode->details[i];
 
 			if (currentNode->type == _ARRAY_ASSIGNMENT_NODE_) {
-				if (cpyType.dimension - 1 < 0) {
-					char *msg = "Negative arrays are not allowed.";
-					char *exp = "There's no negative dimension in the SPACE-Lang.";
-					char *sugg = "Maybe remove array accesses, that access deeper than allowed.";
-					struct ErrorContainer errCont = {msg, exp, sugg};
-					return SA_create_semantic_report(nullDec, ERROR, currentNode, NO_SUCH_ARRAY_DIMENSION_EXCEPTION, errCont);
-				}
-
 				struct SemanticReport innerRep = SA_evaluate_array_assignment(cpyType, currentNode, table);
 
 				if (innerRep.status == ERROR) {
@@ -1899,7 +1927,7 @@ struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, N
 		}
 	}
 
-	return nullRep;
+	return SA_create_semantic_report(expectedType, SUCCESS, NULL, NONE, nullCont);
 }
 
 /**
@@ -2410,7 +2438,7 @@ void FREE_TABLE(SemanticTable *rootTable) {
 }
 
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(struct SemanticReport rep) {
-	(void)THROW_EXCEPTION("NoSuchArrayDimension", rep);
+	(void)THROW_EXCEPTION("NoSuchArrayDimensionException", rep);
 }
 
 void THROW_MODIFIER_EXCEPTION(struct SemanticReport rep) {
