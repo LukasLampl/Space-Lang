@@ -281,9 +281,10 @@ TOKEN* Tokenize(int **arrayOfIndividualTokenSizes) {
 			i += (int)LX_skip_whitespaces(input, i, &lineNumber);
 			storageIndex = 0;
 			continue;
-
+		}
+		
 		// Execute if input at i is an operator
-		} else if (isOperator) {
+		if (isOperator) {
 			// Check if the TOKEN could be a FLOAT or not
 			if ((*input)[i] == '.' 
 				&& ((int)is_digit((*input)[i - 1])
@@ -293,7 +294,8 @@ TOKEN* Tokenize(int **arrayOfIndividualTokenSizes) {
 				continue;
 			} else if ((*input)[i] == '*') {
 				if ((int)is_space((*input)[i + 1]) == 0
-					&& (int)is_digit((*input)[i + 1]) == 0) {
+					&& (int)is_digit((*input)[i + 1]) == 0
+					&& (*input)[i + 1] != '=') {
 					int ptrRet = (int)LX_write_pointer_in_token(&TOKENS[storagePointer], input, i);
 
 					if (ptrRet > 0) {
@@ -343,7 +345,7 @@ TOKEN* Tokenize(int **arrayOfIndividualTokenSizes) {
 			// Figure out whether the input is a double operator like "++" or "--" or not
 			} else if ((int)LX_check_for_double_operator((*input)[i], (*input)[i + 1])) {
 				TOKENS[storagePointer].tokenStart = i;
-				(void)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);   
+				(void)LX_write_double_operator_in_token(&TOKENS[storagePointer], (*input)[i], (*input)[i + 1]);
 				(void)LX_set_line_number(&TOKENS[storagePointer], lineNumber);
 				TOKENS[storagePointer].tokenStart = ++i;
 				storagePointer++;
@@ -483,39 +485,40 @@ int LX_is_reference_on_pointer(TOKEN *token, char **buffer, size_t currentSymbol
  * @param **buffer              Source code buffer
  */
 int LX_write_pointer_in_token(TOKEN *token, char **buffer, size_t currentBufferCharPos) {
-	if (token != NULL) {
-		int pointers = 0;
-
-		for (size_t i = 0; i + currentBufferCharPos < BUFFER_LENGTH; i++) {
-			if ((*buffer)[currentBufferCharPos + i] == '*') {
-				pointers++;
-				continue;
-			}
-
-			if ((int)is_space((*buffer)[currentBufferCharPos + i]) == 1
-				|| (int)is_digit((*buffer)[currentBufferCharPos + i]) == 1) {
-				LEXER_UNFINISHED_POINTER_EXCEPTION();
-			} else if ((int)check_for_operator((*buffer)[currentBufferCharPos + i]) == 1) {
-				return 0;
-			} else {
-				break;
-			}
-		}
-
-		while (token->size < pointers + 1) {
-			(void)LX_resize_tokens_value(token, token->size);
-		}
-
-		for (int i = 0; i < pointers; i++) {
-			token->value[i] = '*';
-		}
-
-		token->value[pointers + 1] = '\0';
-		token->type = _POINTER_;
-		return pointers;
+	if (token == NULL) {
+		return 0;
 	}
 
-	return 0;
+	int pointers = 0;
+
+	for (size_t i = 0; i + currentBufferCharPos < BUFFER_LENGTH; i++) {
+		char currentChar = (*buffer)[currentBufferCharPos + i];
+
+		if (currentChar == '*') {
+			pointers++;
+			continue;
+		}
+
+		if ((int)is_space(currentChar) == 1 || (int)is_digit(currentChar) == 1) {
+			(void)LEXER_UNFINISHED_POINTER_EXCEPTION();
+		} else if ((int)check_for_operator(currentChar) == 1) {
+			return 0;
+		}
+
+		break;
+	}
+
+	while (token->size < pointers + 1) {
+		(void)LX_resize_tokens_value(token, token->size);
+	}
+
+	for (int i = 0; i < pointers; i++) {
+		token->value[i] = '*';
+	}
+
+	token->value[pointers + 1] = '\0';
+	token->type = _POINTER_;
+	return pointers;
 }
 
 /**
@@ -657,18 +660,18 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
 	int jumpForward = 1;
 	// Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
 	while ((jumpForward + currentIndex) < BUFFER_LENGTH) {
+		char currentCharacter = (*input)[currentIndex + jumpForward];
+		char nextCharacter = (*input)[currentCharacter + jumpForward + 1];
 		//Check for '\n'
-		if ((int)is_space((*input)[currentIndex + jumpForward]) == 2) {
+		if ((int)is_space(currentCharacter) == 2) {
 			(*lineNumber)++;
 		}
 
 		if (crucialChar == '*'
-			&& (*input)[currentIndex + jumpForward] == '*'
-			&& (*input)[currentIndex + jumpForward + 1] == '/') {
+			&& currentCharacter == '*' && nextCharacter == '/') {
 			jumpForward++;
 			break;
-		} else if (crucialChar == '/'
-			&& (*input)[currentIndex + jumpForward] == '\n') {
+		} else if (crucialChar == '/' && currentCharacter == '\n') {
 			break;
 		}
 
@@ -819,7 +822,7 @@ void LX_write_class_accessor_or_creator_in_token(TOKEN *token, char crucialChar,
 		src[2] = '\0';
 		
 		// Check for possible buffer overflow (important when changes occour)
-		if (strlen(src) <= token->size) {
+		if ((int)strlen(src) <= token->size) {
 			(void)strncpy(token->value, src, token->size);
 		} else {
 			int length = (int)strlen(src) * sizeof(char) + sizeof(char);
@@ -865,7 +868,6 @@ void LX_write_double_operator_in_token(TOKEN *token, char currentChar, char next
 		token->value[0] = currentChar;
 		token->value[1] = nextChar;
 		token->value[2] = '\0';
-
 		token->type = (TOKENTYPES)LX_fill_condition_type(token->value);
 	}
 }
@@ -889,7 +891,6 @@ void LX_write_default_operator_in_token(TOKEN *token, char currentChar, size_t l
 		token->value[0] = currentChar;
 		token->value[1] = '\0';
 		(void)LX_set_line_number(token, lineNumber);
-
 		token->type = (TOKENTYPES)LX_fill_operator_type(token->value);
 	}
 }
@@ -993,10 +994,8 @@ TOKENTYPES LX_fill_operator_type(char *value) {
 		// If match is found check if it is a double operator
 		if ((char*)strchr(value, OPERATOR_LOOKUP[i].symbol) != NULL) {
 			switch (OPERATOR_LOOKUP[i].rep) {
-			case _OP_EQUALS_:
-			case _OP_PLUS_:
-			case _OP_NOT_:
-			case _OP_MINUS_:
+			case _OP_EQUALS_:	case _OP_PLUS_:
+			case _OP_NOT_:		case _OP_MINUS_:
 			case _OP_DIVIDE_:
 			case _OP_MULTIPLY_: {
 				TOKENTYPES possibleCondition = (TOKENTYPES)LX_fill_condition_type(value);

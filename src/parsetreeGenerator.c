@@ -932,7 +932,7 @@ NodeReport PG_create_increment_decrement_tree(TOKEN **tokens, size_t startPos) {
 	int skip = 0;
 	int idenpassedBy = false;
 	int breakLoop = false;
-	Node *topNode = PG_create_node("SASS", _SIMLE_INC_DEC_ASS_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node("SASS", _SIMPLE_INC_DEC_ASS_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
 	Node *cache = NULL;
 	
 	while (startPos + skip < TOKEN_LENGTH
