@@ -333,10 +333,10 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
 		SyntaxReport isKWBasedRunnable = SA_is_keyword_based_runnable(tokens, startPos + jumper);
 		int KWRet = (int)SA_handle_runnable_rep(isKWBasedRunnable, tokens, startPos, &jumper, withBlock);
-		
+
 		if (KWRet == -1) {
 			return isKWBasedRunnable;
-		} else if (KWRet == 1) {
+		} else if (KWRet == 0 || KWRet == 1) {
 			continue;
 		}
 		
@@ -400,9 +400,8 @@ int SA_handle_runnable_rep(SyntaxReport report, TOKEN **tokens, size_t startPos,
 				return 0;
 			}
 		}
-	} else if (report.errorOccured == false
-		&& report.tokensToSkip > 0) {
-		(*jumper) += report.tokensToSkip;
+	} else if (report.errorOccured == false) {
+		(*jumper) += report.tokensToSkip > 0 ? report.tokensToSkip : 1;
 	}
 
 	return 1;
@@ -430,7 +429,7 @@ int SA_handle_runnable_rep(SyntaxReport report, TOKEN **tokens, size_t startPos,
 SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
 	SyntaxReport rep = {NULL, -1};
 	int mode = -1;
-	
+
 	if ((int)SA_predict_expression(tokens, startPos) == true) {
 		mode = 0;
 		rep = SA_is_expression(tokens, startPos, true);
@@ -573,7 +572,7 @@ int SA_predict_class_instance(TOKEN **tokens, size_t startPos) {
 */
 int SA_predict_expression(TOKEN **tokens, size_t startPos) {
 	int jumper = 0;
-	
+
 	while (startPos + jumper <  MAX_TOKEN_LENGTH) {
 		TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
@@ -2341,7 +2340,7 @@ SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos) {
 	if ((*tokens)[startPos + isEnumerator.tokensToSkip + 3].type != _OP_LEFT_BRACE_) {
 		return SA_create_syntax_report(&(*tokens)[startPos + isEnumerator.tokensToSkip + 3], 0, true, "}");
 	}
-	
+
 	return SA_create_syntax_report(NULL, isEnumerator.tokensToSkip + 4, false, NULL);
 }
 

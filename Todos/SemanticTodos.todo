@@ -84,10 +84,10 @@
    - [ ] Valid scope placement (FUNCTION or MAIN only)
 
 - [ ] Check for trees
-   - [ ] Valid counter variable
+   - [X] Valid counter variable
    - [ ] Valid increment/decrement
-   - [ ] Valid conditions
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+   - [X] Valid conditions
+   - [X] Valid scope placement (FUNCTION or MAIN only)
 
 - [X] Check if statements
    - [X] Valid runnable

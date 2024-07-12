@@ -128,6 +128,7 @@ void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode
 void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrContinueNode);
 void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 void SA_add_for_to_table(SemanticTable *table, Node *forNode);
+void SA_check_assignments(SemanticTable *table, Node *node);
 
 int SA_count_set_array_var_dimensions(Node *arrayVar);
 int SA_count_total_array_dimensions(Node *arrayNode);
@@ -290,7 +291,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 		case _FOR_STMT_NODE_:
 			(void)SA_add_for_to_table(table, currentNode);
 			break;
-		default: continue;
+		default:
+			(void)SA_check_assignments(table, currentNode);
+			break;
 		}
 	}
 }
@@ -622,7 +625,8 @@ void SA_add_enum_to_table(SemanticTable *table, Node *enumNode) {
 
 void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *topNode) {
 	struct VarDec enumDec = {INTEGER, 0, NULL};
-	
+	struct HashMap *valueMap = (struct HashMap*)CreateNewHashMap(4);
+
 	for (int i = 0; i < topNode->detailsCount; i++) {
 		struct Node *enumerator = topNode->details[i];
 
@@ -631,15 +635,20 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *top
 		}
 
 		char *name = enumerator->value;
+		char *assignedValue = enumerator->rightNode->value;
 
-		if ((int)HM_contains_key(name, enumTable->symbolTable) == true) {
+		if ((int)HM_contains_key(name, enumTable->symbolTable) == true
+			|| (int)HM_contains_key(assignedValue, valueMap) == true) {
 			(void)THROW_ALREADY_DEFINED_EXCEPTION(enumerator);
 			return;
 		}
 
 		struct SemanticEntry *entry = SA_create_semantic_entry(name, enumDec, P_GLOBAL, ENUMERATOR, NULL, enumerator->line, enumerator->position);
 		(void)HM_add_entry(name, entry, enumTable->symbolTable);
+		(void)HM_add_entry(assignedValue, NULL, valueMap);
 	}
+
+	(void)HM_free(valueMap);
 }
 
 void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
@@ -951,6 +960,10 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 	}
 
 	(void)SA_manage_runnable(forNode->rightNode, forTable);
+}
+
+void SA_check_assignments(SemanticTable *table, Node *node) {
+	
 }
 
 int SA_count_set_array_var_dimensions(Node *arrayVar) {
