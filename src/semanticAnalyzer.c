@@ -132,6 +132,8 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
 
+
+struct SemanticReport SA_set_scope_table_of_member_access(struct VarDec retType, Node *cachedNode, SemanticTable **currentScope, struct SemanticEntryReport foundEntry);
 int SA_count_set_array_var_dimensions(Node *arrayVar);
 int SA_count_total_array_dimensions(Node *arrayNode);
 int SA_is_break_or_continue_placement_valid(SemanticTable *table);
@@ -165,8 +167,8 @@ struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node
 struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable);
 
 struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope, SemanticTable *topScope);
-SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *table);
-struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTable *table);
+SemanticTable *SA_get_next_table_with_declaration(char *key, SemanticTable *table);
+struct SemanticEntryReport SA_get_entry_if_available(char *NodeAsKey, SemanticTable *table);
 struct VarDec SA_convert_identifier_to_VarType(Node *node);
 struct VarDec SA_get_VarType(Node *node, int constant);
 enum Visibility SA_get_visibility(Node *visibilityNode);
@@ -508,7 +510,7 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 	}
 	
 	int constant = varNode->type == _VAR_CLASS_INSTANCE_NODE_ ? false : true;
-	struct VarDec type = {CLASS_REF, 0, varNode->value, constant};
+	struct VarDec type = {CLASS_REF, 0, varNode->rightNode->value, constant};
 	SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
 	if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
@@ -524,7 +526,7 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 		}
 	}
 
-	SemanticEntry *entry = SA_create_semantic_entry(name, type, vis, VARIABLE, NULL, varNode->line, varNode->position);
+	SemanticEntry *entry = SA_create_semantic_entry(name, type, vis, CLASS_INSTANCE, NULL, varNode->line, varNode->position);
 	(void)HM_add_entry(name, entry, table->symbolTable);
 }
 
@@ -974,6 +976,15 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 }
 
 void SA_check_assignments(SemanticTable *table, Node *node) {
+	if (table->type == ENUM || table->type == CLASS) {
+		char *msg = "Assignments are only allowed in callables.";
+		char *exp = "Is an assignment is not in a callable, it can't be invoked.";
+		char *sugg = "Maybe move the assignment into a callable like a function, constructor or MAIN.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+	}
+
 	Node *lValNode = node->leftNode;
 	Node *rValNode = node->rightNode;
 	struct SemanticReport lValReport = SA_evaluate_member_access(lValNode, table);
@@ -1123,7 +1134,7 @@ struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *
 
 	if (node->type == _INHERITED_CLASS_NODE_) {
 		SemanticTable *topTable = SA_get_next_table_of_type(table, MAIN);
-		struct SemanticEntryReport classEntry = SA_get_entry_if_available(node, topTable);
+		struct SemanticEntryReport classEntry = SA_get_entry_if_available(node->value, topTable);
 
 		if (classEntry.entry == NULL) {
 			return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
@@ -1401,10 +1412,10 @@ struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *ta
 	struct SemanticReport rep;
 
 	if (topNode->type == _MEM_CLASS_ACC_NODE_) {
-		topScope = SA_get_next_table_with_declaration(topNode->leftNode, table);
+		topScope = SA_get_next_table_with_declaration(topNode->leftNode->value, table);
 		rep = SA_check_non_restricted_member_access(topNode, table, topScope);
 	} else {
-		topScope = SA_get_next_table_with_declaration(topNode, table);
+		topScope = SA_get_next_table_with_declaration(topNode->value, table);
 		rep = SA_check_restricted_member_access(topNode, table, topScope);
 	}
 
@@ -1445,9 +1456,9 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	struct VarDec retType = {CUSTOM, 0, NULL};
 
 	while (cacheNode != NULL) {
-		struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode, currentScope);
+		struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode->value, currentScope);
 		struct SemanticReport resMemRep = SA_check_restricted_member_access(cacheNode->leftNode, table, currentScope);
-		
+
 		if (entry.entry == NULL) {
 			return SA_create_semantic_report(nullDec, ERROR, cacheNode->leftNode, NOT_DEFINED_EXCEPTION, nullCont);
 		} else if (resMemRep.status == ERROR) {
@@ -1471,11 +1482,58 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 		}
 
 		retType = resMemRep.dec;
-		currentScope = entry.entry->reference;
+		struct SemanticReport scopeReport = SA_set_scope_table_of_member_access(retType, cacheNode, &currentScope, entry);
+
+		if (scopeReport.status == ERROR) {
+			return scopeReport;
+		}
+
 		cacheNode = cacheNode->rightNode;
 	}
 
 	return SA_create_semantic_report(retType, SUCCESS, NULL, NONE, nullCont);
+}
+
+/**
+ * <p>
+ * Sets the correct scope table, if an class access is executed.
+ * </p>
+ * 
+ * <p>
+ * If a class access is found, then the current scope is set to MAIN and the class is
+ * searched, on failure a NOT_DEFINED_EXCEPTION is returned. If found, but the entry is
+ * marked as EXTERNAL, it returns success for later checking. Else it sets the new scope
+ * to the class table.
+ * </p>
+ * 
+ * <p><strong>Important:</strong>
+ * THE CURRENT_SCOPE TABLE IS SET USING POINTERS!
+ * </p>
+ * 
+ * @returns A SemanticReport with potential errors
+ * 
+ * @param retType			The estimated return type
+ * @param *cachedNode		The current accessor node
+ * @param **currentScope	Table, in which the next member is searched in
+ * @param foundEntry		The entry that was found without considering the class access (default, when no class was detected)
+ */
+struct SemanticReport SA_set_scope_table_of_member_access(struct VarDec retType, Node *cachedNode, SemanticTable **currentScope, struct SemanticEntryReport foundEntry) {
+	if (retType.type == CLASS_REF) {
+		(*currentScope) = SA_get_next_table_of_type(*currentScope, MAIN);
+		struct SemanticEntryReport classEntry = SA_get_entry_if_available(retType.classType, *currentScope);
+
+		if (classEntry.entry == NULL) {
+			return SA_create_semantic_report(nullDec, ERROR, cachedNode, NOT_DEFINED_EXCEPTION, nullCont);
+		} else if (classEntry.entry->internalType == EXTERNAL) {
+			return SA_create_semantic_report(externalDec, SUCCESS, NULL, NONE, nullCont);
+		}
+
+		(*currentScope) = (SemanticTable*)classEntry.entry->reference;
+	} else {
+		(*currentScope) = foundEntry.entry->reference;
+	}
+
+	return nullRep;
 }
 
 /**
@@ -1510,7 +1568,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table,
 															SemanticTable *topScope) {
 	struct VarDec retType = {CUSTOM, 0, NULL};
-	struct SemanticEntryReport entry = SA_get_entry_if_available(node, topScope);
+	struct SemanticEntryReport entry = SA_get_entry_if_available(node->value, topScope);
 	
 	if (entry.entry == NULL) {
 		return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
@@ -1827,21 +1885,19 @@ struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticT
 				return SA_create_semantic_report(nullDec, ERROR, cacheNode, WRONG_ACCESSOR_EXCEPTION, errCont);
 			}
 		} else if (cacheNode->type == _MEMBER_ACCESS_NODE_) {
-			if ((topScope->type != CLASS
-				|| (int)strcmp(topScope->name, topScope->name) != 0)
+			if ((currentScope->type == CLASS
+				|| (int)strcmp(topScope->name, currentScope->name) != 0)
 				&& currentScope->type != ENUM) {
-				char *msg = "Used \"->\" for member access instead of \".\".";
-				char *exp = "If you want to access a member, you have to use \".\".";
-				char *sugg = "Maybe replace the \"->\" with a \".\".";
+				char *msg = "Used \".\" for class access instead of \"->\".";
+				char *exp = "If you want to access a class externally, you have to use \"->\".";
+				char *sugg = "Maybe replace the \".\" with a \"->\".";
 				struct ErrorContainer errCont = {msg, exp, sugg};
 				return SA_create_semantic_report(nullDec, ERROR, cacheNode, WRONG_ACCESSOR_EXCEPTION, errCont);
 			}
-		} else {
-			return nullRep;
 		}
 	}
 
-	return SA_create_semantic_report(nullDec, SUCCESS, NULL, NONE, nullCont);
+	return nullRep;
 }
 
 /**
@@ -1857,15 +1913,15 @@ struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticT
  * 
  * @return Table that contains the declaration, if non was found it returns NULL
  * 
- * @param *node     Node to search / identifier / function call to search
+ * @param *key     	Key to search / identifier / function call to search
  * @param *table    The table in which the searching starts (current scope).
  */
-SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *table) {
+SemanticTable *SA_get_next_table_with_declaration(char *key, SemanticTable *table) {
 	SemanticTable *temp = table;
 
 	while (temp != NULL) {
-		if ((int)HM_contains_key(node->value, temp->symbolTable) == false
-			&& SA_get_param_entry_if_available(node->value, temp) == NULL) {
+		if ((int)HM_contains_key(key, temp->symbolTable) == false
+			&& SA_get_param_entry_if_available(key, temp) == NULL) {
 			temp = temp->parent;
 		} else {
 			break;
@@ -1884,18 +1940,18 @@ SemanticTable *SA_get_next_table_with_declaration(Node *node, SemanticTable *tab
  * @returns A SemanticEntryReport with the found entry. If nothing was found
  * NULL is set as entry.entry
  * 
- * @param *topNode      The node->value to search
+ * @param *NodeAsKey    The key to search
  * @param *table        Table in which to search in
  */
-struct SemanticEntryReport SA_get_entry_if_available(Node *topNode, SemanticTable *table) {
-	if (topNode == NULL || table == NULL) {
+struct SemanticEntryReport SA_get_entry_if_available(char *NodeAsKey, SemanticTable *table) {
+	if (NodeAsKey == NULL || table == NULL) {
 		return SA_create_semantic_entry_report(NULL, false, true);
 	}
 	
-	SemanticEntry *entry = SA_get_param_entry_if_available(topNode->value, table);
+	SemanticEntry *entry = SA_get_param_entry_if_available(NodeAsKey, table);
 	
-	if ((int)HM_contains_key(topNode->value, table->symbolTable) == true) {
-		entry = HM_get_entry(topNode->value, table->symbolTable)->value;
+	if ((int)HM_contains_key(NodeAsKey, table->symbolTable) == true) {
+		entry = HM_get_entry(NodeAsKey, table->symbolTable)->value;
 	}
 
 	if (entry == NULL) {
@@ -1943,7 +1999,7 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
  */
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
 	SemanticTable *mainTable = SA_get_next_table_of_type(table, MAIN);
-	struct SemanticEntryReport possibleEnumEntry = SA_get_entry_if_available(topNode, mainTable);
+	struct SemanticEntryReport possibleEnumEntry = SA_get_entry_if_available(topNode->value, mainTable);
 
 	if (possibleEnumEntry.entry != NULL) {
 		if (possibleEnumEntry.entry->internalType == ENUM) {

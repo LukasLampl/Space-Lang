@@ -1,6 +1,1 @@
-class Object => {
-    private var:int internalVar = 0;
-}
-
-var:Object obj = new Object();
-var:int x = obj->internalVar;
+var test = "String" + 2;
