@@ -48,7 +48,9 @@ enum ErrorType {
 	WRONG_ACCESSOR_EXCEPTION,
 	WRONG_ARGUMENT_EXCPEPTION,
 	MODIFIER_EXCEPTION,
-	NO_SUCH_ARRAY_DIMENSION_EXCEPTION
+	NO_SUCH_ARRAY_DIMENSION_EXCEPTION,
+	WRONG_LVAL_EXCEPTION,
+	WRONG_RVAL_EXCEPTION
 };
 
 enum FunctionCallType {
@@ -181,6 +183,8 @@ void FREE_TABLE(SemanticTable *rootTable);
 
 struct SemanticReport SA_create_expected_got_report(struct VarDec expected, struct VarDec got, Node *errorNode);
 
+void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description);
+void THROW_WRONG_LVAL_EXCEPTION(Node *node, char *description);
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(struct SemanticReport rep);
 void THROW_MODIFIER_EXCEPTION(struct SemanticReport rep);
 void THROW_WRONG_ARGUMENT_EXCEPTION(struct SemanticReport rep);
@@ -290,6 +294,13 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 			break;
 		case _FOR_STMT_NODE_:
 			(void)SA_add_for_to_table(table, currentNode);
+			break;
+		case _PLUS_EQUALS_NODE_:
+		case _MINUS_EQUALS_NODE_:
+    	case _EQUALS_NODE_:
+		case _MULTIPLY_EQUALS_NODE_:
+		case _DIVIDE_EQUALS_NODE_:
+			(void)SA_check_assignments(table, currentNode);
 			break;
 		default:
 			(void)SA_check_assignments(table, currentNode);
@@ -963,7 +974,41 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 }
 
 void SA_check_assignments(SemanticTable *table, Node *node) {
+	Node *lValNode = node->leftNode;
+	Node *rValNode = node->rightNode;
+	struct SemanticReport lValReport = SA_evaluate_member_access(lValNode, table);
+	struct VarDec awaitedDec = lValReport.dec;
+
+	if (lValReport.status == ERROR) {
+		if ((int)SA_is_node_arithmetic_operator(lValNode) == true) {
+			char *msg = "Arithmetic operations on the left hand side are not allowed.";
+			char *exp = "Can't assign a term to a specified value.";
+			char *sugg = "Maybe remove the arithmetic operator or change the lVal to \"<IDENTIFIER>\" or \"<MEMBER_ACCESS>\".";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, lValNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+			(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+			return;
+		} else {
+			(void)THROW_ASSIGNED_EXCEPTION(lValReport);
+			return;
+		}
+	} else if (awaitedDec.constant == true) {
+		char *desc = "Can't modify a constant value.";
+		(void)THROW_WRONG_LVAL_EXCEPTION(lValNode, desc);
+		return;
+	}
 	
+	struct SemanticReport rValReport = SA_evaluate_simple_term(awaitedDec, rValNode, table);
+	struct VarDec gotDec = rValReport.dec;
+
+	if (rValReport.status == ERROR) {
+		(void)THROW_ASSIGNED_EXCEPTION(rValReport);
+		return;
+	} else if ((int)SA_are_VarTypes_equal(awaitedDec, gotDec, false) == false) {
+		struct SemanticReport expGotRep =  SA_create_expected_got_report(awaitedDec, gotDec, rValNode);
+		(void)THROW_TYPE_MISMATCH_EXCEPTION(expGotRep);
+		return;
+	}
 }
 
 int SA_count_set_array_var_dimensions(Node *arrayVar) {
@@ -1292,8 +1337,6 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 		predictedType = nullDec;
 		break;
 	case _STRING_NODE_:
-		predictedType.type = STRING;
-		break;
 	case _CHAR_ARRAY_NODE_:
 		if ((int)strlen(node->value) > 3) { //3 for 1 letter + 2 quotationmarks
 			predictedType.type = STRING;
@@ -2478,6 +2521,18 @@ void FREE_TABLE(SemanticTable *rootTable) {
 	}
 
 	(void)HM_free(rootTable->symbolTable);
+}
+
+void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description) {
+	struct ErrorContainer errCont = {description, NULL, NULL};
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_RVAL_EXCEPTION, errCont);
+	(void)THROW_EXCEPTION("NotAValidRValException", rep);
+}
+
+void THROW_WRONG_LVAL_EXCEPTION(Node *node, char *description) {
+	struct ErrorContainer errCont = {description, NULL, NULL};
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_LVAL_EXCEPTION, errCont);
+	(void)THROW_EXCEPTION("NotAValidLValException", rep);
 }
 
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(struct SemanticReport rep) {
