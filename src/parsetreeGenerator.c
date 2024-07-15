@@ -2861,6 +2861,8 @@ enum NodeType PG_get_node_type_by_value(char **value) {
 		return _SMALLER_CONDITION_NODE_;
 	} else if ((int)strcmp((*value), ">") == 0) {
 		return _GREATER_CONDITION_NODE_;
+	} else if ((int)strcmp((*value), "this") == 0) {
+		return _THIS_NODE_;
 	} else {
 		for (size_t i = 0; (*value)[i] != '\0'; i++) {
 			if ((*value)[i] == '-'

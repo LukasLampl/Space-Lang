@@ -1,1 +1,7 @@
-var vt = 4 + null;
+class Test => {
+    private var:int col = 0;
+
+    function changeCol(newCol:int) -> void {
+        this.col = newCol;
+    }
+}

@@ -27,7 +27,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 enum NodeType {
     _NULL_ = -1, _IDEN_NODE_ = 0,
     
-    _STRING_NODE_, _NUMBER_NODE_, _FLOAT_NODE_, _BOOL_NODE_, _NULL_NODE_, _CHAR_ARRAY_NODE_,
+    _STRING_NODE_, _NUMBER_NODE_, _FLOAT_NODE_, _BOOL_NODE_, _NULL_NODE_, _CHAR_ARRAY_NODE_, _THIS_NODE_,
 
     _MULTIPLY_NODE_, _DIVIDE_NODE_, _PLUS_NODE_, _MINUS_NODE_, _MODULO_NODE_,
 

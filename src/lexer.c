@@ -656,12 +656,11 @@ int LX_token_clearance_check(TOKEN *token, size_t lineNumber) {
  */
 int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber) {
 	char crucialChar = (*input)[currentIndex + 1];
-	// The index of how much characters has to be skipped
-	int jumpForward = 1;
-	// Figure out where the next '#' is and stops at that or if the whole thing is out of bounds
-	while ((jumpForward + currentIndex) < BUFFER_LENGTH) {
+	int jumpForward = 0;
+
+	while ((jumpForward + currentIndex + 1) < BUFFER_LENGTH) {
 		char currentCharacter = (*input)[currentIndex + jumpForward];
-		char nextCharacter = (*input)[currentCharacter + jumpForward + 1];
+		char nextCharacter = (*input)[currentIndex + jumpForward + 1];
 		//Check for '\n'
 		if ((int)is_space(currentCharacter) == 2) {
 			(*lineNumber)++;

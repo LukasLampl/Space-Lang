@@ -134,7 +134,6 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
 
-
 struct SemanticReport SA_set_scope_table_of_member_access(struct VarDec retType, Node *cachedNode, SemanticTable **currentScope, struct SemanticEntryReport foundEntry);
 int SA_count_set_array_var_dimensions(Node *arrayVar);
 int SA_count_total_array_dimensions(Node *arrayNode);
@@ -164,6 +163,7 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType);
 struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *table);
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_check_non_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
+struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table);
 struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table);
 struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam, enum FunctionCallType fnccType);
 struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode,  enum FunctionCallType fnccType);
@@ -1531,6 +1531,12 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	Node *cacheNode = node;
 	struct VarDec retType = {CUSTOM, 0, NULL};
 
+	struct SemanticReport potentialThisKeywordReport = SA_evaluate_potential_this_keyword(node, &cacheNode, &currentScope, table);
+
+	if (potentialThisKeywordReport.status == ERROR) {
+		return potentialThisKeywordReport;
+	}
+
 	while (cacheNode != NULL) {
 		struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode->value, currentScope);
 		struct SemanticReport resMemRep = SA_check_restricted_member_access(cacheNode->leftNode, table, currentScope);
@@ -1568,6 +1574,25 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	}
 
 	return SA_create_semantic_report(retType, SUCCESS, NULL, NONE, nullCont);
+}
+
+struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table) {
+	if (node->leftNode->type == _THIS_NODE_) {
+		*currentScope = SA_get_next_table_of_type(table, CLASS);
+
+		if (currentScope == NULL || (*currentScope)->type != CLASS) {
+			char *msg = "The \"this\" keyword can only be used in classes.";
+			char *exp = "The \"this\" keyword references on the instance of the class in which it is called from and thus must be in a class.";
+			char *sugg = "Maybe remove the \"this\" keyword.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node->leftNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+			return rep;
+		}
+
+		*cacheNode = node->leftNode->rightNode;
+	}
+
+	return nullRep;
 }
 
 /**
