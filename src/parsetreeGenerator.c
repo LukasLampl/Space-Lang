@@ -1574,10 +1574,12 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 			rep = PG_create_node_report(strNode, 2);
 			break;
 		}
-		default:
-			rep = PG_create_member_access_tree(tokens, startPos + skip + 1, false);
+		default: {
+			int termBounds = (int)PG_get_term_bounds(tokens, startPos + skip + 1);
+			rep = PG_create_simple_term_node(tokens, startPos + skip + 1, termBounds);
 			rep.tokensToSkip++;
 			break;
+		}
 		}
 
 		skip += rep.tokensToSkip;
@@ -1737,9 +1739,10 @@ int PG_add_dimensions_to_var_node(Node *node, TOKEN **tokens, size_t startPos, i
 			if (bounds > 0) {
 				NodeReport termReport = PG_create_simple_term_node(tokens, startPos + jumper + 1, bounds);
 				node->details[currentDetail++] = termReport.node;
+				termReport.node->type = _ARRAY_DIM_NODE_;
 				jumper += termReport.tokensToSkip;
 			} else {
-				node->details[currentDetail++] = PG_create_node("_", _NUMBER_NODE_, currentToken->line, currentToken->tokenStart);
+				node->details[currentDetail++] = PG_create_node("_", _ARRAY_DIM_NODE_, currentToken->line, currentToken->tokenStart);
 				jumper++;
 			}
 		} else if (currentToken->type == _OP_EQUALS_

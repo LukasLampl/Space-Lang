@@ -50,7 +50,9 @@ enum ErrorType {
 	MODIFIER_EXCEPTION,
 	NO_SUCH_ARRAY_DIMENSION_EXCEPTION,
 	WRONG_LVAL_EXCEPTION,
-	WRONG_RVAL_EXCEPTION
+	WRONG_RVAL_EXCEPTION,
+
+	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION
 };
 
 enum FunctionCallType {
@@ -151,6 +153,7 @@ struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, N
 struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table);
 
+struct SemanticReport SA_is_term_valid(struct VarDec type1, struct VarDec type2, Node *operatorNode, Node *rightNode, Node *leftNode);
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope, SemanticTable *parent, struct ParamTransferObject *params, size_t line, size_t position);
 int SA_is_node_arithmetic_operator(Node *node);
 int SA_are_VarTypes_equal(struct VarDec type1, struct VarDec type2, int strict);
@@ -184,6 +187,8 @@ SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, Sem
 void FREE_TABLE(SemanticTable *rootTable);
 
 struct SemanticReport SA_create_expected_got_report(struct VarDec expected, struct VarDec got, Node *errorNode);
+
+void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep);
 
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description);
 void THROW_WRONG_LVAL_EXCEPTION(Node *node, char *description);
@@ -1026,7 +1031,13 @@ int SA_count_set_array_var_dimensions(Node *arrayVar) {
 	int dims = 0;
 
 	for (int i = 0; i < arrayVar->detailsCount; i++) {
-		dims += arrayVar->details[i]->type != _VAR_TYPE_NODE_ ? 1 : 0;
+		Node *detailNode = arrayVar->details[i];
+
+		if (detailNode == NULL) {
+			continue;
+		}
+
+		dims += detailNode->type == _ARRAY_DIM_NODE_ ? 1 : 0;
 	}
 
 	return dims;
@@ -1309,10 +1320,74 @@ struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *
 			return rightTerm;
 		}
 
-		return nullRep;
+		struct SemanticReport validationReport = SA_is_term_valid(leftTerm.dec, rightTerm.dec, topNode, topNode->rightNode, topNode->leftNode);
+		return validationReport.status == ERROR ? validationReport : nullRep;
 	} else {
 		return SA_evaluate_term_side(expectedType, topNode, table);
 	}
+}
+
+/**
+ * <p>
+ * Checks if a term operation is valid, considering various arithmetic and type errors.
+ * </p>
+ * 
+ * @returns A semantic report with possible errors
+ * 
+ * @param type1			Type of the left operand
+ * @param type2			Type of the right operand
+ * @param operatorNode	Operator node
+ * @param rightNode		Right operand node
+ * @param leftNode		Left operand node
+ */
+struct SemanticReport SA_is_term_valid(struct VarDec type1, struct VarDec type2, Node *operatorNode, Node *rightNode, Node *leftNode) {
+	int isOperatorPlus = (int)strcmp(operatorNode->value, "+");
+	
+	if (type1.dimension > 1 || type2.dimension > 1) {
+		if (isOperatorPlus == 0) {
+			char *msg = "Cannot concatenate arrays with multiple dimensions.";
+			char *exp = "Handling multidimensional concatenation might lead to misassumptions and thus it is prohibited.";
+			char *sugg = "Maybe access the array down to the first dimension and then add.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			return SA_create_semantic_report(nullDec, ERROR, operatorNode, ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION, errCont);
+		}
+	}
+	
+	if (type1.dimension > 0 || type2.dimension > 0) {
+		if (isOperatorPlus != 0) {
+			char *msg = "Cannot perform any arithmetic operation on arrays.";
+			char *exp = "Can't perform an arithmetic operation on an array, can't subtract an array from another for example.";
+			char *sugg = "Maybe access the array down to the first dimension and then perform the operation.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			return SA_create_semantic_report(nullDec, ERROR, operatorNode, ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION, errCont);
+		}
+	}
+	
+	if (type1.type == CLASS_REF || type2.type == CLASS_REF) {
+		char *msg = "Unable to perform an arithmetic operation on a class.";
+		char *exp = "It is not possible to perform an arithmetic operation on a class.";
+		char *sugg = "Maybe change the lVal and rVal to a value and not a class.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		return SA_create_semantic_report(nullDec, ERROR, operatorNode, ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION, errCont);
+	}
+
+	if (operatorNode->type == _DIVIDE_NODE_ && (int)strcmp(rightNode->value, "0") == 0) {
+		char *msg = "Can't divide by 0.";
+		char *exp = "Dividing by 0 is undefined.";
+		char *sugg = "Maybe change 0 division to a division, where the divisor is not \"0\".";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		return SA_create_semantic_report(nullDec, ERROR, operatorNode, ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION, errCont);
+	}
+
+	if (leftNode->type == _NULL_NODE_ || rightNode->type == _NULL_NODE_) {
+		char *msg = "Can't use \"null\" to perform any arithmetic operations.";
+		char *exp = "It is not possible to calculate using \"null\", since \"null\" is effectively nothing.";
+		char *sugg = "Maybe remove the \"null\" out of the equation.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		return SA_create_semantic_report(nullDec, ERROR, operatorNode, ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION, errCont);
+	}
+
+	return nullRep;
 }
 
 /**
@@ -1383,7 +1458,8 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 	}
 	default: break;
 	}
-
+	printf("EXP: %i | %i | %i | %s\n", expectedType.type, expectedType.dimension, expectedType.constant, expectedType.classType == NULL ? "null" : expectedType.classType);
+	printf("PRE: %i | %i | %i | %s\n", predictedType.type, predictedType.dimension, predictedType.constant, predictedType.classType == NULL ? "null" : predictedType.classType);
 	if ((int)SA_are_VarTypes_equal(expectedType, predictedType, false) == false) {
 		return SA_create_expected_got_report(expectedType, predictedType, node);
 	}
@@ -2213,8 +2289,12 @@ int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2) {
 		return true;
 	}
 	
-	if (type1.type == CUSTOM && type1.dimension == type2.dimension) {
-		return true;
+	if (type1.type == CUSTOM) {
+		if (type1.dimension == type2.dimension) {
+			return true;
+		}
+
+		return false;
 	}
 
 	if (type1.type == CLASS_REF && type2.type == CLASS_REF) {
@@ -2579,6 +2659,10 @@ void FREE_TABLE(SemanticTable *rootTable) {
 	(void)HM_free(rootTable->symbolTable);
 }
 
+void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep) {
+	(void)THROW_EXCEPTION("ArithmeticOperationMisplacementException", rep);
+}
+
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description) {
 	struct ErrorContainer errCont = {description, NULL, NULL};
 	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_RVAL_EXCEPTION, errCont);
@@ -2749,6 +2833,9 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
 		break;
 	case NO_SUCH_ARRAY_DIMENSION_EXCEPTION:
 		(void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(rep);
+		break;
+	case ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION:
+		(void)THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(rep);
 		break;
 	default:
 		(void)THROW_EXCEPTION("Exception", rep);

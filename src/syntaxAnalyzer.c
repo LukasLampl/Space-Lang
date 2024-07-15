@@ -1796,7 +1796,7 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
 			rep = SA_create_syntax_report(NULL, 2, false, NULL);
 			break;
 		default: 
-			rep = SA_is_identifier(tokens, startPos + skip + 1);
+			rep = SA_is_simple_term(tokens, startPos + skip + 1, false);
 			rep.tokensToSkip++;
 			break;
 		}
