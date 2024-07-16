@@ -148,6 +148,7 @@ int SA_get_node_param_count(struct Node *paramHolder);
 struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *node);
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
+struct SemanticReport SA_evaluate_array_creation(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table);
@@ -174,6 +175,7 @@ SemanticTable *SA_get_next_table_with_declaration(char *key, SemanticTable *tabl
 struct SemanticEntryReport SA_get_entry_if_available(char *NodeAsKey, SemanticTable *table);
 struct VarDec SA_convert_identifier_to_VarType(Node *node);
 struct VarDec SA_get_VarType(Node *node, int constant);
+int SA_set_VarType_type(Node *node, struct VarDec *cust);
 enum Visibility SA_get_visibility(Node *visibilityNode);
 char *SA_get_VarType_string(struct VarDec type);
 char *SA_get_ScopeType_string(enum ScopeType type);
@@ -576,10 +578,16 @@ void SA_add_array_variable_to_table(SemanticTable *table, Node *varNode) {
 	}
 
 	if (varNode->rightNode != NULL) {
-		struct SemanticReport assignmentRep = SA_evaluate_array_assignment(type, varNode->rightNode, actualTable);
+		struct SemanticReport rep = nullRep;
 
-		if (assignmentRep.status == ERROR) {
-			(void)THROW_ASSIGNED_EXCEPTION(assignmentRep);
+		if (varNode->rightNode->type == _ARRAY_CREATION_NODE_) {
+			rep = SA_evaluate_array_creation(type, varNode->rightNode, actualTable);
+		} else {
+			rep = SA_evaluate_array_assignment(type, varNode->rightNode, actualTable);
+		}
+
+		if (rep.status == ERROR) {
+			(void)THROW_ASSIGNED_EXCEPTION(rep);
 		}
 	}
 
@@ -1919,6 +1927,7 @@ struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node
  * @param vis               Assigned modifier to the object that tried to accessed
  * @param *node             Node at which the assignment happens
  * @param *topTable         The outer table of the call
+ * @param checkAccessOnly	A flag, that decides what to check, either the access or declaration
  * 
  * <p><strong>Note:</strong>
  * By currentScope the table of the current scope is meant, that means if
@@ -2137,6 +2146,26 @@ struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedT
 	}
 
 	return SA_create_semantic_report(expectedType, SUCCESS, NULL, NONE, nullCont);
+}
+
+struct SemanticReport SA_evaluate_array_creation(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
+	struct VarDec definedDec = nullDec;
+	
+	if ((int)SA_set_VarType_type(topNode, &definedDec) == false) {
+		definedDec.type = CLASS_REF;
+		definedDec.classType = topNode->value;
+	}
+
+	for (int i = 0; i < topNode->detailsCount; i++) {
+		Node *detailNode = topNode->details[i];
+		definedDec.dimension += detailNode != NULL ? 1 : 0;
+	}
+	
+	if ((int)SA_are_VarTypes_equal(expectedType, definedDec, true) == false) {
+		return SA_create_expected_got_report(expectedType, definedDec, topNode);
+	}
+
+	return nullRep;
 }
 
 struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
@@ -2505,25 +2534,12 @@ struct VarDec SA_convert_identifier_to_VarType(Node *node) {
  */
 struct VarDec SA_get_VarType(Node *node, int constant) {
 	struct VarDec cust = {CUSTOM, 0, NULL, constant};
-	int setType = false;
 
 	if (node == NULL) {
 		return cust;
 	}
 
-	int length = sizeof(TYPE_LOOKUP) / sizeof(TYPE_LOOKUP[0]);
-
-	for (int i = 0; i < length; i++) {
-		char *occurance = (char*)strstr(node->value, TYPE_LOOKUP[i].name);
-		int pos = occurance - node->value;
-
-		if (pos == 0) {
-			cust.type = TYPE_LOOKUP[i].type;
-			cust.dimension = node->leftNode == NULL ? 0 : (int)atoi(node->leftNode->value);
-			setType = true;
-			break;
-		}
-	}
+	int setType = (int)SA_set_VarType_type(node, &cust);
 
 	if (node->value != NULL && setType == false) {
 		cust.classType = node->value;
@@ -2532,6 +2548,23 @@ struct VarDec SA_get_VarType(Node *node, int constant) {
 	}
 
 	return cust;
+}
+
+int SA_set_VarType_type(Node *node, struct VarDec *cust) {
+	int length = sizeof(TYPE_LOOKUP) / sizeof(TYPE_LOOKUP[0]);
+
+	for (int i = 0; i < length; i++) {
+		char *occurance = (char*)strstr(node->value, TYPE_LOOKUP[i].name);
+		int pos = occurance - node->value;
+
+		if (pos == 0) {
+			(*cust).type = TYPE_LOOKUP[i].type;
+			(*cust).dimension = node->leftNode == NULL ? 0 : (int)atoi(node->leftNode->value);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /**

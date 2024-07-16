@@ -113,6 +113,7 @@ SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inPara
 int SA_is_logic_operator_bracket(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam);
 SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_array_creation(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_assignment(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_assignment_element(TOKEN **tokens, size_t startPos, int inDepth);
 SyntaxReport SA_is_array_element(TOKEN **tokens, size_t startPos);
@@ -1795,6 +1796,9 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
 		case _KW_NULL_:
 			rep = SA_create_syntax_report(NULL, 2, false, NULL);
 			break;
+		case _KW_NEW_:
+			rep = SA_is_array_creation(tokens, startPos + skip);
+			break;
 		default: 
 			rep = SA_is_simple_term(tokens, startPos + skip + 1, false);
 			rep.tokensToSkip++;
@@ -1813,6 +1817,49 @@ SyntaxReport SA_is_array_variable(TOKEN **tokens, size_t startPos) {
 	}
 
 	return SA_create_syntax_report(NULL, skip + 1, false, NULL);
+}
+
+SyntaxReport SA_is_array_creation(TOKEN **tokens, size_t startPos) {
+	if ((*tokens)[startPos].type != _OP_EQUALS_) {
+		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "=");
+	}
+
+	if ((*tokens)[startPos + 1].type != _KW_NEW_) {
+		return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "new");
+	}
+
+	if ((int)SA_is_root_identifier(&(*tokens)[startPos + 2]) == false
+		&& (int)is_primitive((*tokens)[startPos + 2].type) == false) {
+		return SA_create_syntax_report(&(*tokens)[startPos + 2], 0, true, "<IDENTIFIER>");
+	}
+
+	int skip = 3;
+
+	while (startPos + skip < MAX_TOKEN_LENGTH
+		&& (*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+		if ((*tokens)[startPos + skip].type != _OP_RIGHT_EDGE_BRACKET_) {
+			return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "[");
+		}
+
+		SyntaxReport termRep = SA_is_simple_term(tokens, startPos + skip + 1, false);
+		skip += termRep.tokensToSkip;
+
+		if (termRep.errorOccured == true) {
+			return termRep;
+		}
+
+		if ((*tokens)[startPos + skip + 1].type != _OP_LEFT_EDGE_BRACKET_) {
+			return SA_create_syntax_report(&(*tokens)[startPos + skip + 1], 0, true, "]");
+		}
+
+		skip += 2;
+	}
+
+	if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+		return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
+	}
+
+	return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /**

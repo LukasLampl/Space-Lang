@@ -164,6 +164,8 @@ NodeReport PG_create_conditional_var_tree(TOKEN **tokens, size_t startPos);
 int PG_get_cond_assignment_bounds(TOKEN **tokens, size_t startPos);
 int PG_is_calculation_operator(TOKEN *token);
 NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_array_creation_tree(TOKEN **tokens, size_t startPos);
+int PG_predict_array_creation_dimension_count(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim);
 int PG_predict_array_init_count(TOKEN **tokens, size_t startPos);
 int PG_get_array_element_size(TOKEN **tokens, size_t startPos);
@@ -1574,6 +1576,9 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 			rep = PG_create_node_report(strNode, 2);
 			break;
 		}
+		case _KW_NEW_:
+			rep = PG_create_array_creation_tree(tokens, startPos + skip + 2);
+			break;
 		default: {
 			int termBounds = (int)PG_get_term_bounds(tokens, startPos + skip + 1);
 			rep = PG_create_simple_term_node(tokens, startPos + skip + 1, termBounds);
@@ -1587,6 +1592,73 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 	}
 
 	return PG_create_node_report(topNode, skip);
+}
+
+/*
+Purpose: Create a subtree for an array creation
+Return Type: NodeReport => Contains the topNode and how many tokens to skip
+Params: TOKEN **tokens => Pointer to the tokens;
+		size_t startPos => Position from where to start constructing
+_______________________________
+Layout:
+
+[VAL]
+  |
+[DIM]
+[DIM]
+
+The dimensions of the array can be found in the
+```node->details[i]```, while the type is in the
+```node->value``` field.
+
+[VAL]:	The array type
+[DIM]:	Dimensions of the array
+_______________________________
+*/
+NodeReport PG_create_array_creation_tree(TOKEN **tokens, size_t startPos) {
+	Node *topNode = PG_create_node((*tokens)[startPos].value, _ARRAY_CREATION_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	int skip = 1; //Skip the type
+	int dims = PG_predict_array_creation_dimension_count(tokens, startPos + skip);
+	(void)PG_allocate_node_details(topNode, dims);
+	int currentDetail = 0;
+
+	while (startPos + skip < TOKEN_LENGTH
+		&& (*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+		if ((*tokens)[startPos + skip].type != _OP_RIGHT_EDGE_BRACKET_) {
+			break;
+		}
+
+		int termBounds = PG_get_term_bounds(tokens, startPos + skip + 1);
+		NodeReport termRep = PG_create_simple_term_node(tokens, startPos + skip + 1, termBounds);
+
+		topNode->details[currentDetail++] = termRep.node;
+		skip += termRep.tokensToSkip + 2;
+	}
+
+	return PG_create_node_report(topNode, skip);
+}
+
+int PG_predict_array_creation_dimension_count(TOKEN **tokens, size_t startPos) {
+	int jumper = 0;
+	int dims = 0;
+	int openEdgeBrackets = 0;
+
+	while (startPos + jumper < TOKEN_LENGTH) {
+		TOKEN *currentToken = &(*tokens)[startPos + jumper];
+	
+		if (currentToken->type == _OP_SEMICOLON_) {
+			break;
+		} else if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
+			dims += openEdgeBrackets == 0 ? 1 : 0;
+			openEdgeBrackets++;
+		} else if (currentToken->type == _OP_LEFT_EDGE_BRACKET_) {
+			openEdgeBrackets--;
+		}
+
+		jumper++;
+	}
+
+	return dims;
 }
 
 /*

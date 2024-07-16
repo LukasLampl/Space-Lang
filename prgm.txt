@@ -1,15 +1,5 @@
-class String => {
-    private var:char data[];
-    private var:int length = 0;
+class Object => {
 
-    this::constructor(string:char[]) {
-        this.data = string;
-        this.length = 5;
-    }
-
-    global function getLength() -> int {
-        return this.length;
-    }
 }
 
-var x = String->getLength();
+var:Object arr[][] = new Object[3][4];
