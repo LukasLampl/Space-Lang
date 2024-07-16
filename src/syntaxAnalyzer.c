@@ -138,9 +138,9 @@ SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos);
 int SA_predict_term_expression(TOKEN **tokens, size_t startPos);
 int SA_predict_class_object_access(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_handle_potential_array_access_or_function_call(TOKEN **tokens, size_t startPos, TOKEN *currentToken);
 int SA_predict_array_access(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos);
 int SA_is_root_identifier(TOKEN *token);
 SyntaxReport SA_is_numeral_identifier(TOKEN *token);
 
@@ -2814,7 +2814,7 @@ SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos, int func
 */
 SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter) {
 	int jumper = 0;
-	unsigned char hasToBeArithmeticOperator = false;
+	int hasToBeArithmeticOperator = false;
 
 	while (startPos + jumper < MAX_TOKEN_LENGTH
 		&& (*tokens)[startPos + jumper].type != __EOF__) {
@@ -2948,7 +2948,7 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 */
 SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos) {
 	int jumper = 0;
-	unsigned char identifiers = 0;
+	int identifiers = 0;
 
 	while (startPos + jumper < MAX_TOKEN_LENGTH) {
 		TOKEN *currentToken = &(*tokens)[startPos + jumper];
@@ -2996,7 +2996,7 @@ SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos) {
 */
 SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
 	int jumper = 0;
-	unsigned char hasToBeDot = false;
+	int hasToBeDot = false;
 
 	while (startPos + jumper < MAX_TOKEN_LENGTH
 		&& (*tokens)[startPos + jumper].type != __EOF__) {
@@ -3015,41 +3015,12 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
 			int isRootIdentifier = SA_is_root_identifier(currentToken);
 
 			if (isRootIdentifier == true) {
-				currentToken = &(*tokens)[startPos + jumper + 1];
+				SyntaxReport potArrayAccOrFncCall = SA_handle_potential_array_access_or_function_call(tokens, startPos + jumper, &(*tokens)[startPos + jumper + 1]);
+				jumper += isRootIdentifier + potArrayAccOrFncCall.tokensToSkip;
 
-				if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
-					SyntaxReport isArrayIdentifier = SA_is_array_identifier(tokens, startPos + jumper);
-
-					if (isArrayIdentifier.errorOccured == false) {
-						jumper += isArrayIdentifier.tokensToSkip + isRootIdentifier;
-						continue;
-					}
-					
-					return isArrayIdentifier;
-				} else if (currentToken->type == _OP_RIGHT_BRACKET_) {
-					SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos + jumper, false);
-
-					if (isFunctionCall.errorOccured == false) {
-						jumper += isFunctionCall.tokensToSkip;
-
-						if ((int)SA_predict_array_access(tokens, startPos + jumper) == true) {
-							SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + jumper);
-
-							if (isArrayAccess.errorOccured == false) {
-								jumper += isArrayAccess.tokensToSkip;
-								continue;
-							} else {
-								return isArrayAccess;
-							}
-						}
-
-						continue;
-					} else {
-						return isFunctionCall;
-					}
+				if (potArrayAccOrFncCall.errorOccured == true) {
+					return potArrayAccOrFncCall;
 				}
-
-				jumper += isRootIdentifier;
 			} else {
 				return SA_create_syntax_report(currentToken, 0, true, "<IDENTIFIER>");
 			}
@@ -3071,6 +3042,37 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
 		return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "<IDENTIFIER>");
 	}
 	
+	return SA_create_syntax_report(NULL, jumper, false, NULL);
+}
+
+SyntaxReport SA_handle_potential_array_access_or_function_call(TOKEN **tokens, size_t startPos, TOKEN *currentToken) {
+	int jumper = 0;
+	int fncCall = false;
+
+	if (currentToken->type == _OP_RIGHT_BRACKET_) {
+		SyntaxReport isFunctionCall = SA_is_function_call(tokens, startPos, false);
+		jumper = isFunctionCall.tokensToSkip;
+		fncCall = true;
+
+		if (isFunctionCall.errorOccured == true) {
+			return isFunctionCall;
+		}
+	}
+
+	//Due to the fact, that the functioncall has an identifier, the iden is skipped, when no functioncall was detected
+	TOKEN *nCurrentToken = fncCall == true ? &(*tokens)[startPos + jumper] : currentToken;
+
+	if (nCurrentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
+		int pos = fncCall == true ? startPos + jumper : startPos + 1;
+		SyntaxReport isArrayAccess = SA_is_array_access(tokens, pos);
+		jumper += isArrayAccess.tokensToSkip;
+
+		if (isArrayAccess.errorOccured == true) {
+			return isArrayAccess;
+		}
+	}
+
+	jumper -= fncCall == true ? 1 : 0;
 	return SA_create_syntax_report(NULL, jumper, false, NULL);
 }
 
@@ -3102,12 +3104,11 @@ SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos) {
 	while ((*tokens)[startPos + jumper].type == _OP_RIGHT_EDGE_BRACKET_
 		&& startPos + jumper < MAX_TOKEN_LENGTH) {
 		SyntaxReport term = SA_is_simple_term(tokens, startPos + (++jumper), false);
+		jumper += term.tokensToSkip;
 
 		if (term.errorOccured == true) {
 			return term;
 		}
-
-		jumper += term.tokensToSkip;
 
 		if ((*tokens)[startPos + jumper].type != _OP_LEFT_EDGE_BRACKET_) {
 			return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "]");
@@ -3117,38 +3118,6 @@ SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos) {
 	}
 
 	return SA_create_syntax_report(NULL, jumper, false, NULL);
-}
-
-/**
- * <p>
- * Checks if a token sequence is an array identifier.
- * </p>
- * 
- * <p>
- * An array identifier is a normal identifier with an array
- * access.
- * </p>
- * 
- * @returns SyntaxReport with the number of tokens to skip
- * and error token, if an error occured.
- * 
- * @param **tokens      Pointer to the token array
- * @param startPos      Position from where to start checking
- */
-SyntaxReport SA_is_array_identifier(TOKEN **tokens, size_t startPos) {
-	int rootIden = SA_is_root_identifier(&(*tokens)[startPos]);
-
-	if (rootIden == 0) {
-		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<IDENTIFIER>");
-	}
-	
-	SyntaxReport isArrayAccess = SA_is_array_access(tokens, startPos + 1);
-  
-	if (isArrayAccess.errorOccured == true) {
-		return isArrayAccess;
-	}
-	
-	return SA_create_syntax_report(NULL, isArrayAccess.tokensToSkip, 0, NULL);
 }
 
 /**
@@ -3210,7 +3179,7 @@ SyntaxReport SA_is_numeral_identifier(TOKEN *token) {
 		(void)SYNTAX_ANALYSIS_TOKEN_NULL_EXCEPTION();
 	}
 
-	unsigned char dots = 0;
+	int dots = 0;
 
 	for (int i = 0; i < token->size; i++) {
 		char currentCharacter = token->value[i];
@@ -3465,7 +3434,7 @@ int SA_is_letter(const char character) {
 		case 'G':   case 'H':   case 'I':   case 'J':   case 'K':   case 'L':
 		case 'M':   case 'N':   case 'O':   case 'P':   case 'Q':   case 'R':
 		case 'S':   case 'T':   case 'U':   case 'V':   case 'W':   case 'X':
-		case 'Y':   case 'Z':   case 'a':   case 'b':   case 'c':   case 'd':   
+		case 'Y':   case 'Z':   case 'a':   case 'b':   case 'c':   case 'd':
 		case 'e':   case 'f':   case 'g':   case 'h':   case 'i':   case 'j':
 		case 'k':   case 'l':   case 'm':   case 'n':   case 'o':   case 'p':
 		case 'q':   case 'r':   case 's':   case 't':   case 'u':   case 'v':
@@ -3562,6 +3531,13 @@ int SA_is_arithmetic_operator(const TOKEN *token) {
 
 /**
  * <p>
+ * A colleaction of all assignment operators in the SPACE-Lang.
+ * </p>
+ */
+const char assignmentOperator[][3] = {"+=", "-=", "*=", "/=", "++", "--"};
+
+/**
+ * <p>
  * Checks if a character sequence matches an assignment operator.
  * </p>
  * 
@@ -3574,7 +3550,6 @@ int SA_is_arithmetic_operator(const TOKEN *token) {
  * @param *sequence     Sequence to check
  */
 int SA_is_assignment_operator(const char *sequence) {
-	char assignmentOperator[][3] = {"+=", "-=", "*=", "/=", "++", "--"};
 	int lengthOfAssignmentOperators = (sizeof(assignmentOperator) / sizeof(assignmentOperator[0]));
 
 	for (int i = 0; i < lengthOfAssignmentOperators; i++) {

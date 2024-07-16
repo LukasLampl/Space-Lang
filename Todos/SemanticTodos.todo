@@ -4,11 +4,14 @@
 
 - [ ] Add Pointer and Reference support
 
-- [ ] Check simple assignments (e.g. "a = 10;" or "obj = new Object()")
-   - [ ] Assignments to one identifier
-   - [ ] Complex assignments with calculations
-   - [ ] Assignments with function calls
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check simple assignments (e.g. "a = 10;" or "obj = new Object()")
+   - [X] Assignments to one identifier
+   - [X] Complex assignments with calculations
+   - [X] Assignments with function calls
+   - [X] Valid scope placement (FUNCTION or MAIN only)
+
+- [ ] Handle extends (inherited classes)
+   - [ ] Get inherited functions
 
 - [X] Check enums (Out of bounds)
    - [X] Duplicate enums

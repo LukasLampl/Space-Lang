@@ -662,12 +662,9 @@ int LX_skip_comment(char **input, const size_t currentIndex, size_t *lineNumber)
 		char currentCharacter = (*input)[currentIndex + jumpForward];
 		char nextCharacter = (*input)[currentIndex + jumpForward + 1];
 		//Check for '\n'
-		if ((int)is_space(currentCharacter) == 2) {
-			(*lineNumber)++;
-		}
+		(*lineNumber) += (int)is_space(currentCharacter) == 2 ? 1 : 0;
 
-		if (crucialChar == '*'
-			&& currentCharacter == '*' && nextCharacter == '/') {
+		if (crucialChar == '*' && currentCharacter == '*' && nextCharacter == '/') {
 			jumpForward++;
 			break;
 		} else if (crucialChar == '/' && currentCharacter == '\n') {
