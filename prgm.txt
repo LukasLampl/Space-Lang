@@ -1,7 +1,15 @@
-class Test => {
-    private var:int col = 0;
+class String => {
+    private var:char data[];
+    private var:int length = 0;
 
-    function changeCol(newCol:int) -> void {
-        this.col = newCol;
+    this::constructor(string:char[]) {
+        this.data = string;
+        this.length = 5;
+    }
+
+    global function getLength() -> int {
+        return this.length;
     }
 }
+
+var x = String->getLength();

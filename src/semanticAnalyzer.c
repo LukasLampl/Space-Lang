@@ -163,11 +163,11 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType);
 struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *table);
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_check_non_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
-struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table);
+struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table, struct VarDec *retType);
 struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table);
 struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam, enum FunctionCallType fnccType);
 struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode,  enum FunctionCallType fnccType);
-struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable);
+struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable, int checkAccessOnly);
 
 struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticTable *currentScope, SemanticTable *topScope);
 SemanticTable *SA_get_next_table_with_declaration(char *key, SemanticTable *table);
@@ -382,7 +382,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 
 	char *name = functionNode->value;
 	enum Visibility vis = SA_get_visibility(functionNode->leftNode);
-	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, functionNode, table);
+	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, functionNode, table, false);
 
 	if (modifierReport.status == ERROR) {
 		(void)THROW_ASSIGNED_EXCEPTION(modifierReport);
@@ -423,7 +423,7 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
 
 	char *name = varNode->value;
 	enum Visibility vis = SA_get_visibility(varNode->leftNode);
-	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table);
+	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table, false);
 
 	if (modifierReport.status == ERROR) {
 		(void)THROW_ASSIGNED_EXCEPTION(modifierReport);
@@ -478,7 +478,7 @@ void SA_add_conditional_variable_to_table(SemanticTable *table, Node *varNode) {
 
 	char *name = varNode->value;
 	enum Visibility vis = SA_get_visibility(varNode->leftNode);
-	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table);
+	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table, false);
 
 	if (modifierReport.status == ERROR) {
 		(void)THROW_ASSIGNED_EXCEPTION(modifierReport);
@@ -508,7 +508,7 @@ void SA_add_conditional_variable_to_table(SemanticTable *table, Node *varNode) {
 void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 	char *name = varNode->value;
 	enum Visibility vis = SA_get_visibility(varNode->leftNode);
-	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table);
+	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table, false);
 
 	if (modifierReport.status == ERROR) {
 		(void)THROW_ASSIGNED_EXCEPTION(modifierReport);
@@ -548,7 +548,7 @@ void SA_add_array_variable_to_table(SemanticTable *table, Node *varNode) {
 
 	char *name = varNode->value;
 	enum Visibility vis = SA_get_visibility(varNode->leftNode);
-	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table);
+	struct SemanticReport modifierReport = SA_evaluate_modifier(table, vis, varNode, table, false);
 
 	if (modifierReport.status == ERROR) {
 		(void)THROW_ASSIGNED_EXCEPTION(modifierReport);
@@ -1531,7 +1531,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	Node *cacheNode = node;
 	struct VarDec retType = {CUSTOM, 0, NULL};
 
-	struct SemanticReport potentialThisKeywordReport = SA_evaluate_potential_this_keyword(node, &cacheNode, &currentScope, table);
+	struct SemanticReport potentialThisKeywordReport = SA_evaluate_potential_this_keyword(node, &cacheNode, &currentScope, table, &retType);
 
 	if (potentialThisKeywordReport.status == ERROR) {
 		return potentialThisKeywordReport;
@@ -1549,7 +1549,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 			return SA_create_semantic_report(externalDec, SUCCESS, NULL, NONE, nullCont);
 		}
 
-		struct SemanticReport checkRes = SA_execute_access_type_checking(cacheNode, currentScope, topScope);
+		struct SemanticReport checkRes = SA_execute_access_type_checking(cacheNode, currentScope, table);
 
 		if (checkRes.status == ERROR) {
 			return checkRes;
@@ -1576,7 +1576,7 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	return SA_create_semantic_report(retType, SUCCESS, NULL, NONE, nullCont);
 }
 
-struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table) {
+struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table, struct VarDec *retType) {
 	if (node->leftNode->type == _THIS_NODE_) {
 		*currentScope = SA_get_next_table_of_type(table, CLASS);
 
@@ -1589,7 +1589,9 @@ struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cach
 			return rep;
 		}
 
-		*cacheNode = node->leftNode->rightNode;
+		*cacheNode = node->rightNode;
+		struct VarDec recRet = {CLASS_REF, 0, (*currentScope)->name, false};
+		*retType = recRet;
 	}
 
 	return nullRep;
@@ -1724,7 +1726,7 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
 	if (preCheck.status == ERROR) {
 		return preCheck;
 	} else if (fnccType == FNC_CALL) {
-		struct SemanticReport modCheck = SA_evaluate_modifier(ref, functionEntry->visibility, topNode, callScopeTable);
+		struct SemanticReport modCheck = SA_evaluate_modifier(ref, functionEntry->visibility, topNode, callScopeTable, true);
 
 		if (modCheck.status == ERROR) {
 			return modCheck;
@@ -1924,33 +1926,35 @@ struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node
  * the `Book`, while the topTable remains in the MAIN routine.
  * </p>
  */
-struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable) {
-	if (topTable->type == MAIN) {
-		if (vis != P_GLOBAL) {
-			char *msg = "Modifiers outside of classes are not allowed.";
-			char *exp = "Modifiers cannot effectively be used outside of classes.";
-			char *sugg = "Maybe remove to modifier.";
-			struct ErrorContainer errCont = {msg, exp, sugg};
-			return SA_create_semantic_report(nullDec, ERROR, node, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
-		} else {
-			return nullRep;
+struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Visibility vis, Node *node, SemanticTable *topTable, int checkAccessOnly) {
+	if (checkAccessOnly == false) {
+		if (topTable->type != CLASS) {
+			if (vis != P_GLOBAL) {
+				char *msg = "Modifiers outside of classes are not allowed.";
+				char *exp = "Modifiers cannot effectively be used outside of classes.";
+				char *sugg = "Maybe remove the modifier.";
+				struct ErrorContainer errCont = {msg, exp, sugg};
+				return SA_create_semantic_report(nullDec, ERROR, node, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+			} else {
+				return nullRep;
+			}
 		}
-	}
+	} else {
+		SemanticTable *nextClassTable = SA_get_next_table_of_type(currentScope, CLASS);
 
-	SemanticTable *nextClassTable = SA_get_next_table_of_type(currentScope, CLASS);
-
-	if (nextClassTable == NULL || currentScope->name == NULL
-		|| nextClassTable->name == NULL) {
-		return nullRep;
-	} else if ((int)strcmp(currentScope->name, nextClassTable->name) == 0
-		&& nextClassTable->type != MAIN) {
-		return nullRep;
-	} else if (vis == PRIVATE || vis == SECURE) {
-		char *msg = "Tried to access \"hidden\" declaration.";
-		char *exp = "It is not possible to access a variable or class that is \"hidden\" externally.";
-		char *sugg = "Maybe change the modifier to \"global\".";
-		struct ErrorContainer errCont = {msg, exp, sugg};
-		return SA_create_semantic_report(nullDec, ERROR, node, MODIFIER_EXCEPTION, errCont);
+		if (nextClassTable == NULL || currentScope->name == NULL
+			|| nextClassTable->name == NULL) {
+			return nullRep;
+		} else if ((int)strcmp(currentScope->name, nextClassTable->name) == 0
+			&& nextClassTable->type != MAIN) {
+			return nullRep;
+		} else if (vis == PRIVATE || vis == SECURE) {
+			char *msg = "Tried to access \"hidden\" declaration.";
+			char *exp = "It is not possible to access a variable or class that is \"hidden\" externally.";
+			char *sugg = "Maybe change the modifier to \"global\".";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			return SA_create_semantic_report(nullDec, ERROR, node, MODIFIER_EXCEPTION, errCont);
+		}
 	}
 
 	return nullRep;
@@ -1986,8 +1990,11 @@ struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticT
 				return SA_create_semantic_report(nullDec, ERROR, cacheNode, WRONG_ACCESSOR_EXCEPTION, errCont);
 			}
 		} else if (cacheNode->type == _MEMBER_ACCESS_NODE_) {
-			if ((currentScope->type == CLASS
-				|| (int)strcmp(topScope->name, currentScope->name) != 0)
+			SemanticTable *nextClassTableFromCall = (SemanticTable*)SA_get_next_table_of_type(topScope, CLASS);
+
+			if (((currentScope->type == CLASS
+				&& nextClassTableFromCall->type != CLASS)
+				|| (int)strcmp(currentScope->name, nextClassTableFromCall->name) != 0)
 				&& currentScope->type != ENUM) {
 				char *msg = "Used \".\" for class access instead of \"->\".";
 				char *exp = "If you want to access a class externally, you have to use \"->\".";
