@@ -1,21 +1,15 @@
-class Element => {
-    function invoke() -> void {
+class Test => {
+    global var:int number = 0;
+}
+
+class Object => {
+    global var hash = 0;
+
+    function createNumber() -> Test {
 
     }
 }
 
-class Button extends Element => {
-    private var:int STAT = 0;
-
-    function takeAction() -> void {
-
-    }
-}
-
-class Slider extends Button => {
-
-}
-
-var inv = Slider->invoke();
-var action = Slider->takeAction();
-var con = Slider->STAT;
+var array[];
+var:Object counter = new Object();
+var c = array[counter->createNumber()->number];

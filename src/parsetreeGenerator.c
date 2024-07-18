@@ -203,6 +203,7 @@ int PG_determine_bounds_for_capsulated_term(TOKEN **tokens, size_t startPos);
 int PG_is_next_operator_multiply_divide_or_modulo(TOKEN **tokens, size_t startPos);
 int PG_is_next_iden_a_member_access(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int useOptionalTyping);
+int PG_is_member_access(TOKEN **tokens, size_t startPos);
 int PG_handle_member_access_brackets(TOKEN *currentToken, int *openBrackets, int *openEdgeBrackets);
 char *PG_get_identifier_by_index(TOKEN *token);
 int PG_is_function_call(TOKEN **tokens, size_t startPos);
@@ -210,7 +211,7 @@ int PG_handle_RBracket_function_call(TOKEN **tokens, size_t startPos);
 int PG_handle_LBracket_function_call(TOKEN **tokens, size_t startPos);
 int PG_execute_direct_check_for_function_call(TOKEN **tokens, size_t startPos);
 NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, enum processDirection direction, int useOptionalTyping);
-void PG_create_post_member_access_side_node_tree(Node *topNode, TOKEN **tokens, int *internalSkip, int useOptionalTyping);
+void PG_create_post_member_access_side_node_tree(Node **topNode, TOKEN **tokens, int *internalSkip, int useOptionalTyping);
 int PG_propagate_back_till_iden(TOKEN **tokens, size_t startPos);
 int PG_propagate_offset_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction);
 int PG_back_shift_array_access(TOKEN **tokens, size_t startPos);
@@ -828,7 +829,8 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
 	int skip = 0;
 	
 	//Array assignment handling
-	if ((*tokens)[startPos + 1].type == _OP_RIGHT_EDGE_BRACKET_) {
+	if ((*tokens)[startPos + 1].type == _OP_DOT_
+		|| (*tokens)[startPos + 1].type == _OP_CLASS_ACCESSOR_) {
 		lRep = PG_create_member_access_tree(tokens, startPos, false);
 		lRep.tokensToSkip--;
 	//Increment and decrement handling
@@ -951,7 +953,6 @@ NodeReport PG_create_increment_decrement_tree(TOKEN **tokens, size_t startPos) {
 			topNode->details[0] = idenRep.node;
 			skip += idenRep.tokensToSkip;
 			idenpassedBy = true;
-
 			topNode->leftNode = cache;
 			cache = NULL;
 			continue;
@@ -1002,15 +1003,39 @@ NodeReport PG_create_increment_decrement_tree(TOKEN **tokens, size_t startPos) {
  * </ul>
  */
 int PG_predict_increment_or_decrement_assignment(TOKEN **tokens, size_t startPos) {
-	if ((*tokens)[startPos].type == _IDENTIFIER_
-		&& ((*tokens)[startPos + 1].type == _OP_SUBTRACT_ONE_
-		|| (*tokens)[startPos + 1].type == _OP_ADD_ONE_)) {
-		return true;
-	}
+	int openBrackets = 0;
+	int openEdgeBrackets = 0;
+	
+	for (int i = startPos; i < TOKEN_LENGTH; i++) {
+		TOKEN *curTok = &(*tokens)[i];
 
-	if ((*tokens)[startPos].type == _OP_ADD_ONE_
-		|| (*tokens)[startPos].type == _OP_SUBTRACT_ONE_) {
-		return true;
+		if (curTok->type == _OP_LEFT_BRACKET_) {
+			openBrackets--;
+		} else if (curTok->type == _OP_RIGHT_BRACKET_) {
+			openBrackets++;
+		} else if (curTok->type == _OP_LEFT_EDGE_BRACKET_) {
+			openEdgeBrackets--;
+		} else if (curTok->type == _OP_RIGHT_EDGE_BRACKET_) {
+			openEdgeBrackets++;
+		}
+
+		if (openBrackets != 0 || openEdgeBrackets != 0) {
+			continue;
+		}
+
+		if (curTok->type == _OP_SEMICOLON_) {
+			break;
+		} else if (curTok->type != _OP_ADD_ONE_
+			&& curTok->type != _OP_SUBTRACT_ONE_) {
+			continue;
+		}
+
+		if ((*tokens)[i - 1].type == _IDENTIFIER_
+			|| (*tokens)[i + 1].type == _IDENTIFIER_) {
+			return true;
+		}
+
+		return false;
 	}
 
 	return false;
@@ -3139,15 +3164,13 @@ NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos, int
 		|| startTok->type == _KW_FALSE_) {
 		Node *boolNode = PG_create_node(startTok->value, _BOOL_NODE_, startTok->line, startTok->tokenStart);
 		return PG_create_node_report(boolNode, 1);
+	} else if ((int)PG_predict_increment_or_decrement_assignment(tokens, startPos) == true) {
+		return PG_create_increment_decrement_tree(tokens, startPos);
 	} else {
 		report = PG_create_member_access_tree(tokens, startPos, useOptionalTyping);
 	}
 
-	if (report.node != NULL && report.tokensToSkip != UNINITIALZED) {
-		return report;
-	}
-
-	return PG_create_node_report(NULL, report.tokensToSkip);
+	return report;
 }
 
 /**
@@ -3169,10 +3192,16 @@ NodeReport PG_create_array_access_tree(TOKEN **tokens, size_t startPos) {
 		&& startPos + skip < TOKEN_LENGTH) {
 		TOKEN *tok = &(*tokens)[startPos + skip];
 		Node *arrAccNode = PG_create_node("ARR_ACC", _ARRAY_ACCESS_NODE_, tok->line, tok->tokenStart);
-		
-		int termBounds = (int)PG_get_term_bounds(tokens, startPos + skip + 1);
-		NodeReport termRep = PG_create_simple_term_node(tokens, startPos + skip + 1, termBounds);
-		arrAccNode->leftNode = termRep.node;
+		NodeReport rep = {NULL, 0};
+
+		if ((int)PG_predict_increment_or_decrement_assignment(tokens, startPos + skip + 1) == true) {
+			rep = PG_create_increment_decrement_tree(tokens, startPos + skip + 1);
+		} else {
+			int termBounds = (int)PG_get_term_bounds(tokens, startPos + skip + 1);
+			rep = PG_create_simple_term_node(tokens, startPos + skip + 1, termBounds);
+		}
+
+		arrAccNode->leftNode = rep.node;
 
 		if (topNode == NULL) {
 			topNode = arrAccNode;
@@ -3181,7 +3210,7 @@ NodeReport PG_create_array_access_tree(TOKEN **tokens, size_t startPos) {
 		}
 
 		prevDimNode = arrAccNode;
-		skip += termRep.tokensToSkip + 2;
+		skip += rep.tokensToSkip + 2;
 	}
 
 	return PG_create_node_report(topNode, skip);
@@ -3363,8 +3392,9 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
 	size_t skip = 0;
 	int openBrackets = 0;
 	int openEdgeBrackets = 0;
+	int isMemAcc = (int)PG_is_member_access(tokens, startPos);
 
-	while (startPos + skip < TOKEN_LENGTH) {
+	while (startPos + skip < TOKEN_LENGTH && isMemAcc == true) {
 		TOKEN *currentToken = &(*tokens)[startPos + skip];
 
 		if (useOptionalTyping == false && currentToken->type == _OP_COLON_) {
@@ -3392,12 +3422,11 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
 		} else if ((int)PG_is_operator(currentToken) == true) {
 			if (topNode == NULL) {
 				int handledBrackets = (int)PG_handle_member_access_brackets(currentToken, &openBrackets, &openEdgeBrackets);
-				
+				skip++;
+
 				if (handledBrackets == -1) {
 					break;
 				}
-
-				skip++;
 			}
 
 			break;
@@ -3421,6 +3450,37 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
 	return PG_create_node_report(topNode, skip);
 }
 
+int PG_is_member_access(TOKEN **tokens, size_t startPos) {
+	int openBrackets = 0;
+	int openEdgeBrackets = 0;
+	int skip = 0;
+
+	while (startPos + skip < TOKEN_LENGTH) {
+		TOKEN *currentToken = &(*tokens)[startPos + skip];
+
+		if (currentToken->type == _OP_LEFT_BRACKET_) {
+			openBrackets--;
+		} else if (currentToken->type == _OP_RIGHT_BRACKET_) {
+			openBrackets++;
+		} else if (currentToken->type == _OP_LEFT_EDGE_BRACKET_) {
+			openEdgeBrackets--;
+		} else if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
+			openEdgeBrackets++;
+		} else if (currentToken->type == _OP_DOT_
+			|| currentToken->type == _OP_CLASS_ACCESSOR_) {
+			if (openBrackets == 0 && openEdgeBrackets == 0) {
+				return true;
+			}
+		} else if ((int)is_end_indicator(currentToken) == true) {
+			return false;
+		}
+
+		skip++;
+	}
+
+	return false;
+}
+
 /**
  * <p>
  * This function limits the boundaries of a member access tree.
@@ -3442,27 +3502,24 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
  * @param *openEdgeBrackets     Pointer to the openEdgeBrackets counter
  */
 int PG_handle_member_access_brackets(TOKEN *currentToken, int *openBrackets, int *openEdgeBrackets) {
-	int *ptr = NULL;
 	int action = 0;
 
 	switch (currentToken->type) {
 	case _OP_LEFT_BRACKET_:
 	case _OP_RIGHT_BRACKET_:
-		ptr = openBrackets;
 		action = currentToken->type == _OP_LEFT_BRACKET_ ? -1 : 1;
+		*openBrackets += action;
 		break;
 	case _OP_LEFT_EDGE_BRACKET_:
 	case _OP_RIGHT_EDGE_BRACKET_:
-		ptr = openEdgeBrackets;
 		action = currentToken->type == _OP_LEFT_EDGE_BRACKET_ ? -1 : 1;
+		*openEdgeBrackets += action;
 		break;
 	case _OP_SEMICOLON_: return -1;
 	default: return 0;
 	}
 
-	(*ptr) += action;
-
-	if ((*ptr) < 0) {
+	if (*openBrackets < 0 || *openEdgeBrackets < 0) {
 		return -1;
 	}
 
@@ -3504,7 +3561,7 @@ NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, 
 		internalSkip++;
 	}
 
-	(void)PG_create_post_member_access_side_node_tree(topNode, tokens, &internalSkip, useOptionalTyping);
+	(void)PG_create_post_member_access_side_node_tree(&topNode, tokens, &internalSkip, useOptionalTyping);
 	int actualSkip = internalSkip - startPos;
 	return PG_create_node_report(topNode, actualSkip);
 }
@@ -3515,26 +3572,22 @@ NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, 
  * like array accesses or increment/decrement by one.
  * </p>
  * 
- * @param *topNode          The root node to which to append the action
+ * @param **topNode         The root node to which to append the action
  * @param **tokens          The pointer to the token array to process
  * @param *internalSkip     The skip counter in the member access tree generator (pointer for modification)
  * @param useOptionalTyping Flag for whether optional typesafety is on or not
  */
-void PG_create_post_member_access_side_node_tree(Node *topNode, TOKEN **tokens, int *internalSkip, int useOptionalTyping) {
+void PG_create_post_member_access_side_node_tree(Node **topNode, TOKEN **tokens, int *internalSkip, int useOptionalTyping) {
 	NodeReport rep = {NULL, 0};
 	
 	switch ((*tokens)[(*internalSkip)].type) {
-	case _OP_ADD_ONE_:
-	case _OP_SUBTRACT_ONE_:
-		rep = PG_create_increment_decrement_tree(tokens, (*internalSkip));
-		break;
 	case _OP_RIGHT_EDGE_BRACKET_:
-		rep = PG_create_array_access_tree(tokens, (*internalSkip));
+		rep = PG_create_array_access_tree(tokens, *internalSkip);
 		break;
 	case _OP_COLON_:
 		if (useOptionalTyping == true) {
-			(void)PG_allocate_node_details(topNode, 1);
-			rep.tokensToSkip = (int)PG_add_varType_definition(tokens, (*internalSkip) + 1, topNode);
+			(void)PG_allocate_node_details(*topNode, 1);
+			rep.tokensToSkip = (int)PG_add_varType_definition(tokens, (*internalSkip) + 1, *topNode);
 		}
 
 		break;
@@ -3542,7 +3595,7 @@ void PG_create_post_member_access_side_node_tree(Node *topNode, TOKEN **tokens, 
 	}
 
 	(*internalSkip) += rep.tokensToSkip;
-	topNode->leftNode = rep.node;
+	(*topNode)->leftNode = rep.node;
 }
 
 /**
@@ -3594,7 +3647,7 @@ int PG_propagate_back_till_iden(TOKEN **tokens, size_t startPos) {
  */
 int PG_propagate_offset_by_direction(TOKEN **tokens, size_t startPos, enum processDirection direction) {
 	switch (direction) {
-	case LEFT:	return -1 * (PG_back_shift_array_access(tokens, startPos)) - 1;
+	case LEFT:	return -1 * (PG_back_shift_array_access(tokens, startPos));
 	case RIGHT:	return 1;
 	case STAY:	return 0;
 	default:	return 0;
@@ -3632,7 +3685,7 @@ int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 			case _OP_RIGHT_EDGE_BRACKET_:
 				if (((*tokens)[i - 1].type == _OP_LEFT_BRACKET_
 					|| (*tokens)[i - 1].type == _IDENTIFIER_)) {
-					back = startPos - i;
+					back = startPos - (i + 1);
 					i = 0;
 					break;
 				}

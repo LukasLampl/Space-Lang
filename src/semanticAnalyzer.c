@@ -144,7 +144,9 @@ int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
 struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
 int SA_get_node_param_count(struct Node *paramHolder);
+Node *SA_get_most_left_node_from_member_access(Node *node);
 
+struct SemanticReport SA_validate_increment_and_decrement(Node *node, SemanticTable *table);
 struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *node);
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
 struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table);
@@ -1447,7 +1449,7 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 		}
 
 		predictedType = rep.dec;
-		node = node->type == _MEM_CLASS_ACC_NODE_ ? node->leftNode : node;
+		node = node->type == _MEM_CLASS_ACC_NODE_ ? SA_get_most_left_node_from_member_access(node) : node;
 		break;
 	}
 	case _BOOL_NODE_:
@@ -1455,6 +1457,16 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 		break;
 	case _CONDITIONAL_ASSIGNMENT_NODE_: {
 		struct SemanticReport rep = SA_evaluate_conditional_assignment(expectedType, node, table);
+
+		if (rep.status == ERROR) {
+			return rep;
+		}
+		
+		break;
+	}
+	case _SIMPLE_INC_DEC_ASS_NODE_: {
+		struct SemanticReport rep = SA_validate_increment_and_decrement(node, table);
+		predictedType = rep.dec;
 
 		if (rep.status == ERROR) {
 			return rep;
@@ -1471,6 +1483,16 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 	}
 
 	return SA_create_semantic_report(predictedType, SUCCESS, NULL, NONE, nullCont);
+}
+
+Node *SA_get_most_left_node_from_member_access(Node *node) {
+	Node *cache = node;
+
+	while (cache->rightNode != NULL) {
+		cache = cache->rightNode;
+	}
+
+	return cache->leftNode;
 }
 
 /**
@@ -1802,6 +1824,21 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
 	}
 
 	return SA_create_semantic_report(functionEntry->dec, SUCCESS, NULL, NONE, nullCont);
+}
+
+struct SemanticReport SA_validate_increment_and_decrement(Node *node, SemanticTable *table) {
+	struct SemanticReport memAccRep = SA_evaluate_member_access(node->details[0], table);
+
+	if (memAccRep.dec.type == CLASS_REF) {
+		char *msg = "Can't increment or decrement classes.";
+		char *exp = "A class is not a number and thus can not be incremented or decremented.";
+		char *sugg = "Remove the increment/decrement annotations.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
+		return rep;
+	}
+
+	return memAccRep;
 }
 
 /**
@@ -2886,7 +2923,7 @@ void THROW_EXCEPTION(char *message, struct SemanticReport rep) {
 
 	(void)printf(TEXT_COLOR_YELLOW);
 
-	for (int i = 0; i < (int)strlen(node->value); i++) {
+	for (int i = 0; i < (int)strlen(node->value) && i < 1000; i++) {
 		(void)printf("^");
 	}
 

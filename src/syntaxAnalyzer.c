@@ -134,9 +134,9 @@ SyntaxReport SA_is_parameter(TOKEN **tokens, size_t startPos, enum ParameterType
 SyntaxReport SA_is_array_dimension_definition(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_var_type_definition(TOKEN **tokens, size_t startPos, int functionDefinition);
 SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter);
+int SA_skip_increment_and_decrement_assignments(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_term_expression(TOKEN **tokens, size_t startPos);
 int SA_predict_term_expression(TOKEN **tokens, size_t startPos);
-int SA_predict_class_object_access(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_handle_potential_array_access_or_function_call(TOKEN **tokens, size_t startPos, TOKEN *currentToken);
 int SA_predict_array_access(TOKEN **tokens, size_t startPos);
@@ -434,8 +434,6 @@ SyntaxReport SA_is_non_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
 	if ((int)SA_predict_expression(tokens, startPos) == true) {
 		mode = 0;
 		rep = SA_is_expression(tokens, startPos, true);
-	} else if ((int)SA_predict_class_object_access(tokens, startPos) == true) {
-		return SA_is_class_object_access(tokens, startPos, true);
 	} else {
 		mode = 1;
 		rep = SA_is_runnable_function_call(tokens, startPos);
@@ -677,53 +675,6 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos) {
 	}
 
 	return SA_create_syntax_report(NULL, 0, false, "N/A");
-}
-
-/**
- * <p>
- * Checks if a given token sequence matches the class object access rule.
- * </p>
- * 
- * <p>
- * Example:
- * ```
- * iden->iden2;
- * ```
- * </p>
- * 
- * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
- * 
- * @param **tokens  Pointer to the TOKEN array
- * @param startPos  Position from where to start checking
-*/
-SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall) {
-	SyntaxReport leftIdentifier = SA_is_identifier(tokens, startPos);
-	int skip = leftIdentifier.tokensToSkip;
-
-	if (leftIdentifier.errorOccured == true) {
-		return leftIdentifier;
-	}
-
-	if ((*tokens)[startPos + skip].type != _OP_CLASS_ACCESSOR_) {
-		return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "->");
-	}
-
-	SyntaxReport rightIdentifier = SA_is_identifier(tokens, startPos + skip + 1);
-	skip += rightIdentifier.tokensToSkip + 1;
-
-	if (rightIdentifier.errorOccured == true) {
-		return rightIdentifier;
-	}
-
-	if (independentCall == true) {
-		if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
-			return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
-		}
-
-		return SA_create_syntax_report(NULL, startPos + ++skip, false, NULL);
-	}
-
-	return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /**
@@ -2872,15 +2823,15 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 				}
 			}
 
+			jumper += (int)SA_skip_increment_and_decrement_assignments(tokens, startPos + jumper);
+
 			SyntaxReport isIdentifier = SA_create_syntax_report(NULL, 0, true, "[LETTER]\", \"[DIGIT]\", \"[FUNCTION_CALL]\" or \"[CLASS_OBJECT_ACCESS]");
 			int pos = startPos + jumper;
 
 			if ((int)SA_predict_term_expression(tokens, pos)) {
 				isIdentifier = SA_is_term_expression(tokens, pos);
 			} else if ((int)SA_is_letter(currentToken->value[0]) == true) {
-				if ((int)SA_predict_class_object_access(tokens, pos) == true) {
-					isIdentifier = SA_is_class_object_access(tokens, pos, false);
-				} else if ((int)SA_is_bool((*tokens)[pos].value) == true
+				if ((int)SA_is_bool((*tokens)[pos].value) == true
 					|| currentToken->type == _KW_NULL_) {
 					jumper++;
 					continue;
@@ -2901,12 +2852,11 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 							return isArrayAccess;
 						}
 					}
-
+					
 					jumper++;
-					continue;
+				} else {
+					return SA_create_syntax_report(currentToken, 0, true, "<POINTER>\" or \"<REFERENCE>");
 				}
-
-				return SA_create_syntax_report(currentToken, 0, true, "<POINTER>\" or \"<REFERENCE>");
 			}
 
 			if (isIdentifier.errorOccured == false) {
@@ -2915,6 +2865,7 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 				return isIdentifier;
 			}
 
+			jumper += (int)SA_skip_increment_and_decrement_assignments(tokens, startPos + jumper);
 			break;
 		case true:
 			if ((int)SA_is_arithmetic_operator(currentToken) != true) {
@@ -2934,6 +2885,23 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 	}
 	
 	return SA_create_syntax_report(NULL, jumper, false, NULL);
+}
+
+int SA_skip_increment_and_decrement_assignments(TOKEN **tokens, size_t startPos) {
+	int skip = 0;
+
+	while (startPos + skip < TOKEN_LENGTH) {
+		TOKEN *currentToken = &(*tokens)[startPos + skip];
+
+		if (currentToken->type != _OP_ADD_ONE_
+			&& currentToken->type != _OP_SUBTRACT_ONE_) {
+			break;
+		}
+
+		skip++;
+	}
+
+	return skip;
 }
 
 /**
@@ -3002,7 +2970,8 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
 		&& (*tokens)[startPos + jumper].type != __EOF__) {
 		TOKEN *currentToken = &(*tokens)[startPos + jumper];
 
-		if ((int)is_end_indicator(currentToken) == true
+		if (((int)is_end_indicator(currentToken) == true
+			&& currentToken->type != _OP_CLASS_ACCESSOR_)
 			|| (int)SA_is_arithmetic_operator(currentToken) == true
 			|| currentToken->type == _OP_ADD_ONE_
 			|| currentToken->type == _OP_SUBTRACT_ONE_) {
@@ -3028,8 +2997,9 @@ SyntaxReport SA_is_identifier(TOKEN **tokens, size_t startPos) {
 			continue;
 		}
 		case true:
-			if (currentToken->type != _OP_DOT_) {
-				return SA_create_syntax_report(currentToken, 0, true, ".");
+			if (currentToken->type != _OP_DOT_
+				&& currentToken->type != _OP_CLASS_ACCESSOR_) {
+				return SA_create_syntax_report(currentToken, 0, true, ".\" or \"->");
 			}
 
 			jumper++;
@@ -3095,15 +3065,19 @@ SyntaxReport SA_handle_potential_array_access_or_function_call(TOKEN **tokens, s
  * @param startPos  Position from where to start checking
 */
 SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos) {
-	if ((*tokens)[startPos].type != _OP_RIGHT_EDGE_BRACKET_) {
-		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "[");
-	}
-
 	int jumper = 0;
 
-	while ((*tokens)[startPos + jumper].type == _OP_RIGHT_EDGE_BRACKET_
-		&& startPos + jumper < MAX_TOKEN_LENGTH) {
-		SyntaxReport term = SA_is_simple_term(tokens, startPos + (++jumper), false);
+	while (startPos + jumper < MAX_TOKEN_LENGTH) {
+		if ((int)is_end_indicator(&(*tokens)[startPos + jumper]) == true) {
+			break;
+		}
+
+		if ((*tokens)[startPos + jumper].type != _OP_RIGHT_EDGE_BRACKET_) {
+			return SA_create_syntax_report(&(*tokens)[startPos + jumper], 0, true, "[");
+		}
+		
+		jumper++;
+		SyntaxReport term = SA_is_simple_term(tokens, startPos + jumper, false);
 		jumper += term.tokensToSkip;
 
 		if (term.errorOccured == true) {
@@ -3275,50 +3249,10 @@ int SA_predict_term_expression(TOKEN **tokens, size_t startPos) {
 		if ((*tokens)[startPos + i].type == _OP_ADD_ONE_
 			|| (*tokens)[startPos + i].type == _OP_SUBTRACT_ONE_) {
 			return true;
-		} else if ((int)is_end_indicator(&(*tokens)[startPos + i]) == true) {
+		} else if ((int)is_end_indicator(&(*tokens)[startPos + i]) == true
+			|| (*tokens)[startPos + i].type == _OP_RIGHT_EDGE_BRACKET_) {
 			return false;
 		}
-	}
-
-	return false;
-}
-
-/**
- * <p>
- * Checks if the next tokens reference to a class access or not.
- * </p>
- * 
- * @returns `True` (1), when a class access is detected, else `false (0)`
- * 
- * @param **tokens  Pointer to the TOKEN array
- * @param startPos  Position from where to start checking
-*/
-int SA_predict_class_object_access(TOKEN **tokens, size_t startPos) {
-	int jumper = 0;
-	int openBrackets = 0;
-
-	while (startPos + jumper < MAX_TOKEN_LENGTH
-		&& (*tokens)[startPos + jumper].type != __EOF__) {
-		switch ((*tokens)[startPos + jumper].type) {
-		case _OP_CLASS_ACCESSOR_:
-			if (openBrackets != 0) {
-				return false;
-			}
-
-			return true;
-		case _OP_SEMICOLON_:
-		case _OP_EQUALS_:
-			return false;
-		case _OP_RIGHT_BRACKET_:
-			openBrackets++;
-			break;
-		case _OP_LEFT_BRACKET_:
-			openBrackets--;
-			break;
-		default: break;
-		}
-
-		jumper++;
 	}
 
 	return false;
