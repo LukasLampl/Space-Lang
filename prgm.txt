@@ -1,3 +1,21 @@
-var c = 0;
+class Element => {
+    function invoke() -> void {
 
-c = 10 + 2 * (3 / 8) - c;
+    }
+}
+
+class Button extends Element => {
+    private var:int STAT = 0;
+
+    function takeAction() -> void {
+
+    }
+}
+
+class Slider extends Button => {
+
+}
+
+var inv = Slider->invoke();
+var action = Slider->takeAction();
+var con = Slider->STAT;

@@ -160,10 +160,11 @@ int SA_are_VarTypes_equal(struct VarDec type1, struct VarDec type2, int strict);
 int SA_are_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2);
 int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2);
 
-struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType);
+struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType);
 struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *table);
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_check_non_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
+struct SemanticReport SA_handle_inherited_functions_and_vars(SemanticTable **currentScope, SemanticTable *table, Node *cacheNode, struct SemanticReport *resMemRep, struct SemanticEntryReport *entry);
 struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table, struct VarDec *retType);
 struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struct Node *arrayAccStart, SemanticTable *table);
 struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, SemanticTable *callScopeTable, struct VarDec *currentNodeType, SemanticEntry *currentEntryParam, enum FunctionCallType fnccType);
@@ -354,8 +355,7 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
 
 	char *name = classNode->value;
 	enum Visibility vis = SA_get_visibility(classNode->leftNode);
-	struct VarDec std = {EXT_CLASS_OR_INTERFACE, 0, NULL};
-	struct ParamTransferObject *params = SA_get_params(classNode, std);
+	struct ParamTransferObject *params = SA_get_params(classNode, EXT_CLASS_OR_INTERFACE);
 	Node *runnableNode = classNode->rightNode;
 
 	if ((int)SA_is_obj_already_defined(name, table) == true) {
@@ -392,8 +392,7 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 	
 	struct VarDec type = SA_get_VarType(functionNode->details == NULL ? NULL : functionNode->details[0], false);
 	int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
-	struct VarDec std = {VARIABLE, 0, NULL};
-	struct ParamTransferObject *params = SA_get_params(functionNode, std);
+	struct ParamTransferObject *params = SA_get_params(functionNode, VARIABLE);
 	Node *runnableNode = functionNode->details[paramsCount];
 	SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params, functionNode->line, functionNode->position);
 	scopeTable->name = name;
@@ -615,9 +614,8 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
 
 	char *name = SA_get_string("Constructor");
 	struct Node *runnableNode = constructorNode->rightNode;
-	struct VarDec cust = {CUSTOM, 0, NULL};
 	struct VarDec constructDec = {CONSTRUCTOR_PARAM, 0, NULL};
-	struct ParamTransferObject *params = SA_get_params(constructorNode, cust);
+	struct ParamTransferObject *params = SA_get_params(constructorNode, CONSTRUCTOR_PARAM);
 	SemanticTable *scopeTable = SA_create_new_scope_table(constructorNode, CONSTRUCTOR, table, params, constructorNode->line, constructorNode->position);
 	SemanticEntry *entry = SA_create_semantic_entry(name, constructDec, GLOBAL, CONSTRUCTOR, scopeTable, constructorNode->line, constructorNode->position);
 	(void)L_add_item(table->paramList, entry);
@@ -1549,10 +1547,12 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 		struct SemanticEntryReport entry = SA_get_entry_if_available(cacheNode->leftNode->value, currentScope);
 		struct SemanticReport resMemRep = SA_check_restricted_member_access(cacheNode->leftNode, table, currentScope);
 
-		if (entry.entry == NULL) {
-			return SA_create_semantic_report(nullDec, ERROR, cacheNode->leftNode, NOT_DEFINED_EXCEPTION, nullCont);
-		} else if (resMemRep.status == ERROR) {
-			return resMemRep;
+		if (resMemRep.status == ERROR) {
+			struct SemanticReport inheritRep = SA_handle_inherited_functions_and_vars(&currentScope, table, cacheNode, &resMemRep, &entry);
+
+			if (inheritRep.status == ERROR) {
+				return resMemRep;
+			}
 		} else if (entry.entry->internalType == EXTERNAL) {
 			return SA_create_semantic_report(externalDec, SUCCESS, NULL, NONE, nullCont);
 		}
@@ -1582,6 +1582,46 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	}
 
 	return SA_create_semantic_report(retType, SUCCESS, NULL, NONE, nullCont);
+}
+
+struct SemanticReport SA_handle_inherited_functions_and_vars(SemanticTable **currentScope, SemanticTable *table, Node *cacheNode, struct SemanticReport *resMemRep, struct SemanticEntryReport *entry) {
+	if ((*currentScope)->type == CLASS) {
+		SemanticTable *mainTable = SA_get_next_table_of_type((*currentScope), MAIN);
+
+		for (int i = 0; i < (*currentScope)->paramList->load; i++) {
+			SemanticEntry *classToSearch = (SemanticEntry*)L_get_item((*currentScope)->paramList, i);
+
+			if (classToSearch == NULL) {
+				continue;
+			} else if (classToSearch->internalType != EXT_CLASS_OR_INTERFACE) {
+				continue;
+			}
+			
+			struct SemanticEntryReport classEntry = SA_get_entry_if_available(classToSearch->name, mainTable);
+
+			if (classEntry.entry == NULL) {
+				return *resMemRep;
+			} else if (classEntry.entry->internalType == EXTERNAL) {
+				return SA_create_semantic_report(externalDec, SUCCESS, NULL, NONE, nullCont);
+			}
+
+			*currentScope = (SemanticTable*)classEntry.entry->reference;
+			*entry = SA_get_entry_if_available(cacheNode->leftNode->value, *currentScope);
+			*resMemRep = SA_check_restricted_member_access(cacheNode->leftNode, table, *currentScope);
+
+			if ((*currentScope)->type == CLASS) {
+				if (SA_get_entry_if_available(cacheNode->leftNode->value, *currentScope).entry != NULL) {
+					return SA_create_semantic_report(nullDec, SUCCESS, NULL, NONE, nullCont);
+				}
+
+				return SA_handle_inherited_functions_and_vars(currentScope, table, cacheNode, resMemRep, entry);
+			} else {
+				return SA_create_semantic_report(nullDec, SUCCESS, NULL, NONE, nullCont);
+			}
+		}
+	}
+
+	return *resMemRep;
 }
 
 struct SemanticReport SA_evaluate_potential_this_keyword(Node *node, Node **cacheNode, SemanticTable **currentScope, SemanticTable *table, struct VarDec *retType) {
@@ -1680,7 +1720,7 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
 															SemanticTable *topScope) {
 	struct VarDec retType = {CUSTOM, 0, NULL};
 	struct SemanticEntryReport entry = SA_get_entry_if_available(node->value, topScope);
-	
+
 	if (entry.entry == NULL) {
 		return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
 	}
@@ -2423,7 +2463,7 @@ int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable) {
  * @param *topNode      Node to get the params from
  * @param stdType       The standard type of the params
  */
-struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) {
+struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType) {
 	struct ParamTransferObject *obj = (struct ParamTransferObject*)calloc(1, sizeof(struct ParamTransferObject));
 
 	if (obj == NULL) {
@@ -2450,7 +2490,7 @@ struct ParamTransferObject *SA_get_params(Node *topNode, struct VarDec stdType) 
 		
 		Node *typeNode = innerNode->detailsCount > 0 ? innerNode->details[0] : NULL;
 		struct VarDec type = SA_get_VarType(typeNode, false);
-		SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, type, P_GLOBAL, VARIABLE, NULL, innerNode->line, innerNode->position);
+		SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, type, P_GLOBAL, stdType, NULL, innerNode->line, innerNode->position);
 		obj->entries[actualParams++] = entry;
 	}
 

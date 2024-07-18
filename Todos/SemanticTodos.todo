@@ -10,8 +10,8 @@
    - [X] Assignments with function calls
    - [X] Valid scope placement (FUNCTION or MAIN only)
 
-- [ ] Handle extends (inherited classes)
-   - [ ] Get inherited functions
+- [X] Handle extends (inherited classes)
+   - [X] Get inherited functions
 
 - [X] Check enums (Out of bounds)
    - [X] Duplicate enums
