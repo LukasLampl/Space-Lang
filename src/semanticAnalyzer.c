@@ -1832,7 +1832,35 @@ struct SemanticReport SA_validate_increment_and_decrement(Node *node, SemanticTa
 	if (memAccRep.dec.type == CLASS_REF) {
 		char *msg = "Can't increment or decrement classes.";
 		char *exp = "A class is not a number and thus can not be incremented or decremented.";
-		char *sugg = "Remove the increment/decrement annotations.";
+		char *sugg = "Maybe remove the increment/decrement annotations.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
+		return rep;
+	} else if (memAccRep.dec.type == STRING) {
+		char *msg = "Can't increment or decrement Strings.";
+		char *exp = "A string is a collection of characters, that can only be changed char by char.";
+		char *sugg = "Maybe remove the increment/decrement annotations.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
+		return rep;
+	} else if (memAccRep.dec.type == VOID) {
+		char *msg = "Can't increment or decrement void.";
+		char *exp = "Incrementing or decrementing \"void\" is essentially \"void\".";
+		char *sugg = "Maybe remove the increment/decrement annotations.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
+		return rep;
+	} else if (memAccRep.dec.dimension > 0) {
+		char *msg = "Can't increment or decrement an array.";
+		char *exp = "Incrementing or decrementing an array is not possible.";
+		char *sugg = "Maybe increment or decrement the individual entries in the array.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
+		return rep;
+	} else if (memAccRep.dec.constant == true) {
+		char *msg = "Can't increment or decrement a constant.";
+		char *exp = "Incrementing or decrementing a fixed value is not possible.";
+		char *sugg = "Maybe remove the \"const\" of the variable you're trying to increment/decrement.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
 		return rep;

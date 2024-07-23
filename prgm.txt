@@ -2,10 +2,14 @@ class Test => {
     global var:int number = 0;
 }
 
+class Nothin => {
+
+}
+
 class Object => {
     global var hash = 0;
 
-    function createNumber() -> Test {
+    function createNumber() -> Nothin {
 
     }
 }
