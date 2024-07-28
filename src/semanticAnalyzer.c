@@ -984,7 +984,8 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 	if (conditionRep.status == ERROR) {
 		(void)THROW_ASSIGNED_EXCEPTION(conditionRep);
 	}
-
+	
+	(void)SA_check_assignments(forTable, forNode->details[1]);
 	(void)SA_manage_runnable(forNode->rightNode, forTable);
 }
 
@@ -996,6 +997,16 @@ void SA_check_assignments(SemanticTable *table, Node *node) {
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
 		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+	}
+
+	if (node->type == _SIMPLE_INC_DEC_ASS_NODE_) {
+		struct SemanticReport incDecRep = SA_validate_increment_and_decrement(node, table);
+
+		if (incDecRep.status == ERROR) {
+			(void)THROW_ASSIGNED_EXCEPTION(incDecRep);
+		}
+
+		return;
 	}
 
 	Node *lValNode = node->leftNode;

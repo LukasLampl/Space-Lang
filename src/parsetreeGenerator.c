@@ -828,14 +828,13 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
 	NodeReport lRep = {NULL, UNINITIALZED};
 	int skip = 0;
 	
-	//Array assignment handling
-	if ((*tokens)[startPos + 1].type == _OP_DOT_
+	//Increment and decrement handling
+	if ((int)PG_predict_increment_or_decrement_assignment(tokens, startPos) == true) {
+		return PG_create_increment_decrement_tree(tokens, startPos);
+	} else if ((*tokens)[startPos + 1].type == _OP_DOT_
 		|| (*tokens)[startPos + 1].type == _OP_CLASS_ACCESSOR_) {
 		lRep = PG_create_member_access_tree(tokens, startPos, false);
 		lRep.tokensToSkip--;
-	//Increment and decrement handling
-	} else if ((int)PG_predict_increment_or_decrement_assignment(tokens, startPos) == true) {
-		return PG_create_increment_decrement_tree(tokens, startPos);
 	} else {
 		int bounds = PG_get_term_bounds(tokens, startPos);
 		lRep = PG_create_simple_term_node(tokens, startPos, bounds);
@@ -947,7 +946,8 @@ NodeReport PG_create_increment_decrement_tree(TOKEN **tokens, size_t startPos) {
 		int tokenStart = currentToken->tokenStart;
 
 		switch (currentToken->type) {
-		case _IDENTIFIER_: {
+		case _IDENTIFIER_:
+		case _KW_THIS_: {
 			NodeReport idenRep = PG_create_member_access_tree(tokens, startPos + skip, false);
 			(void)PG_allocate_node_details(topNode, 1);
 			topNode->details[0] = idenRep.node;
@@ -3680,6 +3680,7 @@ int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 			case _OP_MINUS_EQUALS_:
 			case _OP_MULTIPLY_EQUALS_:
 			case _OP_DIVIDE_EQUALS_:
+				back = startPos - (i + 1);
 				i = 0;
 				break;
 			case _OP_RIGHT_EDGE_BRACKET_:

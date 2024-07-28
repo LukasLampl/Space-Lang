@@ -888,7 +888,7 @@ SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
 	if (isExpression.errorOccured == true) {
 		return isExpression;
 	}
-
+	printf("EXPR: %i\n", isExpression.tokensToSkip);
 	if ((*tokens)[startPos + skip].type != _OP_LEFT_BRACKET_) {
 		return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
 	}
@@ -915,20 +915,13 @@ SyntaxReport SA_is_for_statement(TOKEN **tokens, size_t startPos) {
 */
 SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
 	SyntaxReport isIdentifier = SA_is_identifier(tokens, startPos);
-	int skip = 0;
+	int skip = isIdentifier.tokensToSkip;
 
 	if (isIdentifier.errorOccured == true) {
-		SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos, true);
-
-		if (isSimpleTerm.errorOccured == true) {
-			return isSimpleTerm;
-		}
-
-		skip += isSimpleTerm.tokensToSkip;
+		return isIdentifier;
 	}
 
-	TOKEN *crucialToken = &(*tokens)[startPos + isIdentifier.tokensToSkip];
-	skip += isIdentifier.tokensToSkip;
+	TOKEN *crucialToken = &(*tokens)[startPos + skip];
 
 	if ((int)predict_is_conditional_assignment_type(tokens, startPos + skip, MAX_TOKEN_LENGTH) == true) {
 		SyntaxReport isConditionAssignment = SA_is_conditional_assignment(tokens, startPos + skip, false);
@@ -960,7 +953,7 @@ SyntaxReport SA_is_expression(TOKEN **tokens, size_t startPos, int inRunnable) {
 			return isSimpleTerm;
 		}
 
-		skip += isSimpleTerm.tokensToSkip + 1;
+		skip += isSimpleTerm.tokensToSkip;
 	} else {
 		return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "++\", \"--\", \"-=\", \"+=\", \"*=\", \"/=\" or \"=");
 	}

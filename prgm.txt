@@ -1,19 +1,9 @@
-class Test => {
-    global var:int number = 0;
-}
+var f = 2;
 
-class Nothin => {
-
-}
-
-class Object => {
-    global var hash = 0;
-
-    function createNumber() -> Nothin {
-
+class TEST => {
+    function thes() -> void {
+        for (var i = 0; i < 10; this.f++) {
+            
+        }
     }
 }
-
-var array[];
-var:Object counter = new Object();
-var c = array[counter->createNumber()->number];
