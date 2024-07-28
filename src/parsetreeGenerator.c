@@ -3040,7 +3040,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 			break;
 		}
 
-		switch ((*tokens)[i].type) {
+		switch (currentToken->type) {
 		case _OP_RIGHT_BRACKET_: {
 			int bounds = PG_determine_bounds_for_capsulated_term(tokens, i);
 			NodeReport rep = PG_create_simple_term_node(tokens, i + 1, bounds);
@@ -3052,6 +3052,14 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 			}
 
 			i += rep.tokensToSkip;
+			break;
+		}
+		case _OP_NOT_: {
+			Node *node = PG_create_node(currentToken->value, _NOT_NODE_, currentToken->line, currentToken->tokenStart);			
+			NodeReport termRep = PG_create_simple_term_node(tokens, i + 1, boundaries - 1);
+			node->rightNode = termRep.node;
+			cache = node;
+			i += termRep.tokensToSkip;
 			break;
 		}
 		case _OP_PLUS_:
@@ -3153,7 +3161,14 @@ NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos, int
 	NodeReport report = {NULL, UNINITIALZED};
 	TOKEN *startTok = &(*tokens)[startPos];
 
-	if (startTok->type == _OP_RIGHT_BRACKET_) {
+	if (startTok->type == _OP_NOT_) {
+		Node *node = PG_create_node(startTok->value, _NOT_NODE_, startTok->line, startTok->tokenStart);
+		size_t bounds = PG_get_term_bounds(tokens, startPos + 1);
+		NodeReport termRep = PG_create_simple_term_node(tokens, startPos + 1, bounds);
+		node->rightNode = termRep.node;
+		report.node = node;
+		report.tokensToSkip = termRep.tokensToSkip;
+	} else if (startTok->type == _OP_RIGHT_BRACKET_) {
 		size_t bounds = (size_t)PG_determine_bounds_for_capsulated_term(tokens, startPos);
 		report = PG_create_simple_term_node(tokens, startPos, bounds + 1);
 	} else if (startTok->type == _STRING_
