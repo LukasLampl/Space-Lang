@@ -3095,6 +3095,20 @@ SyntaxReport SA_is_array_access(TOKEN **tokens, size_t startPos) {
  * <p>
  * By "root identifier" a normal identifier with
  * underscores, numbers and letters is meant.
+ * Member accesses and class accesses are excluded.
+ * </p>
+ * 
+ * <p>
+ * <strong>Valid root identifiers:</strong>
+ * `amountOfLives`
+ * `counter`
+ * `_IDEN_`
+ * `slot2`
+ * 
+ * <strong>Invalid root identifiers</strong>
+ * `this->amountOfLives`
+ * `Book.page`
+ * `class->_init_`
  * </p>
  * 
  * @returns
@@ -3239,11 +3253,13 @@ int SA_is_logic_operator_bracket(TOKEN **tokens, size_t startPos) {
 */
 int SA_predict_term_expression(TOKEN **tokens, size_t startPos) {
 	for (int i = 0; i < MAX_TOKEN_LENGTH; i++) {
-		if ((*tokens)[startPos + i].type == _OP_ADD_ONE_
-			|| (*tokens)[startPos + i].type == _OP_SUBTRACT_ONE_) {
+		TOKEN *currentToken = &(*tokens)[startPos + i];
+
+		if (currentToken->type == _OP_ADD_ONE_
+			|| currentToken->type == _OP_SUBTRACT_ONE_) {
 			return true;
-		} else if ((int)is_end_indicator(&(*tokens)[startPos + i]) == true
-			|| (*tokens)[startPos + i].type == _OP_RIGHT_EDGE_BRACKET_) {
+		} else if ((int)is_end_indicator(currentToken) == true
+			|| currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
 			return false;
 		}
 	}
@@ -3268,9 +3284,9 @@ int SA_predict_array_access(TOKEN **tokens, size_t startPos) {
 
 		if (currentToken->type == _OP_RIGHT_EDGE_BRACKET_) {
 			return true;
-		} else {
-			break;
 		}
+		
+		break;
 	}
 
 	return false;
