@@ -2,7 +2,7 @@
 
 =========================================================
 
-- [ ] Add '!' operator checking
+- [X] Add '!' operator checking
 
 - [ ] Add Pointer and Reference support
 

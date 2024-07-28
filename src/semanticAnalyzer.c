@@ -134,6 +134,7 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
 
+struct SemanticReport SA_evaluate_not_operator(Node *topNode, SemanticTable *table);
 struct SemanticReport SA_set_scope_table_of_member_access(struct VarDec retType, Node *cachedNode, SemanticTable **currentScope, struct SemanticEntryReport foundEntry);
 int SA_count_set_array_var_dimensions(Node *arrayVar);
 int SA_count_total_array_dimensions(Node *arrayNode);
@@ -1432,6 +1433,8 @@ struct SemanticReport SA_is_term_valid(struct VarDec type1, struct VarDec type2,
  */
 struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *node, SemanticTable *table) {
 	struct VarDec predictedType = {CUSTOM, 0, NULL};
+	struct SemanticReport tempRep = nullRep;
+	int useReport = false;
 	
 	switch (node->type) {
 	case _NUMBER_NODE_:
@@ -1453,13 +1456,8 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 	case _MEM_CLASS_ACC_NODE_:
 	case _IDEN_NODE_:
 	case _FUNCTION_CALL_NODE_: {
-		struct SemanticReport rep = SA_evaluate_member_access(node, table);
-
-		if (rep.status == ERROR) {
-			return rep;
-		}
-
-		predictedType = rep.dec;
+		tempRep = SA_evaluate_member_access(node, table);
+		useReport = true;
 		node = node->type == _MEM_CLASS_ACC_NODE_ ? SA_get_most_left_node_from_member_access(node) : node;
 		break;
 	}
@@ -1467,26 +1465,31 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 		predictedType.type = BOOLEAN;
 		break;
 	case _CONDITIONAL_ASSIGNMENT_NODE_: {
-		struct SemanticReport rep = SA_evaluate_conditional_assignment(expectedType, node, table);
-
-		if (rep.status == ERROR) {
-			return rep;
-		}
-		
+		tempRep = SA_evaluate_conditional_assignment(expectedType, node, table);
+		useReport = true;
 		break;
 	}
 	case _SIMPLE_INC_DEC_ASS_NODE_: {
-		struct SemanticReport rep = SA_validate_increment_and_decrement(node, table);
-		predictedType = rep.dec;
-
-		if (rep.status == ERROR) {
-			return rep;
-		}
-		
+		tempRep = SA_validate_increment_and_decrement(node, table);
+		useReport = true;
+		break;
+	}
+	case _NOT_NODE_: {
+		tempRep = SA_evaluate_not_operator(node, table);
+		useReport = true;
 		break;
 	}
 	default: break;
 	}
+
+	if (useReport == true) {
+		if (tempRep.status == ERROR) {
+			return tempRep;
+		}
+
+		predictedType = tempRep.dec;
+	}
+
 	printf("EXP: %i | %i | %i | %s\n", expectedType.type, expectedType.dimension, expectedType.constant, expectedType.classType == NULL ? "null" : expectedType.classType);
 	printf("PRE: %i | %i | %i | %s\n", predictedType.type, predictedType.dimension, predictedType.constant, predictedType.classType == NULL ? "null" : predictedType.classType);
 	if ((int)SA_are_VarTypes_equal(expectedType, predictedType, false) == false) {
@@ -1508,7 +1511,53 @@ Node *SA_get_most_left_node_from_member_access(Node *node) {
 
 /**
  * <p>
- * Evaluates a member acces as well as a class access.
+ * A collection of all possible types that can be
+ * inverted using the logical '!' operator.
+ * </p>
+ */
+struct VarDec awaitedNotTypeList[] = {
+	{BOOLEAN, 0, NULL, false}, {BOOLEAN, 0, NULL, true},
+};
+
+/**
+ * <p>
+ * Validates the use of unary operators.
+ * </p>
+ * 
+ * @return A report containing the analysis result, like error occured, success and resulting type
+ * 
+ * @param *topNode      Start node of the unary operation
+ * @param *table        Table in which the expression was written in (current scope)
+ */
+struct SemanticReport SA_evaluate_not_operator(Node *topNode, SemanticTable *table) {
+	Node *cache = topNode;
+	struct SemanticReport rep = nullRep;
+	int length = sizeof(awaitedNotTypeList) / sizeof(awaitedNotTypeList[0]);
+
+	while (cache->rightNode != NULL) {
+		if (cache->type != _NOT_NODE_) {
+			break;
+		}
+
+		cache = cache->rightNode;
+	}
+
+	for (int i = 0; i < length; i++) {
+		rep = SA_evaluate_simple_term(awaitedNotTypeList[i], cache, table);
+
+		if (rep.status == ERROR) {
+			continue;
+		}
+
+		break;
+	}
+
+	return rep;
+}
+
+/**
+ * <p>
+ * Evaluates a member access as well as a class access.
  * </p>
  * 
  * <p>
