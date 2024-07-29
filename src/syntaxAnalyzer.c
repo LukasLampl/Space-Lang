@@ -1674,25 +1674,37 @@ SyntaxReport SA_is_chained_condition(TOKEN **tokens, size_t startPos, int inPara
 */
 SyntaxReport SA_is_condition(TOKEN **tokens, size_t startPos, int inParam) {
 	if ((int)SA_is_bool((*tokens)[startPos].value) == false) {
-		SyntaxReport leftTerm = SA_is_simple_term(tokens, startPos, false);
+		int skip = 0;
+		SyntaxReport leftTerm = SA_is_simple_term(tokens, startPos, inParam);
+		skip += leftTerm.tokensToSkip;
 
 		if (leftTerm.errorOccured == true) {
-			return SA_create_syntax_report(leftTerm.token, 0, true, leftTerm.expectedToken);
+			return leftTerm;
 		}
 
-		char *sequence = (*tokens)[startPos + leftTerm.tokensToSkip].value;
+		TOKEN *crucialToken = &(*tokens)[startPos + skip];
+
+		if (crucialToken->type == _KW_AND_
+			|| crucialToken->type == _KW_OR_
+			|| crucialToken->type == _OP_LEFT_BRACKET_) {
+			return SA_create_syntax_report(NULL, skip, false, NULL);
+		}
+
+		char *sequence = (*tokens)[startPos + skip].value;
 
 		if ((int)SA_is_rational_operator(sequence) == false) {
-			return SA_create_syntax_report(&(*tokens)[startPos + leftTerm.tokensToSkip], 0, true, "==\", \"<=\", \">=\", \"!=\", \"<\" or \">");
+			return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, "==\", \"<=\", \">=\", \"!=\", \"<\" or \">");
 		}
 
-		SyntaxReport rightTerm = SA_is_simple_term(tokens, startPos + leftTerm.tokensToSkip + 1, inParam);
+		skip++;
+		SyntaxReport rightTerm = SA_is_simple_term(tokens, startPos + skip, inParam);
+		skip += rightTerm.tokensToSkip;
 
 		if (rightTerm.errorOccured == true) {
-			return SA_create_syntax_report(rightTerm.token, 0, true, rightTerm.expectedToken);
+			return rightTerm;
 		}
 
-		return SA_create_syntax_report(NULL, leftTerm.tokensToSkip + rightTerm.tokensToSkip + 1, false, NULL);
+		return SA_create_syntax_report(NULL, skip, false, NULL);
 	}
 
 	return SA_create_syntax_report(NULL, 1, false, NULL);

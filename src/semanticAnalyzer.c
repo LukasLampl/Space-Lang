@@ -51,6 +51,7 @@ enum ErrorType {
 	NO_SUCH_ARRAY_DIMENSION_EXCEPTION,
 	WRONG_LVAL_EXCEPTION,
 	WRONG_RVAL_EXCEPTION,
+	NON_BOOLEAN_CHECK,
 
 	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION
 };
@@ -196,6 +197,7 @@ struct SemanticReport SA_create_expected_got_report(struct VarDec expected, stru
 
 void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep);
 
+void THROW_NON_BOOLEAN_CHECK(struct SemanticReport rep);
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description);
 void THROW_WRONG_LVAL_EXCEPTION(Node *node, char *description);
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(struct SemanticReport rep);
@@ -1143,8 +1145,19 @@ struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *
 		} else if (rightCond.status == ERROR) {
 			return rightCond;
 		}
+	} else if (rootNode->type == _FUNCTION_CALL_NODE_
+		|| rootNode->type == _MEM_CLASS_ACC_NODE_) {
+		struct SemanticReport memAccessRep = SA_evaluate_member_access(rootNode, table);
 
-		return nullRep;
+		if (memAccessRep.status == ERROR) {
+			return memAccessRep;
+		} else if (memAccessRep.dec.type != BOOLEAN) {
+			char *msg = "Cannot check against non-boolean type.";
+			char *exp = "It is not possible to check an non-boolean since there is no way of evaluating the correctness.";
+			char *sugg = "Maybe add a rtionl operator like \"==\" or \"<=\" ... to the condition.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			return SA_create_semantic_report(nullDec, ERROR, rootNode, NON_BOOLEAN_CHECK, errCont);
+		}
 	} else {
 		struct VarDec cust = {CUSTOM, 0, NULL};
 		struct SemanticReport lVal = SA_evaluate_simple_term(cust, rootNode->leftNode, table);
@@ -1155,9 +1168,9 @@ struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *
 		} else if (rVal.status == ERROR) {
 			return rVal;
 		}
-
-		return nullRep;
 	}
+
+	return nullRep;
 }
 
 struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *node) {
@@ -2115,11 +2128,12 @@ struct SemanticReport SA_evaluate_modifier(SemanticTable *currentScope, enum Vis
 		}
 	} else {
 		SemanticTable *nextClassTable = SA_get_next_table_of_type(currentScope, CLASS);
+		SemanticTable *nextTopClassTable = SA_get_next_table_of_type(topTable, CLASS);
 
-		if (nextClassTable == NULL || currentScope->name == NULL
+		if (nextClassTable == NULL || nextTopClassTable->name == NULL
 			|| nextClassTable->name == NULL) {
 			return nullRep;
-		} else if ((int)strcmp(currentScope->name, nextClassTable->name) == 0
+		} else if ((int)strcmp(nextTopClassTable->name, nextClassTable->name) == 0
 			&& nextClassTable->type != MAIN) {
 			return nullRep;
 		} else if (vis == PRIVATE || vis == SECURE) {
@@ -2893,6 +2907,10 @@ void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep
 	(void)THROW_EXCEPTION("ArithmeticOperationMisplacementException", rep);
 }
 
+void THROW_NON_BOOLEAN_CHECK(struct SemanticReport rep) {
+	(void)THROW_EXCEPTION("NonBooleanCheck", rep);
+}
+
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description) {
 	struct ErrorContainer errCont = {description, NULL, NULL};
 	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_RVAL_EXCEPTION, errCont);
@@ -3063,6 +3081,9 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
 		break;
 	case NO_SUCH_ARRAY_DIMENSION_EXCEPTION:
 		(void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(rep);
+		break;
+	case NON_BOOLEAN_CHECK:
+		(void)THROW_NON_BOOLEAN_CHECK(rep);
 		break;
 	case ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION:
 		(void)THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(rep);

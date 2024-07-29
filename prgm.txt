@@ -1,5 +1,16 @@
-var a = false;
+class TEST => {
+    var:char b = 'f';
 
-if (!!!!!!!!!!!!!!!!a * 3 == true) {
-    a = false;
+    private function validate() -> char {
+        return b;
+    }
+
+    global function fig() {
+        if (this.validate()) {
+
+        }
+    }
 }
+
+var a = new TEST();
+var:char v = a->validate();

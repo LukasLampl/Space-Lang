@@ -2132,7 +2132,9 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
 			&& (int)PG_is_condition_operator((*tokens)[startPos + skip + 1].type) == false) {
 				Node *boolNode = PG_create_node(currentToken->value, _BOOL_NODE_, currentToken->line, currentToken->tokenStart);
 				return PG_create_node_report(boolNode, 1);
-			}
+		} else {
+			return PG_create_member_access_tree(tokens, startPos, false);
+		}
 
 		skip++;
 	}
@@ -3682,6 +3684,7 @@ int PG_propagate_offset_by_direction(TOKEN **tokens, size_t startPos, enum proce
  */
 int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 	int back = 0;
+	int openBrackets = 0;
 
 	for (int i = startPos; i >= 0; i--) {
 		if (i <= 0) {
@@ -3697,6 +3700,18 @@ int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 			case _OP_DIVIDE_EQUALS_:
 				back = startPos - (i + 1);
 				i = 0;
+				break;
+			case _OP_LEFT_BRACKET_:
+				openBrackets--;
+				break;
+			case _OP_RIGHT_BRACKET_:
+				openBrackets++;
+
+				if (openBrackets > 0) {
+					back = startPos - (i + 1);
+					i = 0;
+				}
+
 				break;
 			case _OP_RIGHT_EDGE_BRACKET_:
 				if (((*tokens)[i - 1].type == _OP_LEFT_BRACKET_
