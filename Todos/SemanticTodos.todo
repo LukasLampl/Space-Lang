@@ -81,14 +81,14 @@
 - [X] Check break statements
    - [X] Valid scope placement (LOOP only)
 
-- [ ] Check the check statement
-   - [ ] Valid checkable
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check the check statement
+   - [X] Valid checkable
+   - [X] Valid scope placement (FUNCTION or MAIN only)
 
-- [ ] Check embedded is statement
-   - [ ] Valid checkable
-   - [ ] Valid Runnable
-   - [ ] Valid scope placement (FUNCTION or MAIN only)
+- [X] Check embedded is statement
+   - [X] Valid checkable
+   - [X] Valid Runnable
+   - [X] Valid scope placement (FUNCTION or MAIN only)
 
 - [X] Check for trees
    - [X] Valid counter variable
