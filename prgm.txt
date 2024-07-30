@@ -1,16 +1,8 @@
-class TEST => {
-    var:char b = 'f';
+include SPACE.lang.Object;
 
-    private function validate() -> char {
-        return b;
-    }
-
-    global function fig() {
-        if (this.validate()) {
-
-        }
-    }
+function test() -> Object {
+    return new Object();
 }
 
-var a = new TEST();
-var:char v = a->validate();
+var testVar = test()->hashCode;
+testVar = Object->type;

@@ -3444,9 +3444,9 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
 				if (handledBrackets == -1) {
 					break;
 				}
+			} else {
+				break;
 			}
-
-			break;
 		} else if (currentToken->type == _IDENTIFIER_
 			&& (*tokens)[startPos + skip - 1].type == _IDENTIFIER_) {
 			break;

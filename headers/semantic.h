@@ -42,6 +42,11 @@ enum ScopeType {
     EXTERNAL, TRY, CATCH, EXT_CLASS_OR_INTERFACE
 };
 
+enum ExternalType {
+    DECLARATION_CHECK,
+    CORRECTNESS_CHECK
+};
+
 struct VarDec {
     enum VarType type;
     int dimension;
@@ -68,5 +73,11 @@ typedef struct SemanticTable {
     size_t line;
     size_t position;
 } SemanticTable;
+
+typedef struct ExternalEntry {
+    Node *node;
+    char *fileName;
+    enum ExternalType type;
+} ExternalEntry;
 
 #endif

@@ -39,33 +39,58 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define true 1
 #define false 0
 
+/**
+ * <p>
+ * A collection of all errors that can be thrown by the semantic analyzer.
+ * </p>
+ */
 enum ErrorType {
-	NONE,
-	ALREADY_DEFINED_EXCEPTION,
-	NOT_DEFINED_EXCEPTION,
-	TYPE_MISMATCH_EXCEPTION,
-	STATEMENT_MISPLACEMENT_EXCEPTION,
-	WRONG_ACCESSOR_EXCEPTION,
-	WRONG_ARGUMENT_EXCPEPTION,
-	MODIFIER_EXCEPTION,
-	NO_SUCH_ARRAY_DIMENSION_EXCEPTION,
-	WRONG_LVAL_EXCEPTION,
-	WRONG_RVAL_EXCEPTION,
-	NON_BOOLEAN_CHECK,
+	NONE,												//Node error was found
+	ALREADY_DEFINED_EXCEPTION,							//The var, class or function was defined prior
+	NOT_DEFINED_EXCEPTION,								//The var, class or function wasn't defined before the invokation
+	TYPE_MISMATCH_EXCEPTION,							//The return types or operation types do not match (e.g. char != int or Object != String)
+	STATEMENT_MISPLACEMENT_EXCEPTION,					//The statement was placed in a scope, that is not suitable for the statement
+	WRONG_ACCESSOR_EXCEPTION,							//The accessor is not used correcty ('->' for class accesses and '.' for member accesses)
+	WRONG_ARGUMENT_EXCPEPTION,							//The amount of arguments is not equal or the types do not match
+	MODIFIER_EXCEPTION,									//When the code tries to access functions or vars, that are 'hidden'
+	NO_SUCH_ARRAY_DIMENSION_EXCEPTION,					//When an array reaches negative dimensions
+	WRONG_LVAL_EXCEPTION,								//If the left hand side is not valid
+	WRONG_RVAL_EXCEPTION,								//If the right hand side is not valid
+	NON_BOOLEAN_CHECK,									//The condition does not end in a boolean
 
-	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION
+	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION			//If an illegal arightmetic operation was made or an operation is misplaced
 };
 
+/**
+ * <p>
+ * The types of how a function call should be handled.
+ * </p>
+ * 
+ * <p>
+ * FNC_CALL is the least strict in type matching, while the constructor checking
+ * also checks the types for equality.
+ * </p>
+ */
 enum FunctionCallType {
 	FNC_CALL,
 	CONSTRUCTOR_CALL,
 	CONSTRUCTOR_CHECK_CALL
 };
 
+/**
+ * <p>
+ * All different statuses a report can reach.
+ * </p>
+ */
 enum ErrorStatus {
 	SUCCESS,
 	ERROR,
 	NA
+};
+
+enum ExternalStatus {
+	EXTERNAL_FOUND,
+	NOT_AN_EXTERNAL
 };
 
 struct MemberAccessList {
@@ -166,6 +191,7 @@ int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2);
 
 struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType);
 struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *table);
+enum ExternalStatus SA_handle_external_references(Node *node, SemanticTable *currentScope, struct SemanticEntryReport entry);
 struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_check_non_restricted_member_access(Node *node, SemanticTable *table, SemanticTable *topScope);
 struct SemanticReport SA_handle_inherited_functions_and_vars(SemanticTable **currentScope, SemanticTable *table, Node *cacheNode, struct SemanticReport *resMemRep, struct SemanticEntryReport *entry);
@@ -189,6 +215,7 @@ SemanticEntry *SA_get_param_entry_if_available(char *key, SemanticTable *table);
 struct SemanticEntryReport SA_create_semantic_entry_report(SemanticEntry *entry, int success, int errorOccured);
 struct SemanticReport SA_create_semantic_report(struct VarDec type, enum ErrorStatus status, Node *errorNode, enum ErrorType errorType, struct ErrorContainer container);
 SemanticEntry *SA_create_semantic_entry(char *name, struct VarDec varType, enum Visibility visibility, enum ScopeType internalType, void *ptr, size_t line, size_t position);
+ExternalEntry *SA_create_external_entry(char *fileName, Node *node, enum ExternalType type);
 SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, SemanticTable *parent, enum ScopeType type, size_t line, size_t position);
 
 void FREE_TABLE(SemanticTable *rootTable);
@@ -227,7 +254,101 @@ struct SemanticReport nullRep;
  * are in an external file. Ready to checked by the linker.
  * </p>
  */
-struct List *listOfExternalAccesses = NULL;
+struct List *LIST_OF_EXTERNAL_ACCESSES = NULL;
+struct List *LIST_OF_SYMBOL_TABLES = NULL;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void DEBUG_print_from_top_node(Node *topNode, int depth, int pos) {
+	if (topNode == NULL || topNode->value == NULL) {
+		return;
+	}
+
+	for (int i = 0; i < depth; ++i) {
+		if (i + 1 == depth) {
+			(void)printf("+-- ");
+		} else {
+			(void)printf("|   ");
+		}
+	}
+
+	if (pos == 0) {
+		(void)printf("C: %s -> %i\n", topNode->value, topNode->type);
+	} else if (pos == 1) {
+		(void)printf("L: %s -> %i\n", topNode->value, topNode->type);
+	} else {
+		(void)printf("R: %s -> %i\n", topNode->value, topNode->type);
+	}
+
+	for (int i = 0; i < topNode->detailsCount; i++) {
+		if (topNode->details[i] != NULL) {
+			for (int n = 0; n < depth + 1; n++) {
+				if (n + 1 == depth + 1) {
+					(void)printf("+-- ");
+				} else {
+					(void)printf("|   ");
+				}
+			}
+
+			(void)printf("(%s) detail: %s -> %i\n", topNode->value, topNode->details[i]->value, topNode->details[i]->type);
+			(void)DEBUG_print_from_top_node(topNode->details[i]->leftNode, depth + 2, 1);
+			(void)DEBUG_print_from_top_node(topNode->details[i]->rightNode, depth + 2, 2);
+
+			for (int n = 0; n < topNode->details[i]->detailsCount; n++) {
+				(void)DEBUG_print_from_top_node(topNode->details[i]->details[n], depth + 2, 0);
+			}
+		} else {
+			(void)printf("(%s) detail: NULL -> NULL\n", topNode->value);
+		}
+	}
+
+	(void)DEBUG_print_from_top_node(topNode->leftNode, depth + 1, 1);
+	(void)DEBUG_print_from_top_node(topNode->rightNode, depth + 1, 2);
+}
+
+void DEBUG_print_list(struct List *list, int flag) {
+	if (list == NULL) {
+		return;
+	}
+
+	printf("List@[%p]\n", (void*)list);
+	printf("List Capacity: %li\n", list->size);
+	printf("\n");
+
+	if (flag == 0) {
+		return;
+	}
+
+	printf("%-11s|%-23s|\n", "Index", "VALUES");
+	printf("-----------+-----------------------+\n");
+
+	for (int i = 0; i < list->size; i++) {
+		if (list->entries[i] == NULL) {
+			printf("%11i|%-23s|\n", i, "(null)");
+			continue;
+		}
+
+		ExternalEntry *e = (ExternalEntry*)list->entries[i];
+		printf("%11i|%-23s|\n", i, e->node->value);
+	}
+
+	return;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int CheckSemantic(Node *root) {
 	(void)SA_init_globals();
@@ -235,12 +356,14 @@ int CheckSemantic(Node *root) {
 	SemanticTable *mainTable = SA_create_new_scope_table(root, MAIN, NULL, NULL, 0, 0);
 	(void)SA_manage_runnable(root, mainTable);
 	(void)FREE_TABLE(mainTable);
+	printf(TEXT_COLOR_YELLOW "Total Externals: %li\n" TEXT_COLOR_RESET, LIST_OF_EXTERNAL_ACCESSES->load);
+	DEBUG_print_list(LIST_OF_EXTERNAL_ACCESSES, true);
 	return 1;
 }
 
 void SA_init_globals() {
 	nullRep = SA_create_semantic_report(nullDec, SUCCESS, NULL, NONE, nullCont);
-	listOfExternalAccesses = CreateNewList(16);
+	LIST_OF_EXTERNAL_ACCESSES = CreateNewList(16);
 }
 
 void SA_manage_runnable(Node *root, SemanticTable *table) {
@@ -708,7 +831,8 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
 	}
 	
 	(void)HM_add_entry(name, entry, table->symbolTable);
-	(void)L_add_item(listOfExternalAccesses, includeNode);
+	ExternalEntry *externalEntry = SA_create_external_entry(FILE_NAME, includeNode, DECLARATION_CHECK);
+	(void)L_add_item(LIST_OF_EXTERNAL_ACCESSES, externalEntry);
 }
 
 /**
@@ -1182,6 +1306,9 @@ struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *
 
 		if (classEntry.entry == NULL) {
 			return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
+		} else if (classEntry.entry->internalType == EXTERNAL) {
+			ExternalEntry *externalEntry = SA_create_external_entry(FILE_NAME, node, CORRECTNESS_CHECK);
+			(void)L_add_item(LIST_OF_EXTERNAL_ACCESSES, externalEntry);
 		}
 		
 		dec.type = CLASS_REF;
@@ -1648,7 +1775,9 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 			if (inheritRep.status == ERROR) {
 				return resMemRep;
 			}
-		} else if (entry.entry->internalType == EXTERNAL) {
+		}
+
+		if (SA_handle_external_references(node, currentScope, entry) == EXTERNAL_FOUND) {
 			return SA_create_semantic_report(externalDec, SUCCESS, NULL, NONE, nullCont);
 		}
 
@@ -1677,6 +1806,49 @@ struct SemanticReport SA_check_non_restricted_member_access(Node *node, Semantic
 	}
 
 	return SA_create_semantic_report(retType, SUCCESS, NULL, NONE, nullCont);
+}
+
+/**
+ * <p>
+ * Checks the current entry for an external reference.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>EXTERNAL_FOUND - When an external is detected
+ * <li>NOT_AN_EXTERNAL - When it is not an external reference
+ * </ul>
+ * 
+ * @param *node				Node tht contains the reference
+ * @param *currentScope		SemanticTable from which to start searching or the external references (upwards)
+ * @param entry				Entry with the found identifier of the memberaccess tree
+ */
+enum ExternalStatus SA_handle_external_references(Node *node, SemanticTable *currentScope, struct SemanticEntryReport entry) {
+	if (entry.entry->internalType == EXTERNAL) {
+		ExternalEntry *externalEntry = SA_create_external_entry(FILE_NAME, node, CORRECTNESS_CHECK);
+		(void)L_add_item(LIST_OF_EXTERNAL_ACCESSES, externalEntry);
+		return EXTERNAL_FOUND;
+	} else if (entry.entry->internalType == CLASS_INSTANCE
+		|| entry.entry->internalType == FUNCTION) {
+		struct SemanticEntryReport refEntry = SA_get_entry_if_available(entry.entry->dec.classType, currentScope);
+
+		if (refEntry.entry != NULL) {
+			if (refEntry.entry->internalType != EXTERNAL) {
+				return NOT_AN_EXTERNAL;
+			}
+
+			if (entry.entry->internalType == FUNCTION
+				&& node->type == _MEM_CLASS_ACC_NODE_) {
+				node->leftNode->value = entry.entry->dec.classType;
+			}
+
+			ExternalEntry *externalEntry = SA_create_external_entry(FILE_NAME, node, CORRECTNESS_CHECK);
+			(void)L_add_item(LIST_OF_EXTERNAL_ACCESSES, externalEntry);
+			return EXTERNAL_FOUND;
+		}
+	}
+
+	return NOT_AN_EXTERNAL;
 }
 
 struct SemanticReport SA_handle_inherited_functions_and_vars(SemanticTable **currentScope, SemanticTable *table, Node *cacheNode, struct SemanticReport *resMemRep, struct SemanticEntryReport *entry) {
@@ -2836,6 +3008,12 @@ SemanticEntry *SA_create_semantic_entry(char *name, struct VarDec varType,
 												enum Visibility visibility, enum ScopeType internalType,
 												void *ptr, size_t line, size_t position) {
 	SemanticEntry *entry = (SemanticEntry*)calloc(1, sizeof(SemanticEntry));
+
+	if (entry == NULL) {
+		(void)THROW_MEMORY_RESERVATION_EXCEPTION("SemanticEntry_Creation_Function");
+		return NULL;
+	}
+
 	entry->name = name;
 	entry->reference = ptr;
 	entry->dec = varType;
@@ -2843,6 +3021,20 @@ SemanticEntry *SA_create_semantic_entry(char *name, struct VarDec varType,
 	entry->internalType = internalType;
 	entry->line = line;
 	entry->position = position;
+	return entry;
+}
+
+ExternalEntry *SA_create_external_entry(char *fileName, Node *node, enum ExternalType type) {
+	ExternalEntry *entry = (ExternalEntry*)calloc(1, sizeof(ExternalEntry));
+
+	if (entry == NULL) {
+		(void)THROW_MEMORY_RESERVATION_EXCEPTION("ExternalEntry_Creation_Function");
+		return NULL;
+	}
+
+	entry->fileName = fileName;
+	entry->node = node;
+	entry->type = type;
 	return entry;
 }
 
@@ -2863,7 +3055,7 @@ SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, Sem
 	SemanticTable *table = (SemanticTable*)calloc(1, sizeof(SemanticTable));
 
 	if (table == NULL) {
-		printf("Error on semantic table reservation!\n");
+		(void)THROW_MEMORY_RESERVATION_EXCEPTION("SemanticTable_Creation_Function");
 		return NULL;
 	}
 
