@@ -2133,8 +2133,6 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
 			&& (int)PG_is_condition_operator((*tokens)[startPos + skip + 1].type) == false) {
 				Node *boolNode = PG_create_node(currentToken->value, _BOOL_NODE_, currentToken->line, currentToken->tokenStart);
 				return PG_create_node_report(boolNode, 1);
-		} else {
-			return PG_create_member_access_tree(tokens, startPos, false);
 		}
 
 		skip++;
@@ -3729,6 +3727,7 @@ int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 			case _OP_MINUS_EQUALS_:
 			case _OP_MULTIPLY_EQUALS_:
 			case _OP_DIVIDE_EQUALS_:
+			case _OP_RIGHT_BRACE_:
 				back = startPos - (i + 1);
 				i = 0;
 				break;

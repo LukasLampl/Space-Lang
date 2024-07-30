@@ -163,6 +163,7 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 void SA_add_check_to_table(SemanticTable *table, Node *checkNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
 
+int SA_is_function_already_defined(struct ParamTransferObject *params, SemanticTable *table, Node *functionNode);
 void SA_handle_check_statement_runnable(Node *runnableNode, SemanticTable *checkTable);
 void SA_create_checkable_error_message(struct SemanticReport memberAccessReport, Node *checkableNode);
 int SA_validate_checkable(struct SemanticReport memberAccessReport);
@@ -531,6 +532,14 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 	struct VarDec type = SA_get_VarType(functionNode->details == NULL ? NULL : functionNode->details[0], false);
 	int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
 	struct ParamTransferObject *params = SA_get_params(functionNode, VARIABLE);
+
+	if ((int)SA_is_obj_already_defined(name, table) == true) {
+		if ((int)SA_is_function_already_defined(params, table, functionNode) == true) {
+			(void)THROW_ALREADY_DEFINED_EXCEPTION(functionNode);
+			return;
+		}
+	}
+
 	Node *runnableNode = functionNode->details[paramsCount];
 	SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params, functionNode->line, functionNode->position);
 	scopeTable->name = name;
@@ -1113,7 +1122,7 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 	struct SemanticEntry *forEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, FOR, forTable, forNode->line, forNode->position);
 	(void)HM_add_entry(name, forEntry, table->symbolTable);
 
-	(void)SA_add_array_variable_to_table(forTable, forNode->leftNode);
+	(void)SA_add_normal_variable_to_table(forTable, forNode->leftNode);
 	struct SemanticReport conditionRep = SA_evaluate_chained_condition(forTable, forNode->details[0]);
 
 	if (conditionRep.status == ERROR) {
@@ -1123,16 +1132,6 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 	(void)SA_check_assignments(forTable, forNode->details[1]);
 	(void)SA_manage_runnable(forNode->rightNode, forTable);
 }
-
-struct VarDec validCheckables[] = {
-	{INTEGER, 0, NULL, true}, {INTEGER, 0, NULL, false},
-	{LONG, 0, NULL, true}, {LONG, 0, NULL, false},
-	{SHORT, 0, NULL, true}, {SHORT, 0, NULL, false},
-	{CHAR, 0, NULL, true}, {CHAR, 0, NULL, false},
-	{FLOAT, 0, NULL, true}, {FLOAT, 0, NULL, false},
-	{DOUBLE, 0, NULL, true}, {DOUBLE, 0, NULL, false},
-	{BOOLEAN, 0, NULL, true}, {BOOLEAN, 0, NULL, false}
-};
 
 void SA_add_check_to_table(SemanticTable *table, Node *checkNode) {
 	if (table->type == CLASS || table->type == ENUM) {
@@ -1164,6 +1163,78 @@ void SA_add_check_to_table(SemanticTable *table, Node *checkNode) {
 	(void)HM_add_entry(name, checkEntry, table->symbolTable);
 	(void)SA_handle_check_statement_runnable(checkNode->rightNode, checkTable);
 }
+
+/**
+ * <p>
+ * Searches for all function with the same name and then checks for equality by
+ * checking the parameters, if all types match up, the function was defined prior
+ * and thus an error is thrown.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - If the function is already defined
+ * <li>false - If the function is not defined
+ * </ul>
+ * 
+ * @param *params			Parameters of the function node
+ * @param *table			Table in which the function is defined in
+ * @param *functionNode		Function node to check for duplication
+ */
+int SA_is_function_already_defined(struct ParamTransferObject *params, SemanticTable *table, Node *functionNode) {
+	SemanticTable *tableToCheck = SA_get_next_table_of_type(table, CLASS);
+
+	do {
+		struct HashMapEntry *entryOfFunctions = (struct HashMapEntry*)HM_get_entry(functionNode->value, tableToCheck->symbolTable);
+		struct HashMapEntry *tempEntry = entryOfFunctions;
+
+		while (tempEntry != NULL) {
+			SemanticEntry *functionEntry = (SemanticEntry*)tempEntry->value;
+			SemanticTable *functionTable = (SemanticTable*)functionEntry->reference;
+			int equalityCounter = 0;
+
+			//Filter all entries, that are not functions and do not have the same parameter count
+			if (functionEntry->internalType != FUNCTION
+				|| params->params != functionTable->paramList->load) {
+				tempEntry = tempEntry->linkedEntry;
+				continue;
+			}
+
+			for (int i = 0, c = 0; i < functionNode->detailsCount; i++) {
+				Node *currentParamNode = functionNode->details[i];
+
+				if (currentParamNode == NULL || currentParamNode->type == _RUNNABLE_NODE_) {
+					continue;
+				}
+
+				SemanticEntry *paramToCompare = (SemanticEntry*)L_get_item(functionTable->paramList, c++);
+				struct VarDec currentParamType = SA_get_VarType(currentParamNode->details[0], false);
+				struct VarDec paramToCompareType = paramToCompare->dec;
+				equalityCounter += (int)SA_are_VarTypes_equal(currentParamType, paramToCompareType, true);
+			}
+
+			if (equalityCounter == params->params) {
+				return true;
+			}
+
+			tempEntry = tempEntry->linkedEntry;
+		}
+
+		tableToCheck = SA_get_next_table_of_type(tableToCheck, MAIN);
+	} while (tableToCheck->type != MAIN);
+
+	return false;
+}
+
+struct VarDec validCheckables[] = {
+	{INTEGER, 0, NULL, true}, {INTEGER, 0, NULL, false},
+	{LONG, 0, NULL, true}, {LONG, 0, NULL, false},
+	{SHORT, 0, NULL, true}, {SHORT, 0, NULL, false},
+	{CHAR, 0, NULL, true}, {CHAR, 0, NULL, false},
+	{FLOAT, 0, NULL, true}, {FLOAT, 0, NULL, false},
+	{DOUBLE, 0, NULL, true}, {DOUBLE, 0, NULL, false},
+	{BOOLEAN, 0, NULL, true}, {BOOLEAN, 0, NULL, false}
+};
 
 void SA_handle_check_statement_runnable(Node *runnableNode, SemanticTable *checkTable) {
 	for (int i = 0; i < runnableNode->detailsCount; i++) {
@@ -2377,7 +2448,7 @@ struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struc
  * @param *topNode	Node that holds the function call
  * @param fnccType	Whether the function call is a function call or constructor creation call
  * 
- * @throws TypeMismatchException - If the function call is marked as constructor, but the entry says that it's a function and vise versa
+ * @throws TypeMismatchException - If the function call is marked as constructor, but the entry says that it's a function and vice versa
  * @throws WrongArgumentException - If the argument count does not match the definition
  */
 struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode, enum FunctionCallType fnccType) {

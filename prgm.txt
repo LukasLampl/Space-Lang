@@ -1,2 +1,8 @@
-var a = 10 << 2;
-var b = 3 | "String";
+class Math => {
+    function pow(base:int, pot:int) {}
+    function pow(base:double, pot:double) {}
+    function pow(base:int, pot:int) {}
+    function pow(base:float, pot:float) {}
+}
+
+var number = Math->pow(2.6, 5);
