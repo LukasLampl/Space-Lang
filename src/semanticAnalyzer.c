@@ -56,7 +56,8 @@ enum ErrorType {
 	NO_SUCH_ARRAY_DIMENSION_EXCEPTION,					//When an array reaches negative dimensions
 	WRONG_LVAL_EXCEPTION,								//If the left hand side is not valid
 	WRONG_RVAL_EXCEPTION,								//If the right hand side is not valid
-	NON_BOOLEAN_CHECK,									//The condition does not end in a boolean
+	NON_BOOLEAN_CHECK_EXCEPTION,						//The condition does not end in a boolean
+	NON_COMPARABLE_CHECK_EXCEPTION,
 
 	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION			//If an illegal arightmetic operation was made or an operation is misplaced
 };
@@ -158,8 +159,12 @@ void SA_add_else_to_table(SemanticTable *table, Node *elseNode, Node *parentNode
 void SA_check_break_or_continue_to_table(SemanticTable *table, Node *breakOrContinueNode);
 void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 void SA_add_for_to_table(SemanticTable *table, Node *forNode);
+void SA_add_check_to_table(SemanticTable *table, Node *checkNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
 
+void SA_handle_check_statement_runnable(Node *runnableNode, SemanticTable *checkTable);
+void SA_create_checkable_error_message(struct SemanticReport memberAccessReport, Node *checkableNode);
+int SA_validate_checkable(struct SemanticReport memberAccessReport);
 struct SemanticReport SA_evaluate_not_operator(Node *topNode, SemanticTable *table);
 struct SemanticReport SA_set_scope_table_of_member_access(struct VarDec retType, Node *cachedNode, SemanticTable **currentScope, struct SemanticEntryReport foundEntry);
 int SA_count_set_array_var_dimensions(Node *arrayVar);
@@ -224,7 +229,8 @@ struct SemanticReport SA_create_expected_got_report(struct VarDec expected, stru
 
 void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep);
 
-void THROW_NON_BOOLEAN_CHECK(struct SemanticReport rep);
+void THROW_NON_COMPARABLE_CHECK_EXCEPTION(struct SemanticReport rep);
+void THROW_NON_BOOLEAN_CHECK_EXCEPTION(struct SemanticReport rep);
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description);
 void THROW_WRONG_LVAL_EXCEPTION(Node *node, char *description);
 void THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(struct SemanticReport rep);
@@ -432,6 +438,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 			break;
 		case _FOR_STMT_NODE_:
 			(void)SA_add_for_to_table(table, currentNode);
+			break;
+		case _CHECK_STMT_NODE_:
+			(void)SA_add_check_to_table(table, currentNode);
 			break;
 		case _PLUS_EQUALS_NODE_:
 		case _MINUS_EQUALS_NODE_:
@@ -1091,7 +1100,7 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode) {
 
 void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 	if (table->type == CLASS || table->type == ENUM) {
-		char *msg = "For loops ore not allowed in classes or enums.";
+		char *msg = "For loops are not allowed in classes or enums.";
 		char *exp = "There is no possible way for a function to execute the loop.";
 		char *sugg = "Maybe move the \"for\" into a function, constructor or remove the \"for\".";
 		struct ErrorContainer errCont = {msg, exp, sugg};
@@ -1114,6 +1123,105 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode) {
 	
 	(void)SA_check_assignments(forTable, forNode->details[1]);
 	(void)SA_manage_runnable(forNode->rightNode, forTable);
+}
+
+struct VarDec validCheckables[] = {
+	{INTEGER, 0, NULL, true}, {INTEGER, 0, NULL, false},
+	{LONG, 0, NULL, true}, {LONG, 0, NULL, false},
+	{SHORT, 0, NULL, true}, {SHORT, 0, NULL, false},
+	{CHAR, 0, NULL, true}, {CHAR, 0, NULL, false},
+	{FLOAT, 0, NULL, true}, {FLOAT, 0, NULL, false},
+	{DOUBLE, 0, NULL, true}, {DOUBLE, 0, NULL, false},
+	{BOOLEAN, 0, NULL, true}, {BOOLEAN, 0, NULL, false}
+};
+
+void SA_add_check_to_table(SemanticTable *table, Node *checkNode) {
+	if (table->type == CLASS || table->type == ENUM) {
+		char *msg = "Check statements are not allowed in classes or enums.";
+		char *exp = "There is no possible way for a function to execute the check statement.";
+		char *sugg = "Maybe move the \"check\" into a function, constructor or remove the \"check\".";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, checkNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	Node *checkableNode = checkNode->leftNode;
+	struct SemanticReport memberAccessReport = SA_evaluate_member_access(checkableNode, table);
+
+	if (memberAccessReport.status == ERROR) {
+		(void)THROW_ASSIGNED_EXCEPTION(memberAccessReport);
+		return;
+	}
+
+	if ((int)SA_validate_checkable(memberAccessReport) == false) {
+		(void)SA_create_checkable_error_message(memberAccessReport, checkableNode);
+		return;
+	}
+
+	char *name = SA_get_string("check");
+	SemanticTable *checkTable = SA_create_new_scope_table(checkNode, CHECK, table, NULL, checkNode->line, checkNode->position);
+	struct SemanticEntry *checkEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, CHECK, checkTable, checkNode->line, checkNode->position);
+	(void)HM_add_entry(name, checkEntry, table->symbolTable);
+	(void)SA_handle_check_statement_runnable(checkNode->rightNode, checkTable);
+}
+
+void SA_handle_check_statement_runnable(Node *runnableNode, SemanticTable *checkTable) {
+	for (int i = 0; i < runnableNode->detailsCount; i++) {
+		Node *detailNode = runnableNode->details[i];
+
+		if (detailNode == NULL) {
+			continue;
+		} else if (detailNode->type != _IS_STMT_NODE_) {
+			char *msg = "Only the \"is\" statement is allowed within the scope of a \"check\" statement.";
+			char *exp = "A check statement has to have different comparables, which can only be achieved through \"is\" statements.";
+			char *sugg = "Maybe change the current statement to an \"is\" statement or remove the current statement.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, detailNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+			(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+			return;
+		} else if ((int)HM_contains_key(detailNode->leftNode->value, checkTable->symbolTable) == true) {
+			(void)THROW_ALREADY_DEFINED_EXCEPTION(detailNode->leftNode);
+			continue;
+		}
+
+		SemanticTable *isTable = SA_create_new_scope_table(detailNode, IS, checkTable, NULL, detailNode->line, detailNode->position);
+		struct SemanticEntry *isEntry = SA_create_semantic_entry(detailNode->leftNode->value, nullDec, P_GLOBAL, IS, isTable, detailNode->line, detailNode->position);
+		(void)HM_add_entry(detailNode->leftNode->value, isEntry, checkTable->symbolTable);
+		(void)SA_manage_runnable(detailNode->rightNode, isTable);
+	}
+}
+
+void SA_create_checkable_error_message(struct SemanticReport memberAccessReport, Node *checkableNode) {
+	char *type_str = SA_get_VarType_string(memberAccessReport.dec);
+	size_t length = (size_t)strlen(type_str);
+	char *sugg = (char*)calloc(length + 55 + 1, sizeof(char));
+
+	if (sugg == NULL) {
+		(void)THROW_MEMORY_RESERVATION_EXCEPTION("CHECKABLE_ERR_CREATION");
+		struct SemanticReport panicRep = SA_create_semantic_report(nullDec, ERROR, checkableNode, TYPE_MISMATCH_EXCEPTION, nullCont);
+		(void)THROW_ASSIGNED_EXCEPTION(panicRep);
+		return;
+	}
+
+	(void)snprintf(sugg, (length + 55 + 1) * sizeof(char), "Maybe convert the \"%s\" to a number, boolean or character.", type_str);
+	char *msg = "Check statements can only compare numbers, booleans and characters.";
+	struct ErrorContainer errCont = {msg, NULL, sugg};
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, checkableNode, NON_COMPARABLE_CHECK_EXCEPTION, errCont);
+	(void)free(type_str);
+	(void)THROW_ASSIGNED_EXCEPTION(rep);
+}
+
+int SA_validate_checkable(struct SemanticReport memberAccessReport) {
+	int checkablesLen = sizeof(validCheckables) / sizeof(validCheckables[0]);
+
+	for (int i = 0; i < checkablesLen; i++) {
+		if ((int)SA_are_VarTypes_equal(validCheckables[i], memberAccessReport.dec, true) == true) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void SA_check_assignments(SemanticTable *table, Node *node) {
@@ -1280,7 +1388,7 @@ struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *
 			char *exp = "It is not possible to check an non-boolean since there is no way of evaluating the correctness.";
 			char *sugg = "Maybe add a rtionl operator like \"==\" or \"<=\" ... to the condition.";
 			struct ErrorContainer errCont = {msg, exp, sugg};
-			return SA_create_semantic_report(nullDec, ERROR, rootNode, NON_BOOLEAN_CHECK, errCont);
+			return SA_create_semantic_report(nullDec, ERROR, rootNode, NON_BOOLEAN_CHECK_EXCEPTION, errCont);
 		}
 	} else {
 		struct VarDec cust = {CUSTOM, 0, NULL};
@@ -2240,6 +2348,25 @@ struct SemanticReport SA_handle_array_accesses(struct VarDec *currentType, struc
 	return nullRep;
 }
 
+/**
+ * <p>
+ * Checks a function call for those properties:
+ * 
+ * <ul>
+ * <li>If the parameter count is equal as the definitions
+ * <li>If the function call is a constructor call with no params
+ * </ul>
+ * </p>
+ * 
+ * @returns SemanticReport with potentil errors
+ * 
+ * @param *ref		Reference to the function definition table
+ * @param *topNode	Node that holds the function call
+ * @param fnccType	Whether the function call is a function call or constructor creation call
+ * 
+ * @throws TypeMismatchException - If the function call is marked as constructor, but the entry says that it's a function and vise versa
+ * @throws WrongArgumentException - If the argument count does not match the definition
+ */
 struct SemanticReport SA_execute_function_call_precheck(SemanticTable *ref, Node *topNode, enum FunctionCallType fnccType) {
 	if (ref == NULL) {
 		return nullRep;
@@ -2464,6 +2591,8 @@ SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum Scope
  * @param expectedType      The type expected by the statement that is assigned
  * @param *topNode          The root node of the assignment operation
  * @param *table            Table in which the assignment occured
+ * 
+ * @throws All exceptions from #SA_evaluate_member_access
  */
 struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
 	SemanticTable *mainTable = SA_get_next_table_of_type(table, MAIN);
@@ -2478,6 +2607,28 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
 	return SA_evaluate_simple_term(expectedType, topNode, table);
 }
 
+/**
+ * <p>
+ * Checks if a condition assignment is logically correct.
+ * </p>
+ * 
+ * <p>
+ * Examples for conditional assignments:
+ * 
+ * ```
+ * a = b == true ? 2 : 1;
+ * text = input == null ? "(null)" : input;
+ * ```
+ * </p>
+ * 
+ * @returns SemanticReport with potential errors
+ * 
+ * @param expectedType		Type that is expected to result out of the `true` and `false` statements
+ * @param *topNode			Node that holds the conditional assignment
+ * @param *table			Table from which the condition assignment comes from
+ * 
+ * @throws All exceptions from #SA_evaluate_simple_term
+ */
 struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
 	struct SemanticReport condRep = SA_evaluate_chained_condition(table, topNode->leftNode);
 
@@ -2499,6 +2650,27 @@ struct SemanticReport SA_evaluate_conditional_assignment(struct VarDec expectedT
 	return SA_create_semantic_report(expectedType, SUCCESS, NULL, NONE, nullCont);
 }
 
+/**
+ * <p>
+ * Checks if an array creation is correct or not.
+ * </p>
+ * 
+ * <p>
+ * An array creaation is defined as follows:
+ * 
+ * ```
+ * var:int number[][] = new int[2][4];
+ * ```
+ * </p>
+ * 
+ * @returns SemanticReport with potential errors
+ * 
+ * @param expectedType		Type that is expeced after the creation
+ * @param *topNode			Node with the array creation
+ * @param *table			Table in which the creation happens
+ * 
+ * @throws TypeMismatchException - When the resulting array is not equal to the awaited array
+ */
 struct SemanticReport SA_evaluate_array_creation(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
 	struct VarDec definedDec = nullDec;
 	
@@ -2519,6 +2691,25 @@ struct SemanticReport SA_evaluate_array_creation(struct VarDec expectedType, Nod
 	return nullRep;
 }
 
+/**
+ * <p>
+ * Checks if an array assignment is valid or not.
+ * </p>
+ * 
+ * <p>
+ * The function matches the result with a given expected type
+ * if they're not equal an error is thrown.
+ * </p>
+ * 
+ * @returns A SemanticReport with possible errors
+ * 
+ * @param expectedType	Type that is expected to be the result at the end
+ * @param *topNode		Node with the assignment
+ * @param *table		Table from which the assignment is directed from
+ * 
+ * @throws <b>NoSuchArrayDimensionException</b> - When the array acces goes below 0 from the expected type
+ * @throws All exceptions from #SA_evaluate_simple_term
+ */
 struct SemanticReport SA_evaluate_array_assignment(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
 	if (topNode->type == _ARRAY_ASSIGNMENT_NODE_) {
 		struct VarDec cpyType = expectedType;
@@ -2901,6 +3092,20 @@ struct VarDec SA_get_VarType(Node *node, int constant) {
 	return cust;
 }
 
+/**
+ * <p>
+ * Uses a matching table to set primitive types to the VarType.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - If the type is a primitive
+ * <li>false - If the type is not a primitive
+ * </ul>
+ * 
+ * @param *node		Node from which to determine the type
+ * @param *cust		Pointer to the VarType that should be modified
+ */
 int SA_set_VarType_type(Node *node, struct VarDec *cust) {
 	int length = sizeof(TYPE_LOOKUP) / sizeof(TYPE_LOOKUP[0]);
 
@@ -3024,6 +3229,17 @@ SemanticEntry *SA_create_semantic_entry(char *name, struct VarDec varType,
 	return entry;
 }
 
+/**
+ * <p>
+ * Creates an external entry using the ExternalEntry template.
+ * </p>
+ * 
+ * @returns An ExternalEntry with the set values
+ * 
+ * @param *fileName		Name of the file, in which the external was created
+ * @param *node			Node that is considered to be an external
+ * @param type			Type of the external (CHECK or DECLARATION)
+ */
 ExternalEntry *SA_create_external_entry(char *fileName, Node *node, enum ExternalType type) {
 	ExternalEntry *entry = (ExternalEntry*)calloc(1, sizeof(ExternalEntry));
 
@@ -3099,8 +3315,16 @@ void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep
 	(void)THROW_EXCEPTION("ArithmeticOperationMisplacementException", rep);
 }
 
-void THROW_NON_BOOLEAN_CHECK(struct SemanticReport rep) {
-	(void)THROW_EXCEPTION("NonBooleanCheck", rep);
+void THROW_NON_COMPARABLE_CHECK_EXCEPTION(struct SemanticReport rep) {
+	(void)THROW_EXCEPTION("NonComparableCheckException", rep);
+	
+	if (rep.container.suggestion != NULL) {
+		(void)free(rep.container.suggestion);
+	}
+}
+
+void THROW_NON_BOOLEAN_CHECK_EXCEPTION(struct SemanticReport rep) {
+	(void)THROW_EXCEPTION("NonBooleanCheckException", rep);
 }
 
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description) {
@@ -3274,8 +3498,11 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
 	case NO_SUCH_ARRAY_DIMENSION_EXCEPTION:
 		(void)THROW_NO_SUCH_ARRAY_DIMENSION_EXCEPTION(rep);
 		break;
-	case NON_BOOLEAN_CHECK:
-		(void)THROW_NON_BOOLEAN_CHECK(rep);
+	case NON_BOOLEAN_CHECK_EXCEPTION:
+		(void)THROW_NON_BOOLEAN_CHECK_EXCEPTION(rep);
+		break;
+	case NON_COMPARABLE_CHECK_EXCEPTION:
+		(void)THROW_NON_COMPARABLE_CHECK_EXCEPTION(rep);
 		break;
 	case ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION:
 		(void)THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(rep);

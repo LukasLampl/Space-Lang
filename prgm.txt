@@ -1,8 +1,7 @@
-include SPACE.lang.Object;
+var:int a = 0;
 
-function test() -> Object {
-    return new Object();
+check (a) {
+    is 0:
+    function test() -> void {}
+    is 1:
 }
-
-var testVar = test()->hashCode;
-testVar = Object->type;
