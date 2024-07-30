@@ -151,6 +151,7 @@ int SA_is_letter(const char character);
 int SA_is_number(const char character);
 int SA_is_rational_operator(const char *sequence);
 int SA_is_arithmetic_operator(const TOKEN *token);
+int SA_is_bit_operator(const TOKEN *token);
 int SA_is_assignment_operator(const char *sequence);
 int SA_is_underscore(const char character);
 int SA_is_bool(const char *sequence);
@@ -2873,7 +2874,8 @@ SyntaxReport SA_is_simple_term(TOKEN **tokens, size_t startPos, int inParameter)
 			jumper += (int)SA_skip_increment_and_decrement_assignments(tokens, startPos + jumper);
 			break;
 		case true:
-			if ((int)SA_is_arithmetic_operator(currentToken) != true) {
+			if ((int)SA_is_arithmetic_operator(currentToken) == false
+				&& (int)SA_is_bit_operator(currentToken) == false) {
 				return SA_create_syntax_report(currentToken, 0, true, "+\", \"-\", \"*\", \"%\" or \"/");
 			}
 
@@ -3482,6 +3484,37 @@ int SA_is_arithmetic_operator(const TOKEN *token) {
 	default:
 		return false;
 	}
+}
+
+/**
+ * <p>
+ * Checks if a token is a bit operator.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - token is a bit operator
+ * <li>false - token is not a bit operator
+ * </ul>
+ * 
+ * @param *token    Token to check
+ */
+int SA_is_bit_operator(const TOKEN *token) {
+	//Could be double operators like += or -= or *= ect.
+	// 1 Operator takes size = 2; 2 take size = 3;
+	if (token->size == 2) {
+		if (token->value[0] == '&'
+			|| token->value[0] == '|') {
+			return true;
+		}
+	} else if (token->size == 3) {
+		if ((int)strcmp(token->value, ">>") == 0
+			|| (int)strcmp(token->value, "<<") == 0) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /**

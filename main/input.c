@@ -405,7 +405,9 @@ int check_double_operator(char currentInputChar, char NextInputChar) {
 
 	if ((currentInputChar == '+' && NextInputChar == '+')
 		|| (currentInputChar == '-' && NextInputChar == '-')
-		|| (currentInputChar == '=' && NextInputChar == '=')) {
+		|| (currentInputChar == '=' && NextInputChar == '=')
+		|| (currentInputChar == '>' && NextInputChar == '>')
+		|| (currentInputChar == '<' && NextInputChar == '<')) {
 		return true;
 	}
 

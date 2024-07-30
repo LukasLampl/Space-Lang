@@ -109,7 +109,8 @@ struct symbol OPERATOR_LOOKUP[] = {
 	{'.', _OP_DOT_},                {',', _OP_COMMA_},              {';', _OP_SEMICOLON_},
 	{'+', _OP_PLUS_},               {'-', _OP_MINUS_},              {'/', _OP_DIVIDE_},
 	{'*', _OP_MULTIPLY_},           {'=', _OP_EQUALS_},             {':', _OP_COLON_},
-	{'?', _OP_QUESTION_MARK_}
+	{'?', _OP_QUESTION_MARK_},      {'&', _OP_LOGICAL_AND_},        {'|', _OP_LOGICAL_OR_},
+	{'^', _OP_XOR_}
 };
 
 struct sequence DOUBLE_OPERATOR_LOOKUP[] = {
@@ -119,6 +120,7 @@ struct sequence DOUBLE_OPERATOR_LOOKUP[] = {
 	{"!=", _OP_NOT_EQUALS_CONDITION_},       {"==", _OP_EQUALS_CONDITION_},
 	{"<", _OP_SMALLER_CONDITION_},           {">", _OP_GREATER_CONDITION_},
 	{">=", _OP_GREATER_OR_EQUAL_CONDITION_}, {"<=", _OP_SMALLER_OR_EQUAL_CONDITION_},
+	{">>", _OP_RIGHT_BITSHIFT_},             {"<<", _OP_LEFT_BITSHIFT_}
 };
 
 struct kwLookup KEYWORD_LOOKUP[] = {
@@ -1039,7 +1041,7 @@ TOKENTYPES LX_fill_condition_type(char *value) {
 
 	for (int i = 0; i < length; i++) {
 		// Compare the input with the lookup
-		if ((char*)strstr(value, DOUBLE_OPERATOR_LOOKUP[i].seq) != NULL) {
+		if ((int)strcmp(value, DOUBLE_OPERATOR_LOOKUP[i].seq) == 0) {
 			return DOUBLE_OPERATOR_LOOKUP[i].rep;
 		}
 	}
@@ -1100,6 +1102,9 @@ int LX_check_for_double_operator(char currentChar, char nextChar) {
 	} else if ((currentChar == '-' || currentChar == '+'
 		|| currentChar == '*' || currentChar == '/')
 		&& nextChar == '=') {
+		return 1;
+	} else if ((currentChar == '>' && nextChar == '>')
+		|| (currentChar == '<' && nextChar == '<')) {
 		return 1;
 	} else if ((currentChar = '<' || currentChar == '>' || currentChar == '!')
 		&& nextChar == '=') {

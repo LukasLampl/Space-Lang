@@ -1,7 +1,2 @@
-var:int a = 0;
-
-check (a) {
-    is 0:
-    function test() -> void {}
-    is 1:
-}
+var a = 10 << 2;
+var b = 3 | "String";

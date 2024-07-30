@@ -83,8 +83,8 @@ int check_for_operator(char input) {
 	switch (input) {
 	case '.': case ',': case '+': case ';': case '-': case '/': case '*':
 	case '^': case '!': case '=': case '<': case '>': case '(': case ')':
-	case '[': case ']': case '{': case '}': case ':': case '?': case '$':
-	case '&': case '%':
+	case '[': case ']': case '{': case '}': case ':': case '?': case '&':
+	case '%': case '|':
 		return 1;
 	default:
 		return 0;

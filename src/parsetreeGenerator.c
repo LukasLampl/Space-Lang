@@ -792,9 +792,11 @@ int PG_get_term_bounds(TOKEN **tokens, size_t startPos) {
  */
 int PG_is_calculation_operator(TOKEN *token) {
 	switch (token->type) {
-	case _OP_PLUS_:     case _OP_MINUS_:
-	case _OP_MULTIPLY_: case _OP_DIVIDE_:
-	case _OP_MODULU_:
+	case _OP_PLUS_:            case _OP_MINUS_:
+	case _OP_MULTIPLY_:        case _OP_DIVIDE_:
+	case _OP_MODULU_:          case _OP_LEFT_BITSHIFT_:
+	case _OP_RIGHT_BITSHIFT_:  case _OP_LOGICAL_AND_:
+	case _OP_LOGICAL_OR_:      case _OP_XOR_:
 		return true;
 	default: return false;
 	}
@@ -834,7 +836,6 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
 	} else if ((*tokens)[startPos + 1].type == _OP_DOT_
 		|| (*tokens)[startPos + 1].type == _OP_CLASS_ACCESSOR_) {
 		lRep = PG_create_member_access_tree(tokens, startPos, false);
-		lRep.tokensToSkip--;
 	} else {
 		int bounds = PG_get_term_bounds(tokens, startPos);
 		lRep = PG_create_simple_term_node(tokens, startPos, bounds);
@@ -2934,7 +2935,15 @@ enum NodeType PG_get_node_type_by_value(char **value) {
 		
 		return _POINTER_NODE_;
 	} else if ((*value)[0] == '&') {
-		return _REFERENCE_NODE_;
+		if ((*value)[1] == '\0') {
+			return _LOGICAL_AND_NODE_;
+		} else {
+			return _REFERENCE_NODE_;
+		}
+	} else if ((*value)[0] == '|') {
+		return _LOGICAL_OR_NODE_;
+	} else if ((*value)[0] == '^') {
+		return _XOR_NODE_;
 	} else if ((*value)[0] == '+') {
 		return _PLUS_NODE_;
 	} else if ((*value)[0] == '-') {
@@ -2962,6 +2971,10 @@ enum NodeType PG_get_node_type_by_value(char **value) {
 		return _GREATER_CONDITION_NODE_;
 	} else if ((int)strcmp((*value), "this") == 0) {
 		return _THIS_NODE_;
+	} else if ((int)strcmp((*value), ">>") == 0) {
+		return _RIGHT_BITSHIFT_NODE_;
+	} else if ((int)strcmp((*value), "<<") == 0) {
+		return _LEFT_BITSHIFT_NODE_;
 	} else {
 		for (size_t i = 0; (*value)[i] != '\0'; i++) {
 			if ((*value)[i] == '-'
@@ -2987,23 +3000,33 @@ enum NodeType PG_get_node_type_by_value(char **value) {
  * </p>
  * 
  * <p><strong>PRECEDENCE of term OPERATORS:</strong>
- * +---+---+---+---+---+---+---+---+
- * |   | * | / | % | + | - | ( | ) |
- * +---+---+---+---+---+---+---+---+
- * | * | = | = | = | * | * | ( | ) |
- * +---+---+---+---+---+---+---+---+
- * | / | = | = | = | / | / | ( | ) |
- * +---+---+---+---+---+---+---+---+
- * | % | = | = | = | % | % | ( | ) |
- * +---+---+---+---+---+---+---+---+
- * | + | * | / | % | = | = | ( | ) |
- * +---+---+---+---+---+---+---+---+
- * | - | * | / | % | = | = | ( | ) |
- * +---+---+---+---+---+---+---+---+
- * | ( | ( | ( | ( | ( | ( | = | = |
- * +---+---+---+---+---+---+---+---+
- * | ) | ) | ) | ) | ) | ) | = | = |
- * +---+---+---+---+---+---+---+---+
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * |    | * | / | % | + | - | ( | ) | >> | << | | | & | ^ |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | *  | = | = | = | * | * | ( | ) |  * |  * | * | * | * |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | /  | = | = | = | / | / | ( | ) |  / |  / | / | / | / |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | %  | = | = | = | % | % | ( | ) |  % |  % | % | % | % |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | +  | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | -  | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | (  | ( | ( | ( | ( | ( | = | = |  ( |  ( | ( | ( | ( |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | )  | ) | ) | ) | ) | ) | = | = |  ) |  ) | ) | ) | ) |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | >> | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | << | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | ^  | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | &  | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
+ * | |  | * | / | % | = | = | ( | ) |  = |  = | = | = | = |
+ * +----+---+---+---+---+---+---+---+----+----+---+---+---+
  * </p>
  * 
  * <p><strong>Layout:</strong>
@@ -3064,6 +3087,11 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 			i += termRep.tokensToSkip;
 			break;
 		}
+		case _OP_LEFT_BITSHIFT_:
+		case _OP_RIGHT_BITSHIFT_:
+		case _OP_LOGICAL_AND_:
+		case _OP_LOGICAL_OR_:
+		case _OP_XOR_:
 		case _OP_PLUS_:
 		case _OP_MINUS_: {
 			Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart);
@@ -3689,6 +3717,9 @@ int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 	for (int i = startPos; i >= 0; i--) {
 		if (i <= 0) {
 			return 0;
+		} else if ((int)is_keyword(&(*tokens)[i]) == true) {
+			back = startPos - (i + 1);
+			break;
 		}
 
 		switch ((*tokens)[i].type) {

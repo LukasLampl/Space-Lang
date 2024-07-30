@@ -58,6 +58,8 @@ typedef enum TOKENTYPES {
     _OP_PLUS_EQUALS_,                _OP_MINUS_EQUALS_,               _OP_DIVIDE_EQUALS_,
     _OP_MULTIPLY_EQUALS_,            _OP_ADD_ONE_,                    _OP_SUBTRACT_ONE_,
     _OP_COLON_,                      _OP_CLASS_CREATOR_,              _OP_QUESTION_MARK_,
+    _OP_LOGICAL_AND_,                _OP_LOGICAL_OR_,                 _OP_XOR_,
+    _OP_LEFT_BITSHIFT_,              _OP_RIGHT_BITSHIFT_,
     _NUMBER_,                        _STRING_,                        _FLOAT_,
     _POINTER_,                       _REFERENCE_,                     _REFERENCE_ON_POINTER_,
     _UNDEF_,                         _LII_,

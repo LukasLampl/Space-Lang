@@ -48,6 +48,7 @@ enum ErrorType {
 	NONE,												//Node error was found
 	ALREADY_DEFINED_EXCEPTION,							//The var, class or function was defined prior
 	NOT_DEFINED_EXCEPTION,								//The var, class or function wasn't defined before the invokation
+	CONSTRUCTOR_NOT_DEFINED_EXCEPTION,					//The constructor doesn't exist
 	TYPE_MISMATCH_EXCEPTION,							//The return types or operation types do not match (e.g. char != int or Object != String)
 	STATEMENT_MISPLACEMENT_EXCEPTION,					//The statement was placed in a scope, that is not suitable for the statement
 	WRONG_ACCESSOR_EXCEPTION,							//The accessor is not used correcty ('->' for class accesses and '.' for member accesses)
@@ -190,6 +191,7 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 struct SemanticReport SA_is_term_valid(struct VarDec type1, struct VarDec type2, Node *operatorNode, Node *rightNode, Node *leftNode);
 SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope, SemanticTable *parent, struct ParamTransferObject *params, size_t line, size_t position);
 int SA_is_node_arithmetic_operator(Node *node);
+int SA_is_node_bit_operator(Node *node);
 int SA_are_VarTypes_equal(struct VarDec type1, struct VarDec type2, int strict);
 int SA_are_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2);
 int SA_are_non_strict_VarTypes_equal(struct VarDec type1, struct VarDec type2);
@@ -239,6 +241,7 @@ void THROW_WRONG_ARGUMENT_EXCEPTION(struct SemanticReport rep);
 void THROW_WRONG_ACCESSOR_EXEPTION(struct SemanticReport rep);
 void THROW_STATEMENT_MISPLACEMENT_EXEPTION(struct SemanticReport rep);
 void THROW_TYPE_MISMATCH_EXCEPTION(struct SemanticReport rep);
+void THROW_CONSTRUCTOR_NOT_DEFINED_EXCEPTION(Node *node);
 void THROW_NOT_DEFINED_EXCEPTION(Node *node);
 void THROW_ALREADY_DEFINED_EXCEPTION(Node *node);
 void THROW_MEMORY_RESERVATION_EXCEPTION(char *problemPosition);
@@ -447,8 +450,6 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
     	case _EQUALS_NODE_:
 		case _MULTIPLY_EQUALS_NODE_:
 		case _DIVIDE_EQUALS_NODE_:
-			(void)SA_check_assignments(table, currentNode);
-			break;
 		default:
 			(void)SA_check_assignments(table, currentNode);
 			break;
@@ -1068,9 +1069,7 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode) {
 	struct VarDec awaitedType = functionEntry->dec;
 	struct SemanticReport rep = nullRep;
 
-	if ((int)SA_is_node_arithmetic_operator(returnNode->leftNode) == true) {
-		rep = SA_evaluate_simple_term(awaitedType, returnNode->leftNode, table);
-	} else if (returnNode->leftNode->type == _INHERITED_CLASS_NODE_) {
+	if (returnNode->leftNode->type == _INHERITED_CLASS_NODE_) {
 		rep = SA_evaluate_instance_creation(table, returnNode->leftNode);
 	} else if (returnNode->leftNode->type == _ARRAY_ASSIGNMENT_NODE_) {
 		rep = SA_evaluate_array_assignment(awaitedType, returnNode->leftNode, table);
@@ -1430,7 +1429,7 @@ struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *
 		struct SemanticReport containsConstructor = SA_contains_constructor_of_type(classTable, node, CONSTRUCTOR_CHECK_CALL);
 
 		if (containsConstructor.status == NA) {
-			return SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
+			return SA_create_semantic_report(nullDec, ERROR, node, CONSTRUCTOR_NOT_DEFINED_EXCEPTION, nullCont);
 		}
 	} else {
 		char *msg = "Inherited var assignment is not a inheritance of a class.";
@@ -1577,8 +1576,9 @@ int SA_get_node_param_count(struct Node *paramHolder) {
  */
 struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *topNode, SemanticTable *table) {
 	int isTopNodeArithmeticOperator = (int)SA_is_node_arithmetic_operator(topNode);
+	int isTopNodeBitOperator = (int)SA_is_node_bit_operator(topNode);
 	
-	if (isTopNodeArithmeticOperator == true) {
+	if (isTopNodeArithmeticOperator == true || isTopNodeBitOperator == true) {
 		struct SemanticReport leftTerm = SA_evaluate_simple_term(expectedType, topNode->leftNode, table);
 		struct SemanticReport rightTerm = SA_evaluate_simple_term(expectedType, topNode->rightNode, table);
 		
@@ -1588,8 +1588,21 @@ struct SemanticReport SA_evaluate_simple_term(struct VarDec expectedType, Node *
 			return rightTerm;
 		}
 
+		if (isTopNodeBitOperator == true) {
+			if (leftTerm.dec.type != INTEGER && leftTerm.dec.type != LONG
+				&& leftTerm.dec.type != SHORT && leftTerm.dec.type != CHAR) {
+				struct VarDec actualExpected = {INTEGER, 0, NULL, false};
+				return SA_create_expected_got_report(actualExpected, leftTerm.dec, topNode->leftNode);
+			} else if (rightTerm.dec.type != INTEGER && rightTerm.dec.type != LONG
+				&& rightTerm.dec.type != SHORT && rightTerm.dec.type != CHAR) {
+				struct VarDec actualExpected = {INTEGER, 0, NULL, false};
+				return SA_create_expected_got_report(actualExpected, rightTerm.dec, topNode->rightNode);
+			}
+		}
+
 		struct SemanticReport validationReport = SA_is_term_valid(leftTerm.dec, rightTerm.dec, topNode, topNode->rightNode, topNode->leftNode);
-		return validationReport.status == ERROR ? validationReport : nullRep;
+		struct SemanticReport successReport = SA_create_semantic_report(expectedType, SUCCESS, NULL, NONE, nullCont);
+		return validationReport.status == ERROR ? validationReport : successReport;
 	} else {
 		return SA_evaluate_term_side(expectedType, topNode, table);
 	}
@@ -2800,6 +2813,28 @@ int SA_is_node_arithmetic_operator(Node *node) {
 
 /**
  * <p>
+ * Checks if a node is a bit operator or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Node is a bit operator
+ * <li>false - Node is not a bit operator
+ * </ul>
+ * 
+ * @param *node     Pointer to the node to check
+ */
+int SA_is_node_bit_operator(Node *node) {
+	switch (node->type) {
+	case _LEFT_BITSHIFT_NODE_: case _RIGHT_BITSHIFT_NODE_: case _XOR_NODE_:
+	case _LOGICAL_AND_NODE_: case _LOGICAL_OR_NODE_:
+		return true;
+	default: return false;
+	}
+}
+
+/**
+ * <p>
  * Ensures that both provided types are equal.
  * </p>
  * 
@@ -3371,6 +3406,11 @@ void THROW_TYPE_MISMATCH_EXCEPTION(struct SemanticReport rep) {
 	}
 }
 
+void THROW_CONSTRUCTOR_NOT_DEFINED_EXCEPTION(Node *node) {
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, CONSTRUCTOR_NOT_DEFINED_EXCEPTION, nullCont);
+	(void)THROW_EXCEPTION("ConstructorNotDefinedException", rep);
+}
+
 void THROW_NOT_DEFINED_EXCEPTION(Node *node) {
 	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, NOT_DEFINED_EXCEPTION, nullCont);
 	(void)THROW_EXCEPTION("NotDefinedException", rep);
@@ -3476,6 +3516,9 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
 	switch (rep.errorType) {
 	case ALREADY_DEFINED_EXCEPTION:
 		(void)THROW_ALREADY_DEFINED_EXCEPTION(rep.errorNode);
+		break;
+	case CONSTRUCTOR_NOT_DEFINED_EXCEPTION:
+		(void)THROW_CONSTRUCTOR_NOT_DEFINED_EXCEPTION(rep.errorNode);
 		break;
 	case NOT_DEFINED_EXCEPTION:
 		(void)THROW_NOT_DEFINED_EXCEPTION(rep.errorNode);
