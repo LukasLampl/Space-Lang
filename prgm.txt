@@ -1,8 +1,5 @@
-class Math => {
-    function pow(base:int, pot:int) {}
-    function pow(base:double, pot:double) {}
-    function pow(base:int, pot:int) {}
-    function pow(base:float, pot:float) {}
-}
+var test = 20;
 
-var number = Math->pow(2.6, 5);
+function test() -> void {
+    
+}

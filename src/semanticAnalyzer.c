@@ -49,6 +49,7 @@ enum ErrorType {
 	ALREADY_DEFINED_EXCEPTION,							//The var, class or function was defined prior
 	NOT_DEFINED_EXCEPTION,								//The var, class or function wasn't defined before the invokation
 	CONSTRUCTOR_NOT_DEFINED_EXCEPTION,					//The constructor doesn't exist
+	CONSTRUCTOR_ALREADY_DEFINED_EXCEPTION,				//The constructor has been defined previously
 	TYPE_MISMATCH_EXCEPTION,							//The return types or operation types do not match (e.g. char != int or Object != String)
 	STATEMENT_MISPLACEMENT_EXCEPTION,					//The statement was placed in a scope, that is not suitable for the statement
 	WRONG_ACCESSOR_EXCEPTION,							//The accessor is not used correcty ('->' for class accesses and '.' for member accesses)
@@ -229,6 +230,8 @@ SemanticTable *SA_create_semantic_table(int paramCount, int symbolTableSize, Sem
 void FREE_TABLE(SemanticTable *rootTable);
 
 struct SemanticReport SA_create_expected_got_report(struct VarDec expected, struct VarDec got, Node *errorNode);
+struct SemanticReport SA_create_already_defined_exception_report(char *collissionName, SemanticTable *currentTable, Node *node);
+char *SA_convert_ScopeType_to_string(enum ScopeType type);
 
 void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep);
 
@@ -244,7 +247,8 @@ void THROW_STATEMENT_MISPLACEMENT_EXEPTION(struct SemanticReport rep);
 void THROW_TYPE_MISMATCH_EXCEPTION(struct SemanticReport rep);
 void THROW_CONSTRUCTOR_NOT_DEFINED_EXCEPTION(Node *node);
 void THROW_NOT_DEFINED_EXCEPTION(Node *node);
-void THROW_ALREADY_DEFINED_EXCEPTION(Node *node);
+void THROW_ALREADY_DEFINED_EXCEPTION(struct SemanticReport rep);
+void THROW_CONSTRUCTOR_ALREADY_DEFINED_EXCEPTION(Node *node);
 void THROW_MEMORY_RESERVATION_EXCEPTION(char *problemPosition);
 void THROW_EXCEPTION(char *message, struct SemanticReport rep);
 void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep);
@@ -498,7 +502,8 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
 	Node *runnableNode = classNode->rightNode;
 
 	if ((int)SA_is_obj_already_defined(name, table) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(classNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, classNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 
@@ -535,7 +540,8 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 
 	if ((int)SA_is_obj_already_defined(name, table) == true) {
 		if ((int)SA_is_function_already_defined(params, table, functionNode) == true) {
-			(void)THROW_ALREADY_DEFINED_EXCEPTION(functionNode);
+			struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, functionNode);
+			(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 			return;
 		}
 	}
@@ -582,7 +588,8 @@ void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode) {
 	SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
 	if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(varNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, varNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 
@@ -637,7 +644,8 @@ void SA_add_conditional_variable_to_table(SemanticTable *table, Node *varNode) {
 	SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
 	if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(varNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, varNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 
@@ -667,7 +675,8 @@ void SA_add_instance_variable_to_table(SemanticTable *table, Node *varNode) {
 	SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
 	if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(varNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, varNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 
@@ -719,7 +728,8 @@ void SA_add_array_variable_to_table(SemanticTable *table, Node *varNode) {
 	SemanticTable *actualTable = table->type == TRY ? table->parent : table;
 
 	if ((int)SA_is_obj_already_defined(name, actualTable) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(varNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, varNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 
@@ -755,7 +765,7 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
 	struct SemanticReport hasConstructor = SA_contains_constructor_of_type(table, constructorNode, CONSTRUCTOR_CALL);
 
 	if ((int)hasConstructor.status == SUCCESS) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(constructorNode);
+		(void)THROW_CONSTRUCTOR_ALREADY_DEFINED_EXCEPTION(constructorNode);
 		return;
 	}
 
@@ -784,7 +794,8 @@ void SA_add_enum_to_table(SemanticTable *table, Node *enumNode) {
 	enum Visibility vis = table->type == MAIN ? P_GLOBAL : GLOBAL;
 
 	if ((int)SA_is_obj_already_defined(name, table) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(enumNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, enumNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 
@@ -810,8 +821,9 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, struct Node *top
 
 		if ((int)HM_contains_key(name, enumTable->symbolTable) == true
 			|| (int)HM_contains_key(assignedValue, valueMap) == true) {
-			(void)THROW_ALREADY_DEFINED_EXCEPTION(enumerator);
-			return;
+			struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, enumTable, enumerator);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
+		return;
 		}
 
 		struct SemanticEntry *entry = SA_create_semantic_entry(name, enumDec, P_GLOBAL, ENUMERATOR, NULL, enumerator->line, enumerator->position);
@@ -845,7 +857,8 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
 	struct SemanticEntry *entry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, EXTERNAL, NULL, includeNode->line, includeNode->position);
 	
 	if ((int)SA_is_obj_already_defined(name, table) == true) {
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(includeNode);
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, includeNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
 		return;
 	}
 	
@@ -1194,8 +1207,9 @@ int SA_is_function_already_defined(struct ParamTransferObject *params, SemanticT
 			int equalityCounter = 0;
 
 			//Filter all entries, that are not functions and do not have the same parameter count
-			if (functionEntry->internalType != FUNCTION
-				|| params->params != functionTable->paramList->load) {
+			if (functionEntry->internalType != FUNCTION) {
+				return true;
+			} else if (params->params != functionTable->paramList->load) {
 				tempEntry = tempEntry->linkedEntry;
 				continue;
 			}
@@ -1251,7 +1265,9 @@ void SA_handle_check_statement_runnable(Node *runnableNode, SemanticTable *check
 			(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
 			return;
 		} else if ((int)HM_contains_key(detailNode->leftNode->value, checkTable->symbolTable) == true) {
-			(void)THROW_ALREADY_DEFINED_EXCEPTION(detailNode->leftNode);
+			struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(detailNode->leftNode->value, checkTable, detailNode->leftNode);
+			(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
+			return;
 			continue;
 		}
 
@@ -1351,6 +1367,62 @@ void SA_check_assignments(SemanticTable *table, Node *node) {
 	}
 }
 
+struct SemanticReport SA_create_already_defined_exception_report(char *collissionName, SemanticTable *currentTable, Node *node) {
+	SemanticTable *nextTableWithDec = SA_get_next_table_with_declaration(collissionName, currentTable);
+	struct SemanticEntryReport entry = SA_get_entry_if_available(collissionName, nextTableWithDec);
+
+	if (entry.entry == NULL) {
+		return nullRep;
+	}
+
+	char *targetString = (char*)SA_convert_ScopeType_to_string(entry.entry->internalType);
+	size_t length = (size_t)strlen(targetString);
+	
+	char *msg = (char*)calloc(length + 128 + 1, sizeof(char));
+	(void)snprintf(msg, length + 128 + 1, "The identifier \"%s\" was defined prior as a \"%s\" on line "
+					TEXT_COLOR_BLUE TEXT_UNDERLINE "%li:%li"
+					TEXT_COLOR_RESET TEXT_COLOR_RED ".", collissionName, targetString, entry.entry->line + 1, entry.entry->position);
+	char *exp = "Can't have two identical identifiers below each other, since it is unclear which to choose.";
+	char *sugg = "Maybe rename the identifier.";
+	struct ErrorContainer errCont = {msg, exp, sugg};
+	return SA_create_semantic_report(nullDec, ERROR, node, ALREADY_DEFINED_EXCEPTION, errCont);
+}
+
+/**
+ * <p>
+ * Returns the according string from the given ScopeType.
+ * </p>
+ * 
+ * <p>
+ * On error it'll return "undefinied".
+ * </p>
+ * 
+ * @returns The converted string
+ * 
+ * @param type	ScopeType to convert
+ */
+char *SA_convert_ScopeType_to_string(enum ScopeType type) {
+	switch (type) {
+	case VARIABLE:
+		return "variable";
+	case FUNCTION:
+		return "function";
+	case CLASS:
+		return "class";
+	default:
+		return "undefined";
+	}
+}
+
+/**
+ * <p>
+ * Counts the dimension that were set by the programmer.
+ * </p>
+ * 
+ * @returns The number of set dimensions
+ * 
+ * @param *arrayVar		Variable with the array
+ */
 int SA_count_set_array_var_dimensions(Node *arrayVar) {
 	int dims = 0;
 
@@ -1367,6 +1439,15 @@ int SA_count_set_array_var_dimensions(Node *arrayVar) {
 	return dims;
 }
 
+/**
+ * <p>
+ * Counts the dimensions of an array assignment.
+ * </p>
+ * 
+ * @returns The number of set dimensions
+ * 
+ * @param *arrayVar		Variable with the array
+ */
 int SA_count_total_array_dimensions(Node *arrayNode) {
 	int dims = 1;
 
@@ -3487,9 +3568,17 @@ void THROW_NOT_DEFINED_EXCEPTION(Node *node) {
 	(void)THROW_EXCEPTION("NotDefinedException", rep);
 }
 
-void THROW_ALREADY_DEFINED_EXCEPTION(Node *node) {
-	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, ALREADY_DEFINED_EXCEPTION, nullCont);
+void THROW_CONSTRUCTOR_ALREADY_DEFINED_EXCEPTION(Node *node) {
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, CONSTRUCTOR_NOT_DEFINED_EXCEPTION, nullCont);
+	(void)THROW_EXCEPTION("ConstructorAlreadyDefinedException", rep);
+}
+
+void THROW_ALREADY_DEFINED_EXCEPTION(struct SemanticReport rep) {
 	(void)THROW_EXCEPTION("AlreadyDefinedException", rep);
+
+	if (rep.container.description != NULL) {
+		(void)free(rep.container.description);
+	}
 }
 
 void THROW_MEMORY_RESERVATION_EXCEPTION(char *problemPosition) {
@@ -3586,7 +3675,7 @@ void THROW_EXCEPTION(char *message, struct SemanticReport rep) {
 void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
 	switch (rep.errorType) {
 	case ALREADY_DEFINED_EXCEPTION:
-		(void)THROW_ALREADY_DEFINED_EXCEPTION(rep.errorNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(rep);
 		break;
 	case CONSTRUCTOR_NOT_DEFINED_EXCEPTION:
 		(void)THROW_CONSTRUCTOR_NOT_DEFINED_EXCEPTION(rep.errorNode);
