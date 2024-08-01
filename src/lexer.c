@@ -124,7 +124,7 @@ struct sequence DOUBLE_OPERATOR_LOOKUP[] = {
 };
 
 struct kwLookup KEYWORD_LOOKUP[] = {
-	{"while", _KW_WHILE_},         {"if", _KW_IF_},           {"function", _KW_FUNCTION_},
+	{"while", _KW_WHILE_},         {"if", _KW_IF_},           {"fn", _KW_FUNCTION_},
 	{"var", _KW_VAR_},             {"break", _KW_BREAK_},     {"return", _KW_RETURN_},
 	{"do", _KW_DO_},               {"class", _KW_CLASS_},     {"with", _KW_WITH_},
 	{"new", _KW_NEW_},             {"true", _KW_TRUE_},       {"false", _KW_FALSE_},

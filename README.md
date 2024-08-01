@@ -14,14 +14,14 @@ For more details:
 - [Hashmap](/docs/hashmap.md)
 
 # Table of contents #
-1. Requirements
-2. Installation & running the compiler
+1. [Requirements](#1-requirements)
+2. [Installation & running the compiler](#2-installation--running-the-compiler)
    - Running the compiler on Windows
    - Running the compiler on Linux
-3. Error messages
-4. Commands
-5. Program examples
-6. Contact
+3. [Error messages](#3-error-messages)
+4. [Commands](#4-commands)
+5. [Program examples](#5-program-examples)
+6. [Contact](#6-contact)
 </ol>
 
 # 1. Requirements #
@@ -77,7 +77,7 @@ Unexpected token "=", maybe replace with "==", "<=", ">=", "!=", "<" or ">".
 > All error messages start with the line (here: `line 1`) on which the error occured, followed by the exact position (here: `1 : 19` => Error at line 1 and position 19) and a replacement suggestion.
 
 <details>
-<summary>List of confusing error messages</summary>
+<summary>List of unconventional error messages</summary>
  
 In the following list you'll find suggestions that might be unclear like `<IDENTIFIER>`
 
@@ -117,20 +117,20 @@ If you don't want to stick to the initialized input, head into the `prgm.txt` fi
 If I'd like to change the input to a class named "Calculator" for example, I can edit the content of the `prgm.txt` file to the following code:  
 
 ```
-class Calculator() => {}
+class Calculator => {}
 ```
 
 To add a function `add(number1, number2)`, I'll just add the function with its visibility or modificator (default: `global`):  
 
 ```
-global function add(number1, number2) {}
+global fn add(number1, number2) {}
 ```
 
 And the last step is to merge both together:  
 
 ```
-class Calculator() => {
-  global function add(number1, number2) {
+class Calculator => {
+  global fn add(number1, number2) {
     return number1 + number2;
   }
 }
@@ -139,8 +139,18 @@ class Calculator() => {
 There are also some critical applications, in which a return type is forced. Let's say I'd define the function `add(number1, number2)` again, but I want to make sure an `int` gets returned. For that I can do the following thing:
 
 ```
-class Calculator() => {
-  global function:int add(number1, number2) {
+class Calculator => {
+  global fn:int add(number1, number2) {
+    return number1 + number2;
+  }
+}
+```
+
+The annotation above also counts for the parameters:
+
+```
+class Calculator => {
+  global fn:int add(number1:int, number2:int) {
     return number1 + number2;
   }
 }

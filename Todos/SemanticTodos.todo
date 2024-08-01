@@ -4,6 +4,8 @@
 
 - [ ] Add warnings and tipps (e.g. deadcode)
 
+- [ ] Add functioncall support
+
 - [X] Add '!' operator checking
 
 - [ ] Add Pointer and Reference support

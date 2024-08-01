@@ -726,6 +726,10 @@ SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos) {
 			return isArrCreation;
 		}
 
+		if ((*tokens)[startPos + 1].type == _OP_SEMICOLON_) {
+			return SA_create_syntax_report(NULL, 2, false, NULL);
+		}
+
 		SyntaxReport isSimpleTerm = SA_is_simple_term(tokens, startPos + 1, false);
 
 		if (isSimpleTerm.errorOccured == true) {

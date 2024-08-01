@@ -1172,7 +1172,9 @@ NodeReport PG_create_return_statement_tree(TOKEN **tokens, size_t startPos) {
 	Node *topNode = PG_create_node("RETURN_STATMENT", _RETURN_STMT_NODE_, token->line, token->tokenStart);
 	int skip = 0;
 	
-	if ((*tokens)[startPos + 1].type == _KW_NEW_) {
+	if ((*tokens)[startPos + 1].type == _OP_SEMICOLON_) {
+		return PG_create_node_report(topNode, 2);
+	} else if ((*tokens)[startPos + 1].type == _KW_NEW_) {
 		NodeReport classInstanceReport = PG_create_class_instance_tree(tokens, startPos + 1);
 		topNode->leftNode = classInstanceReport.node;
 		skip += classInstanceReport.tokensToSkip + 1;
@@ -3716,13 +3718,19 @@ int PG_back_shift_array_access(TOKEN **tokens, size_t startPos) {
 		if (i <= 0) {
 			return 0;
 		} else if ((int)is_keyword(&(*tokens)[i]) == true) {
-			back = startPos - (i + 1);
+			back = startPos - i;
 			break;
 		}
 
 		switch ((*tokens)[i].type) {
 			case _OP_SEMICOLON_:
 			case _OP_EQUALS_:
+			case _OP_EQUALS_CONDITION_:
+			case _OP_GREATER_CONDITION_:
+			case _OP_SMALLER_CONDITION_:
+			case _OP_GREATER_OR_EQUAL_CONDITION_:
+			case _OP_SMALLER_OR_EQUAL_CONDITION_:
+			case _OP_NOT_EQUALS_CONDITION_:
 			case _OP_PLUS_EQUALS_:
 			case _OP_MINUS_EQUALS_:
 			case _OP_MULTIPLY_EQUALS_:

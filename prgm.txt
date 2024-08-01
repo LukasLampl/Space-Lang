@@ -1,5 +1,38 @@
-var test = 20;
+include SPACE.lang.System;
 
-function test() -> void {
-    
+enum AppleState {
+    ON_TREE : 0,
+    FELL_ON_GROUND : 1,
+    ROTTEN
+};
+
+class Apple => {
+    var:AppleState state = AppleState.ON_TREE;
+
+    fn change_status(state:AppleState) -> void {
+        this.state = state;
+        return;
+    }
 }
+
+class Pie => {
+    fn bake() -> void {
+        //print("Baked");
+    }
+}
+
+
+class ApplePie extends Pie => {
+    var:Apple apple = null;
+    
+    this::constructor(apple:Apple) {
+        if (AppleState.ROTTEN == apple->state) {
+            return;
+        }
+
+        this.apple = apple;
+    }
+}
+
+var myPie = new ApplePie();
+var call = myPie->bake();

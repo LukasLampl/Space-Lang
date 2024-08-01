@@ -32,7 +32,7 @@ enum Visibility {
 enum VarType {
     INTEGER, LONG, SHORT, DOUBLE, FLOAT, CHAR, BOOLEAN, STRING, VOID,
     null,
-    CUSTOM, CLASS_REF, CONSTRUCTOR_PARAM, EXTERNAL_RET,
+    CUSTOM, CLASS_REF, ENUM_REF, CONSTRUCTOR_PARAM, EXTERNAL_RET,
     E_FUNCTION_CALL, E_NON_FUNCTION_CALL
 };
 
@@ -50,7 +50,7 @@ enum ExternalType {
 struct VarDec {
     enum VarType type;
     int dimension;
-    char *classType;
+    char *typeName;
     int constant;
 };
 
