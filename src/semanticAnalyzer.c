@@ -60,6 +60,7 @@ enum ErrorType {
 	WRONG_RVAL_EXCEPTION,								//If the right hand side is not valid
 	NON_BOOLEAN_CHECK_EXCEPTION,						//The condition does not end in a boolean
 	NON_COMPARABLE_CHECK_EXCEPTION,
+	CLASS_INHERITANCE_EXCEPTION,
 
 	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION			//If an illegal arightmetic operation was made or an operation is misplaced
 };
@@ -237,6 +238,7 @@ char *SA_convert_ScopeType_to_string(enum ScopeType type);
 
 void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep);
 
+void THROW_CLASS_INHERITANCE_EXCEPTION(Node *node, char *message);
 void THROW_NON_COMPARABLE_CHECK_EXCEPTION(struct SemanticReport rep);
 void THROW_NON_BOOLEAN_CHECK_EXCEPTION(struct SemanticReport rep);
 void THROW_WRONG_RVAL_EXCEPTION(Node *node, char *description);
@@ -522,7 +524,8 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
 	SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, CLASS, table, params, classNode->line, classNode->position);
 	scopeTable->name = name;
 	
-	SemanticEntry *referenceEntry = SA_create_semantic_entry(name, nullDec, vis, CLASS, scopeTable, classNode->line, classNode->position);
+	struct VarDec type = {CLASS_DEF, 0, name, false};
+	SemanticEntry *referenceEntry = SA_create_semantic_entry(name, type, vis, CLASS, scopeTable, classNode->line, classNode->position);
 	(void)HM_add_entry(name, referenceEntry, table->symbolTable);
 	(void)SA_manage_runnable(runnableNode, scopeTable);
 }
@@ -1597,21 +1600,40 @@ struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *
 		if (memAccessRep.status == ERROR) {
 			return memAccessRep;
 		} else if (memAccessRep.dec.type == CLASS_REF) {
-			char *msg = "Cannot check against non-boolean type.";
-			char *exp = "It is not possible to check an non-boolean since there is no way of evaluating the correctness.";
-			char *sugg = "Maybe add a rtionl operator like \"==\" or \"<=\" ... to the condition.";
+			char *msg = "Cannot check against non-primitive type.";
+			char *exp = "It is not possible to check an non-primitive since there is no way of evaluating the correctness.";
+			char *sugg = "Maybe compare the content of the class itself instead of the class itself.";
 			struct ErrorContainer errCont = {msg, exp, sugg};
 			return SA_create_semantic_report(nullDec, ERROR, rootNode, NON_BOOLEAN_CHECK_EXCEPTION, errCont);
 		}
 	} else {
-		struct VarDec cust = {CUSTOM, 0, NULL};
-		struct SemanticReport lVal = SA_evaluate_simple_term(cust, rootNode->leftNode, table);
-		struct SemanticReport rVal = SA_evaluate_simple_term(cust, rootNode->rightNode, table);
+		int checkablesLen = sizeof(validCheckables) / sizeof(validCheckables[0]);
 
-		if (lVal.status == ERROR) {
-			return lVal;
-		} else if (rVal.status == ERROR) {
-			return rVal;
+		for (int i = 0; i < 2; i++) {
+			Node *side = i == 0 ? rootNode->leftNode : rootNode->rightNode;
+			Node *errorNode = side;
+			struct VarDec gotDec = nullDec;
+			int errors = 0;
+
+			for (int n = 0; n < checkablesLen; n++) {
+				struct SemanticReport sideRep = SA_evaluate_simple_term(validCheckables[n], side, table);
+
+				if (sideRep.status == ERROR) {
+					errors++;
+
+					if (sideRep.errorType != TYPE_MISMATCH_EXCEPTION) {
+						return sideRep;
+					}
+				}
+
+				errorNode = sideRep.errorNode;
+				gotDec = sideRep.dec;
+			}
+
+			if (errors == checkablesLen) {
+				struct VarDec expDec = {BOOLEAN, 0, NULL, false};
+				return SA_create_expected_got_report(expDec, gotDec, errorNode);
+			}
 		}
 	}
 
@@ -1932,7 +1954,6 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 	case _IDEN_NODE_:
 	case _FUNCTION_CALL_NODE_: {
 		tempRep = SA_evaluate_member_access(node, table);
-		printf("(T): %i, %i, %s, %i\n", tempRep.dec.type, tempRep.dec.dimension, tempRep.dec.typeName == NULL ? "(null)" : tempRep.dec.typeName, tempRep.dec.constant);
 		useReport = true;
 		node = node->type == _MEM_CLASS_ACC_NODE_ ? SA_get_most_left_node_from_member_access(node) : node;
 		break;
@@ -2053,7 +2074,6 @@ struct SemanticReport SA_evaluate_member_access(Node *topNode, SemanticTable *ta
 
 	if (topNode->type == _MEM_CLASS_ACC_NODE_) {
 		topScope = SA_get_next_table_with_declaration(topNode->leftNode->value, table);
-		printf("TABLE: %s (search: %s)\n", table->name, topNode->leftNode->value);
 		rep = SA_check_non_restricted_member_access(topNode, table, topScope);
 	} else {
 		topScope = SA_get_next_table_with_declaration(topNode->value, table);
@@ -2422,21 +2442,28 @@ struct SemanticReport SA_validate_increment_and_decrement(Node *node, SemanticTa
 	if (memAccRep.dec.type == CLASS_REF) {
 		char *msg = "Can't increment or decrement classes.";
 		char *exp = "A class is not a number and thus can not be incremented or decremented.";
-		char *sugg = "Maybe remove the increment/decrement annotations.";
+		char *sugg = "Maybe remove the increment/decrement operators.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
 		return rep;
 	} else if (memAccRep.dec.type == STRING) {
 		char *msg = "Can't increment or decrement Strings.";
 		char *exp = "A string is a collection of characters, that can only be changed char by char.";
-		char *sugg = "Maybe remove the increment/decrement annotations.";
+		char *sugg = "Maybe remove the increment/decrement operators.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
 		return rep;
 	} else if (memAccRep.dec.type == VOID) {
 		char *msg = "Can't increment or decrement void.";
 		char *exp = "Incrementing or decrementing \"void\" is essentially \"void\".";
-		char *sugg = "Maybe remove the increment/decrement annotations.";
+		char *sugg = "Maybe remove the increment/decrement operators.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
+		return rep;
+	} else if (memAccRep.dec.type == BOOLEAN) {
+		char *msg = "Can't increment or decrement a boolean.";
+		char *exp = "Incrementing or decrementing a \"boolean\" results in a non-boolean.";
+		char *sugg = "Maybe remove the increment/decrement operators.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, WRONG_ARGUMENT_EXCPEPTION, errCont);
 		return rep;
@@ -2489,7 +2516,7 @@ struct SemanticReport SA_create_expected_got_report(struct VarDec expected, stru
 	struct ErrorContainer errCont = {buffer, exp, sugg};
 	(void)free(expected_str);
 	(void)free(got_str);
-	return SA_create_semantic_report(nullDec, ERROR, errorNode, TYPE_MISMATCH_EXCEPTION, errCont);
+	return SA_create_semantic_report(got, ERROR, errorNode, TYPE_MISMATCH_EXCEPTION, errCont);
 }
 
 /**
@@ -3275,6 +3302,11 @@ struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType,
 		} else if (innerNode->type == _RUNNABLE_NODE_
 			|| innerNode->type == _VAR_TYPE_NODE_) {
 			continue;
+		} else if (stdType == EXT_CLASS_OR_INTERFACE) {
+			if ((int)strcmp(topNode->value, innerNode->value) == 0) {
+				(void)THROW_CLASS_INHERITANCE_EXCEPTION(innerNode, "Can't inherit the class itself.");
+				return NULL;
+			}
 		}
 		
 		Node *typeNode = innerNode->detailsCount > 0 ? innerNode->details[0] : NULL;
@@ -3612,6 +3644,12 @@ void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep
 	(void)THROW_EXCEPTION("ArithmeticOperationMisplacementException", rep);
 }
 
+void THROW_CLASS_INHERITANCE_EXCEPTION(Node *node, char *message) {
+	struct ErrorContainer errCont = {message, NULL, NULL};
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, CLASS_INHERITANCE_EXCEPTION, errCont);
+	(void)THROW_EXCEPTION("ClassInheritanceExcption", rep);
+}
+
 void THROW_NON_COMPARABLE_CHECK_EXCEPTION(struct SemanticReport rep) {
 	(void)THROW_EXCEPTION("NonComparableCheckException", rep);
 	
@@ -3863,7 +3901,7 @@ char *SA_get_VarType_string(struct VarDec type) {
 	size += (type.typeName != NULL) ? (int)strlen(type.typeName) : 0;
 	char *buffer = NULL;
 
-	if (type.type != CLASS_REF && type.type != ENUM_REF) {
+	if (type.type != CLASS_REF && type.type != ENUM_REF && type.type != CLASS_DEF) {
 		int lookupSize = sizeof(VarTypeStringLookup) / sizeof(VarTypeStringLookup[0]);
 
 		for (int i = 0; i < lookupSize; i++) {

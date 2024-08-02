@@ -1,37 +1,11 @@
-include SPACE.lang.System;
-
-enum AppleState {
-    ON_TREE : 0,
-    FELL_ON_GROUND : 1,
-    ROTTEN
-};
-
-class Apple => {
-    var:AppleState state = AppleState.ON_TREE;
-
-    fn change_status(state:AppleState) -> void {
-        this.state = state;
-        return;
-    }
+class B => {
+    var:int t = 0;
 }
 
-class Pie => {
-    fn bake() -> void {
-        Console->print("Baked");
-    }
+class A => {
+    var:B c = new B();
 }
 
-class ApplePie extends Pie => {
-    var:Apple apple = null;
-    
-    this::constructor(apple:Apple) {
-        if (AppleState.ROTTEN == apple->state) {
-            return;
-        }
+if (B == A) {
 
-        this.apple = apple;
-    }
 }
-
-var myPie = new ApplePie();
-var call = myPie->bake();
