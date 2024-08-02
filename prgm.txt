@@ -1,14 +1,2 @@
-const ext1 = "I am a fool";
-var:string ext2 = "I am cool";
-
-class B => {
-    var:int t = 0;
-}
-
-class A => {
-    var:B c = new B();
-}
-
-if (B.t == A.c.t) {
-	ext1 = "I'm a cool fool";
-}
+var:int a = 0;
+a += 2;

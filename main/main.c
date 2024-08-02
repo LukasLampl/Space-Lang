@@ -66,6 +66,7 @@ int main() {
     ///////     GENERATE PARSETREE     //////
     /////////////////////////////////////////
     if (containsSyntaxErrors != 0) {
+        (void)FREE_MEMORY();
         return -1;
     }
 
@@ -74,6 +75,7 @@ int main() {
     int containsSemanticErrors = (int)CheckSemantic(root);
 
     if (containsSemanticErrors != 0) {
+        (void)FREE_MEMORY();
         return -1;
     }
 

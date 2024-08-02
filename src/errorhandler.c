@@ -25,6 +25,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include "../headers/modules.h"
 #include "../headers/errors.h"
+#include "../headers/list.h"
 
 #define true 1
 #define false 0
@@ -36,6 +37,11 @@ TOKEN *TokenCache = NULL;
 char *BufferCache = NULL;
 int *arrayOfIndividualTokenSizesCache = NULL;
 struct Node *rootNode = NULL;
+struct List *externalReferenceList = NULL;
+
+void _init_error_external_list_cache(struct List *list) {
+	externalReferenceList = list;
+}
 
 /*
 Purpose: Initialize the token array, so it can be freed at an error
@@ -43,7 +49,7 @@ Return Type: void
 Params: TOKEN **tokens -> Pointer to the token array from the lexer
 */
 void _init_error_token_cache_(TOKEN **tokens) {
-	TokenCache = (*tokens);
+	TokenCache = *tokens;
 }
 
 /*
@@ -52,7 +58,7 @@ Return Type: void
 Params: char **buffer -> Pointer to the buffer
 */
 void _init_error_buffer_cache_(char **buffer) {
-	BufferCache = (*buffer);
+	BufferCache = *buffer;
 }
 
 /*
@@ -458,17 +464,19 @@ Params: void
 */
 int FREE_MEMORY() {
 	int free = 0;
-
 	free += (int)FREE_BUFFER(BufferCache);
 	free += (int)FREE_TOKENS(TokenCache);
 	free += (int)FREE_TOKEN_LENGTHS(arrayOfIndividualTokenSizesCache);
 	free += (int)FREE_NODE(rootNode);
-
+	
+	if (externalReferenceList != NULL) {
+		(void)FREE_LIST(externalReferenceList);
+	}
+	
 	if (free == 4) {
-		(void)printf("\n\n\nProgram exited successful\n");
 		return true;
 	}
-
+	
 	(void)printf("\nProgram exited with errors\n");
 	return false;
 }

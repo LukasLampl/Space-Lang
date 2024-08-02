@@ -23,6 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define SPACE_ERRORS_H_
 
 #include "../headers/modules.h"
+#include "../headers/list.h"
 
 //////////////////////////////////////////////////////////////
 ///////////////////     ERROR HANDLING     ///////////////////
@@ -34,6 +35,7 @@ void _init_error_token_cache_(TOKEN **tokens);
 void _init_error_buffer_cache_(char **buffer);
 void _init_error_token_size_cache_(int **arrayOfIndividualTokenSizes);
 void _init_error_tree_cache_(struct Node **root);
+void _init_error_external_list_cache(struct List *list);
 
 void IO_FILE_EXCEPTION(char *Source, char *file);
 void IO_BUFFER_EXCEPTION(char *Step);

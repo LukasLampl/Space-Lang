@@ -562,11 +562,6 @@ void HM_free_entry(struct HashMapEntry *entry, int freeList) {
 		return;
 	}
 
-	if (entry->key != NULL) {
-		(void)free(entry->key);
-		entry->key = NULL;
-	}
-
 	if (entry->value != NULL) {
 		(void)free(entry->value);
 		entry->value = NULL;

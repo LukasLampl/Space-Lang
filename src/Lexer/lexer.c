@@ -1066,10 +1066,12 @@ TOKENTYPES LX_fill_condition_type(char *value) {
 int FREE_TOKENS(TOKEN *tokens) {
 	if (tokensreserved == 1 && tokens != NULL) {
 		for (int i = 0; i < maxTokensLength; i++) {
-			if (tokens[i].value != NULL) {
-				(void)free(tokens[i].value);
-				tokens[i].value = NULL;
+			if (tokens[i].value == NULL) {
+				continue;
 			}
+
+			(void)free(tokens[i].value);
+			tokens[i].value = NULL;
 		}
 
 		(void)free(tokens);

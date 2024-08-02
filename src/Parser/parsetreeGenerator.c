@@ -221,11 +221,10 @@ int PG_is_operator(const TOKEN *token);
 int PG_add_varType_definition(TOKEN **tokens, size_t startPos, Node *parentNode);
 int PG_count_varType_dimensions(TOKEN **tokens, size_t startPos);
 Node *PG_create_modifier_node(TOKEN *token, int *skip);
-Node *PG_create_node(char *value, enum NodeType type, int line, int pos);
+Node *PG_create_node(char *value, enum NodeType type, int line, int pos, int reservedValue);
 NodeReport PG_create_node_report(Node *topNode, int tokensToSkip);
 void PG_allocate_node_details(Node *node, size_t size);
 void PG_print_from_top_node(Node *topNode, int depth, int pos);
-int FREE_NODE(Node *node);
 
 /**
  * <p>
@@ -338,7 +337,7 @@ void PG_print_cpu_time(float cpu_time_used) {
  */
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_, token->line, token->tokenStart);
+	Node *parentNode = PG_create_node("RUNNABLE", _RUNNABLE_NODE_, token->line, token->tokenStart, false);
 	int argumentCount = 0;
 	size_t jumper = 0;
 	
@@ -364,13 +363,13 @@ NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABL
 			if (argumentCount == 0) {
 				(void)PG_allocate_node_details(parentNode, 1);
 			} else {
-				Node **temp = (Node**)realloc(parentNode->details, sizeof(Node) * argumentCount + 1);
+				Node **temp = (Node**)realloc(parentNode->details, sizeof(Node) * (argumentCount + 1));
 
 				if (temp == NULL) {
-					free(parentNode->details);
-					FREE_MEMORY();
-					printf("Something went wrong (runnable)!\n");
-					exit(EXIT_FAILURE);
+					(void)free(parentNode->details);
+					(void)FREE_MEMORY();
+					(void)printf("Something went wrong (runnable)!\n");
+					(void)exit(EXIT_FAILURE);
 				}
 
 				parentNode->details = temp;
@@ -527,7 +526,7 @@ int PG_predict_function_call(TOKEN **tokens, size_t startPos) {
 */
 NodeReport PG_create_else_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *node = PG_create_node(token->value, _ELSE_STMT_NODE_, token->line, token->tokenStart);
+	Node *node = PG_create_node(token->value, _ELSE_STMT_NODE_, token->line, token->tokenStart, false);
 	int skip = 2;
 	
 	NodeReport runnableReport = PG_create_runnable_tree(tokens, startPos + skip, InBlock);
@@ -562,7 +561,7 @@ NodeReport PG_create_else_statement_tree(TOKEN **tokens, size_t startPos) {
  */
 NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *node = PG_create_node(token->value, _ELSE_IF_STMT_NODE_, token->line, token->tokenStart);
+	Node *node = PG_create_node(token->value, _ELSE_IF_STMT_NODE_, token->line, token->tokenStart, false);
 	int skip = 0;
 
 	NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + 3, false);
@@ -601,7 +600,7 @@ NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos) {
  */
 NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *node = PG_create_node(token->value, _IF_STMT_NODE_, token->line, token->tokenStart);
+	Node *node = PG_create_node(token->value, _IF_STMT_NODE_, token->line, token->tokenStart, false);
 	int skip = 2;
 
 	NodeReport chainedCondReport = PG_create_chained_condition_tree(tokens, startPos + skip, false);
@@ -642,7 +641,7 @@ NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos) {
  */
 NodeReport PG_create_for_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *topNode = PG_create_node("FOR", _FOR_STMT_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node("FOR", _FOR_STMT_NODE_, token->line, token->tokenStart, false);
 	(void)PG_allocate_node_details(topNode, 2);
 	int skip = 2;
 	/*
@@ -842,7 +841,7 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
 	}
 
 	skip += lRep.tokensToSkip;
-	operatorNode = PG_create_node((*tokens)[startPos + skip].value, PG_get_nodeType_of_operator((*tokens)[startPos + skip].type), token->line, token->tokenStart);
+	operatorNode = PG_create_node((*tokens)[startPos + skip].value, PG_get_nodeType_of_operator((*tokens)[startPos + skip].type), token->line, token->tokenStart, false);
 	operatorNode->leftNode = lRep.node;
 	
 	skip++;
@@ -855,11 +854,11 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos) {
 	//String assignment handling
 	} else if ((*tokens)[startPos + skip].type == _STRING_
 		|| (*tokens)[startPos + skip].type == _CHARACTER_ARRAY_) {
-		Node *node = PG_create_node((*tokens)[startPos + skip].value, _STRING_NODE_, (*tokens)[startPos + skip].line, (*tokens)[startPos + skip].tokenStart);
+		Node *node = PG_create_node((*tokens)[startPos + skip].value, _STRING_NODE_, (*tokens)[startPos + skip].line, (*tokens)[startPos + skip].tokenStart, false);
 		rRep = PG_create_node_report(node, 2);
 	//Null assignment handling
 	} else if ((*tokens)[startPos + skip].type == _KW_NULL_) {
-		Node *node = PG_create_node((*tokens)[startPos + skip].value, _NULL_NODE_, (*tokens)[startPos + skip].line, (*tokens)[startPos + skip].tokenStart);
+		Node *node = PG_create_node((*tokens)[startPos + skip].value, _NULL_NODE_, (*tokens)[startPos + skip].line, (*tokens)[startPos + skip].tokenStart, false);
 		rRep = PG_create_node_report(node, 2);
 	//Memeber access handling
 	} else if ((int)PG_predict_member_access(tokens, startPos, NONE) == true) {
@@ -936,7 +935,7 @@ NodeReport PG_create_increment_decrement_tree(TOKEN **tokens, size_t startPos) {
 	int skip = 0;
 	int idenpassedBy = false;
 	int breakLoop = false;
-	Node *topNode = PG_create_node("SASS", _SIMPLE_INC_DEC_ASS_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node("SASS", _SIMPLE_INC_DEC_ASS_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart, false);
 	Node *cache = NULL;
 	
 	while (startPos + skip < TOKEN_LENGTH
@@ -959,10 +958,10 @@ NodeReport PG_create_increment_decrement_tree(TOKEN **tokens, size_t startPos) {
 			continue;
 		}
 		case _OP_ADD_ONE_:
-			currentNode = PG_create_node("++", _INCREMENT_ONE_NODE_, line, tokenStart);
+			currentNode = PG_create_node("++", _INCREMENT_ONE_NODE_, line, tokenStart, false);
 			break;
 		case _OP_SUBTRACT_ONE_:
-			currentNode = PG_create_node("--", _DECREMENT_ONE_NODE_, line, tokenStart);
+			currentNode = PG_create_node("--", _DECREMENT_ONE_NODE_, line, tokenStart, false);
 			break;
 		default:
 			breakLoop = true;
@@ -1069,7 +1068,7 @@ NodeReport PG_create_is_statement_tree(TOKEN **tokens, size_t startPos) {
 	>    ^
 	> (*tokens)[startPos + 2]
 	*/
-	Node *topNode = PG_create_node("IS", _IS_STMT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node("IS", _IS_STMT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart, false);
 
 	int skip = 1;
 	NodeReport idenRep = PG_create_member_access_tree(tokens, startPos + skip, false);
@@ -1114,7 +1113,7 @@ NodeReport PG_create_check_statement_tree(TOKEN **tokens, size_t startPos) {
 	> (*tokens)[startPos + 2]
 	*/
 	int skip = 2;
-	Node *topNode = PG_create_node("CHECK", _CHECK_STMT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node("CHECK", _CHECK_STMT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart, false);
 
 	NodeReport idenRep = PG_create_member_access_tree(tokens, startPos + skip, false);
 	topNode->leftNode = idenRep.node;
@@ -1141,9 +1140,9 @@ NodeReport PG_create_abort_operation_tree(TOKEN **tokens, size_t startPos) {
 	Node *topNode = NULL;
 
 	if ((*tokens)[startPos].type == _KW_CONTINUE_) {
-		topNode = PG_create_node("CONTINUE", _CONTINUE_STMT_NODE_, token->line, token->tokenStart);
+		topNode = PG_create_node("CONTINUE", _CONTINUE_STMT_NODE_, token->line, token->tokenStart, false);
 	} else if ((*tokens)[startPos].type == _KW_BREAK_) {
-		topNode = PG_create_node("BREAK", _BREAK_STMT_NODE_, token->line, token->tokenStart);
+		topNode = PG_create_node("BREAK", _BREAK_STMT_NODE_, token->line, token->tokenStart, false);
 	}
 
 	return PG_create_node_report(topNode, 2);
@@ -1169,7 +1168,7 @@ The indicator node [RET_STMT] has the return value at
 */
 NodeReport PG_create_return_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *topNode = PG_create_node("RETURN_STATMENT", _RETURN_STMT_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node("RETURN_STATMENT", _RETURN_STMT_NODE_, token->line, token->tokenStart, false);
 	int skip = 0;
 	
 	if ((*tokens)[startPos + 1].type == _OP_SEMICOLON_) {
@@ -1219,7 +1218,7 @@ The indicator node [DO_STMT] has the conditions at
 */
 NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *topNode = PG_create_node("DO_STMT", _DO_STMT_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node("DO_STMT", _DO_STMT_NODE_, token->line, token->tokenStart, false);
 	int skip = 2;
 
 	/*
@@ -1266,7 +1265,7 @@ The indicator node [WHILE_STMT] has the conditions at
 */
 NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *topNode = PG_create_node("WHILE_STMT", _WHILE_STMT_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node("WHILE_STMT", _WHILE_STMT_NODE_, token->line, token->tokenStart, false);
 	int skip = 2;
 
 	/*
@@ -1371,7 +1370,7 @@ _______________________________
 */
 NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos + 1];
-	Node *topNode = PG_create_node(token->value, _INHERITED_CLASS_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node(token->value, _INHERITED_CLASS_NODE_, token->line, token->tokenStart, false);
 	int bounds = (int)PG_predict_argument_count(tokens, startPos + 2, false);
 	(void)PG_allocate_node_details(topNode, bounds);
 	int skip = (int)PG_add_params_to_node(topNode, tokens, startPos + 3, 0, _NULL_);
@@ -1400,7 +1399,7 @@ NodeReport PG_create_class_instance_tree(TOKEN **tokens, size_t startPos) {
 NodeReport PG_create_instance_var_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
 	int skip = 0;
-	Node *topNode = PG_create_node(NULL, _UNDEF_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node(NULL, _UNDEF_, token->line, token->tokenStart, false);
 	topNode->leftNode = PG_create_modifier_node(token, &skip);
 
 	if ((*tokens)[startPos + skip].type == _KW_CONST_) {
@@ -1431,7 +1430,7 @@ NodeReport PG_create_condition_assignment_tree(TOKEN **tokens, size_t startPos) 
 	int skip = 0;
 	TOKEN *token = &(*tokens)[startPos];
 
-	Node *topNode = PG_create_node("?", _CONDITIONAL_ASSIGNMENT_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node("?", _CONDITIONAL_ASSIGNMENT_NODE_, token->line, token->tokenStart, false);
 	topNode->leftNode = conditionReport.node;
 	skip += conditionReport.tokensToSkip + 1;
 
@@ -1501,7 +1500,7 @@ _______________________________
 */
 NodeReport PG_create_conditional_var_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *topNode = PG_create_node(NULL, _NULL_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node(NULL, _NULL_, token->line, token->tokenStart, true);
 	int skip = 1;
 	topNode->leftNode = PG_create_modifier_node(token, &skip);
 	topNode->type = (*tokens)[startPos + skip].type == _KW_VAR_ ? _CONDITIONAL_VAR_NODE_ : _CONDITIONAL_CONST_NODE_;
@@ -1569,7 +1568,7 @@ _______________________________
 */
 NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
-	Node *topNode = PG_create_node(NULL, _ARRAY_VAR_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node(NULL, _ARRAY_VAR_NODE_, token->line, token->tokenStart, true);
 	int skip = 1;
 	topNode->leftNode = PG_create_modifier_node(token, &skip);
 
@@ -1594,13 +1593,13 @@ NodeReport PG_create_array_var_tree(TOKEN **tokens, size_t startPos) {
 			rep.tokensToSkip += 2;
 			break;
 		case _KW_NULL_: {
-			Node *nullNode = PG_create_node("NULL", _NULL_NODE_, (*tokens)[startPos + skip + 1].line, (*tokens)[startPos + skip + 1].tokenStart);
+			Node *nullNode = PG_create_node("NULL", _NULL_NODE_, (*tokens)[startPos + skip + 1].line, (*tokens)[startPos + skip + 1].tokenStart, false);
 			rep = PG_create_node_report(nullNode, 2);
 			break;
 		}
 		case _STRING_:
 		case _CHARACTER_ARRAY_: {
-			Node *strNode = PG_create_node((*tokens)[startPos + skip + 1].value, _NULL_NODE_, (*tokens)[startPos + skip + 1].line, (*tokens)[startPos + skip + 1].tokenStart);
+			Node *strNode = PG_create_node((*tokens)[startPos + skip + 1].value, _NULL_NODE_, (*tokens)[startPos + skip + 1].line, (*tokens)[startPos + skip + 1].tokenStart, false);
 			rep = PG_create_node_report(strNode, 2);
 			break;
 		}
@@ -1644,7 +1643,7 @@ The dimensions of the array can be found in the
 _______________________________
 */
 NodeReport PG_create_array_creation_tree(TOKEN **tokens, size_t startPos) {
-	Node *topNode = PG_create_node((*tokens)[startPos].value, _ARRAY_CREATION_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node((*tokens)[startPos].value, _ARRAY_CREATION_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart, false);
 	int skip = 1; //Skip the type
 	int dims = PG_predict_array_creation_dimension_count(tokens, startPos + skip);
 	(void)PG_allocate_node_details(topNode, dims);
@@ -1716,7 +1715,7 @@ NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim) {
 
 	//Automatic '\0' added
 	(void)snprintf(name, size, "d_%i", dim);
-	Node *topNode = PG_create_node(name, _ARRAY_ASSIGNMENT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node(name, _ARRAY_ASSIGNMENT_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart, true);
 	int jumper = 0;
 	int detailsPointer = 0;
 	int running = true;
@@ -1740,13 +1739,13 @@ NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim) {
 			if (detailsPointer == 0) {
 				TOKEN *prevToken = &(*tokens)[startPos + jumper - 1];
 				enum NodeType prevType = PG_get_node_type_by_value(&prevToken->value);
-				topNode->details[detailsPointer++] = PG_create_node(prevToken->value, prevType, prevToken->line, prevToken->tokenStart);
+				topNode->details[detailsPointer++] = PG_create_node(prevToken->value, prevType, prevToken->line, prevToken->tokenStart, false);
 			}
 
 			if ((*tokens)[startPos + jumper + 1].type != _OP_RIGHT_BRACE_) {
 				TOKEN *nextToken = &(*tokens)[startPos + jumper + 1];
 				enum NodeType nextType = PG_get_node_type_by_value(&nextToken->value);
-				topNode->details[detailsPointer++] = PG_create_node(nextToken->value, nextType, nextToken->line, nextToken->tokenStart);
+				topNode->details[detailsPointer++] = PG_create_node(nextToken->value, nextType, nextToken->line, nextToken->tokenStart, false);
 			}
 
 			break;
@@ -1759,7 +1758,7 @@ NodeReport PG_create_array_init_tree(TOKEN **tokens, size_t startPos, int dim) {
 	if (detailsPointer == 0) {
 		TOKEN *token = &(*tokens)[startPos];
 		enum NodeType type = PG_get_node_type_by_value(&token->value);
-		topNode->details[detailsPointer] = PG_create_node(token->value, type, token->line, token->tokenStart);
+		topNode->details[detailsPointer] = PG_create_node(token->value, type, token->line, token->tokenStart, false);
 		jumper = 1;
 	}
 
@@ -1842,7 +1841,7 @@ int PG_add_dimensions_to_var_node(Node *node, TOKEN **tokens, size_t startPos, i
 				termReport.node->type = _ARRAY_DIM_NODE_;
 				jumper += termReport.tokensToSkip;
 			} else {
-				node->details[currentDetail++] = PG_create_node("_", _ARRAY_DIM_NODE_, currentToken->line, currentToken->tokenStart);
+				node->details[currentDetail++] = PG_create_node("_", _ARRAY_DIM_NODE_, currentToken->line, currentToken->tokenStart, false);
 				jumper++;
 			}
 		} else if (currentToken->type == _OP_EQUALS_
@@ -1915,7 +1914,7 @@ To the [VAR] appended are the modifier
 _______________________________
 */
 NodeReport PG_create_normal_var_tree(TOKEN **tokens, size_t startPos) {
-	Node *varNode = PG_create_node(NULL, _VAR_NODE_, 0, 0);
+	Node *varNode = PG_create_node(NULL, _VAR_NODE_, 0, 0, true);
 	int skip = 0;
 	
 	varNode->leftNode = PG_create_modifier_node(&(*tokens)[startPos], &skip);
@@ -2014,7 +2013,7 @@ NodeReport PG_create_chained_condition_tree(TOKEN **tokens, const size_t startPo
 		case _KW_OR_:
 		case _KW_AND_: {
 			enum NodeType type = currentToken->type == _KW_AND_ ? _AND_NODE_ : _OR_NODE_;
-			Node *node = PG_create_node(currentToken->value, type, currentToken->line, currentToken->tokenStart);
+			Node *node = PG_create_node(currentToken->value, type, currentToken->line, currentToken->tokenStart, false);
 
 			if (cache == NULL) {
 				NodeReport leftReport = PG_create_condition_tree(tokens, lastCondStart);
@@ -2118,7 +2117,7 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
 		TOKEN *currentToken = &(*tokens)[startPos + skip];
 
 		if ((int)PG_is_condition_operator(currentToken->type) == true) {
-			Node *conditionNode = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart);
+			Node *conditionNode = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart, false);
 			int leftBounds = (int)PG_get_condition_iden_length(tokens, startPos);
 			int rightBounds = (int)PG_get_condition_iden_length(tokens, startPos + skip + 1);
 
@@ -2133,7 +2132,7 @@ NodeReport PG_create_condition_tree(TOKEN **tokens, size_t startPos) {
 		} else if ((currentToken->type == _KW_TRUE_
 			|| currentToken->type == _KW_FALSE_)
 			&& (int)PG_is_condition_operator((*tokens)[startPos + skip + 1].type) == false) {
-				Node *boolNode = PG_create_node(currentToken->value, _BOOL_NODE_, currentToken->line, currentToken->tokenStart);
+				Node *boolNode = PG_create_node(currentToken->value, _BOOL_NODE_, currentToken->line, currentToken->tokenStart, false);
 				return PG_create_node_report(boolNode, 1);
 		}
 
@@ -2204,7 +2203,7 @@ _______________________________
 NodeReport PG_create_class_constructor_tree(TOKEN **tokens, size_t startPos) {
 	int skip = 5;
 	TOKEN *token = &(*tokens)[startPos + 3];
-	Node *topNode = PG_create_node("CONSTRUCTOR", _CLASS_CONSTRUCTOR_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node("CONSTRUCTOR", _CLASS_CONSTRUCTOR_NODE_, token->line, token->tokenStart, false);
 	token = &(*tokens)[startPos + skip];
 	//Start (from ´´´this´´´ to ´´´constructor´´´) is SYNTAXANALYSIS
 	//not tree generation.
@@ -2262,14 +2261,14 @@ NodeReport PG_create_class_tree(TOKEN **tokens, size_t startPos) {
 
 	skip++;
 	token = &(*tokens)[startPos + skip];
-	Node *classNode = PG_create_node(token->value, _CLASS_NODE_, token->line, token->tokenStart);
+	Node *classNode = PG_create_node(token->value, _CLASS_NODE_, token->line, token->tokenStart, false);
 	classNode->leftNode = modNode;
 	skip++;
 
 	if ((*tokens)[startPos + skip].type == _KW_EXTENDS_) {
 		(void)PG_allocate_node_details(classNode, 1);
 		TOKEN *inTok = &(*tokens)[startPos + skip + 1];
-		classNode->details[0] = PG_create_node(inTok->value, _INHERITANCE_NODE_, inTok->line, inTok->tokenStart);
+		classNode->details[0] = PG_create_node(inTok->value, _INHERITANCE_NODE_, inTok->line, inTok->tokenStart, false);
 		skip += 2;
 	}
 
@@ -2348,7 +2347,7 @@ NodeReport PG_create_catch_tree(TOKEN **tokens, size_t startPos) {
 	>           (*tokens)[startPos + 5]
 	*/
 	int skip = 2;
-	Node *topNode = PG_create_node("CATCH", _CATCH_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart);
+	Node *topNode = PG_create_node("CATCH", _CATCH_NODE_, (*tokens)[startPos].line, (*tokens)[startPos].tokenStart, false);
 	NodeReport exceptionType = PG_create_member_access_tree(tokens, startPos + skip, false);
 	
 	skip += exceptionType.tokensToSkip;
@@ -2383,7 +2382,7 @@ _______________________________
 NodeReport PG_create_export_tree(TOKEN **tokens, size_t startPos) {
 	//Here: export "name";
 	TOKEN *token = &(*tokens)[startPos + 1];
-	Node *topNode = PG_create_node(token->value, _EXPORT_NODE_, token->line, token->tokenStart);
+	Node *topNode = PG_create_node(token->value, _EXPORT_NODE_, token->line, token->tokenStart, false);
 	return PG_create_node_report(topNode, 3);
 }
 
@@ -2441,7 +2440,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
 	> (*tokens)[startPos + 1]
 	*/
 	TOKEN *token = &(*tokens)[startPos + 1];
-	Node *enumNode = PG_create_node(token->value, _ENUM_NODE_, token->line, token->tokenStart);
+	Node *enumNode = PG_create_node(token->value, _ENUM_NODE_, token->line, token->tokenStart, false);
 	int argumentCount = (int)PG_predict_enumerator_count(tokens, startPos + 2);
 	(void)PG_allocate_node_details(enumNode, argumentCount);
 	
@@ -2464,7 +2463,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
 		}
 
 		token = &(*tokens)[startPos + skip + 1];
-		Node *enumeratorNode = PG_create_node(token->value, _ENUMERATOR_NODE_, token->line, token->tokenStart);
+		Node *enumeratorNode = PG_create_node(token->value, _ENUMERATOR_NODE_, token->line, token->tokenStart, false);
 
 		if (currentToken->type == _OP_COMMA_
 			|| currentToken->type == _OP_RIGHT_BRACE_) {
@@ -2489,7 +2488,7 @@ NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos) {
 			}
 
 			(void)snprintf(value, 24, "%d", currentEnumeratorValue++);
-			enumeratorNode->rightNode = PG_create_node(value, _VALUE_NODE_, token->line, token->tokenStart);
+			enumeratorNode->rightNode = PG_create_node(value, _VALUE_NODE_, token->line, token->tokenStart, true);
 			enumNode->details[argumentCount++] = enumeratorNode;
 			skip++;
 		}
@@ -2554,7 +2553,7 @@ _______________________________
 NodeReport PG_create_function_tree(TOKEN **tokens, size_t startPos) {
 	int skip = 1; //Skip the "function" keyword
 	Node *modNode = NULL;
-	Node *functionNode = PG_create_node("FNC", _FUNCTION_NODE_, 0, 0);
+	Node *functionNode = PG_create_node("FNC", _FUNCTION_NODE_, 0, 0, false);
 	TOKEN *token = &(*tokens)[startPos];
 
 	/*
@@ -2604,7 +2603,7 @@ Params: TOKEN **tokens => Pointer to the array of tokens;
 NodeReport PG_create_function_call_tree(TOKEN **tokens, size_t startPos) {
 	TOKEN *token = &(*tokens)[startPos];
 	char *name = PG_get_identifier_by_index(token);
-	Node *functionCallNode = PG_create_node(name, _FUNCTION_CALL_NODE_, token->line, token->tokenStart);
+	Node *functionCallNode = PG_create_node(name, _FUNCTION_CALL_NODE_, token->line, token->tokenStart, true);
 	int argumentSize = (int)PG_predict_argument_count(tokens, startPos + 1, true);
 	(void)PG_allocate_node_details(functionCallNode, argumentSize);
 	size_t paramSize = (size_t)PG_add_params_to_node(functionCallNode, tokens, startPos + 2, 0, _NULL_);
@@ -2823,9 +2822,9 @@ size_t PG_get_size_till_next_semicolon(TOKEN **tokens, size_t startPos) {
  */
 void PG_allocate_node_details(Node *node, size_t size) {
 	if (node == NULL) {
-		FREE_MEMORY();
-		printf("NODE NULL\n");
-		exit(EXIT_FAILURE);
+		(void)FREE_MEMORY();
+		(void)printf("NODE NULL\n");
+		(void)exit(EXIT_FAILURE);
 	}
 
 	Node **temp = NULL;
@@ -2842,10 +2841,10 @@ void PG_allocate_node_details(Node *node, size_t size) {
 	}
 
 	if (temp == NULL) {
-		free(node->details);
-		FREE_MEMORY();
-		printf("DETAILS ERROR!\n");
-		exit(EXIT_FAILURE);
+		(void)free(node->details);
+		(void)FREE_MEMORY();
+		(void)printf("DETAILS ERROR!\n");
+		(void)exit(EXIT_FAILURE);
 	}
 	
 	node->details = temp;
@@ -3080,7 +3079,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 			break;
 		}
 		case _OP_NOT_: {
-			Node *node = PG_create_node(currentToken->value, _NOT_NODE_, currentToken->line, currentToken->tokenStart);			
+			Node *node = PG_create_node(currentToken->value, _NOT_NODE_, currentToken->line, currentToken->tokenStart, false);
 			NodeReport termRep = PG_create_simple_term_node(tokens, i + 1, boundaries - 1);
 			node->rightNode = termRep.node;
 			cache = node;
@@ -3094,7 +3093,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 		case _OP_XOR_:
 		case _OP_PLUS_:
 		case _OP_MINUS_: {
-			Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart);
+			Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart, false);
 			node->leftNode = cache == NULL ? PG_create_member_access_tree(tokens, lastIdenPos, true).node : cache;
 
 			NodeReport rRep = {NULL, UNINITIALZED};
@@ -3115,7 +3114,7 @@ NodeReport PG_create_simple_term_node(TOKEN **tokens, size_t startPos, size_t bo
 		case _OP_DIVIDE_:
 		case _OP_MULTIPLY_:
 		case _OP_MODULU_: {
-			Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart);
+			Node *node = PG_create_node(currentToken->value, PG_get_node_type_by_value(&currentToken->value), currentToken->line, currentToken->tokenStart, false);
 			node->leftNode = cache == NULL ? PG_assign_processed_node_to_node(tokens, lastIdenPos, true).node : cache;
 
 			NodeReport rRep = PG_assign_processed_node_to_node(tokens, i + 1, true);
@@ -3192,7 +3191,7 @@ NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos, int
 	TOKEN *startTok = &(*tokens)[startPos];
 
 	if (startTok->type == _OP_NOT_) {
-		Node *node = PG_create_node(startTok->value, _NOT_NODE_, startTok->line, startTok->tokenStart);
+		Node *node = PG_create_node(startTok->value, _NOT_NODE_, startTok->line, startTok->tokenStart, false);
 		size_t bounds = PG_get_term_bounds(tokens, startPos + 1);
 		NodeReport termRep = PG_create_simple_term_node(tokens, startPos + 1, bounds);
 		node->rightNode = termRep.node;
@@ -3203,11 +3202,11 @@ NodeReport PG_assign_processed_node_to_node(TOKEN **tokens, size_t startPos, int
 		report = PG_create_simple_term_node(tokens, startPos, bounds + 1);
 	} else if (startTok->type == _STRING_
 		|| startTok->type == _CHARACTER_ARRAY_) {
-		Node *strNode = PG_create_node(startTok->value, _STRING_NODE_, startTok->line, startTok->tokenStart);
+		Node *strNode = PG_create_node(startTok->value, _STRING_NODE_, startTok->line, startTok->tokenStart, false);
 		return PG_create_node_report(strNode, 2);
 	} else if (startTok->type == _KW_TRUE_
 		|| startTok->type == _KW_FALSE_) {
-		Node *boolNode = PG_create_node(startTok->value, _BOOL_NODE_, startTok->line, startTok->tokenStart);
+		Node *boolNode = PG_create_node(startTok->value, _BOOL_NODE_, startTok->line, startTok->tokenStart, false);
 		return PG_create_node_report(boolNode, 1);
 	} else if ((int)PG_predict_increment_or_decrement_assignment(tokens, startPos) == true) {
 		return PG_create_increment_decrement_tree(tokens, startPos);
@@ -3236,7 +3235,7 @@ NodeReport PG_create_array_access_tree(TOKEN **tokens, size_t startPos) {
 	while ((*tokens)[startPos + skip].type == _OP_RIGHT_EDGE_BRACKET_
 		&& startPos + skip < TOKEN_LENGTH) {
 		TOKEN *tok = &(*tokens)[startPos + skip];
-		Node *arrAccNode = PG_create_node("ARR_ACC", _ARRAY_ACCESS_NODE_, tok->line, tok->tokenStart);
+		Node *arrAccNode = PG_create_node("ARR_ACC", _ARRAY_ACCESS_NODE_, tok->line, tok->tokenStart, false);
 		NodeReport rep = {NULL, 0};
 
 		if ((int)PG_predict_increment_or_decrement_assignment(tokens, startPos + skip + 1) == true) {
@@ -3449,7 +3448,7 @@ NodeReport PG_create_member_access_tree(TOKEN **tokens, size_t startPos, int use
 		if (currentToken->type == _OP_DOT_
 			|| currentToken->type == _OP_CLASS_ACCESSOR_) {
 			enum NodeType type = currentToken->type == _OP_DOT_ ? _MEMBER_ACCESS_NODE_ : _CLASS_ACCESS_NODE_;
-			Node *tempNode = PG_create_node(currentToken->value, type, currentToken->line, currentToken->tokenStart);
+			Node *tempNode = PG_create_node(currentToken->value, type, currentToken->line, currentToken->tokenStart, false);
 			NodeReport val = {NULL, -1};
 
 			if (topNode == NULL) {
@@ -3602,7 +3601,7 @@ NodeReport PG_get_member_access_side_node_tree(TOKEN **tokens, size_t startPos, 
 	} else {
 		TOKEN *token = &(*tokens)[internalSkip];
 		char *value = (char*)PG_get_identifier_by_index(token);
-		topNode = PG_create_node(value, PG_get_node_type_by_value(&value), token->line, token->tokenStart);
+		topNode = PG_create_node(value, PG_get_node_type_by_value(&value), token->line, token->tokenStart, true);
 		internalSkip++;
 	}
 
@@ -3778,7 +3777,6 @@ char *PG_get_identifier_by_index(TOKEN *token) {
 	char *cache = (char*)calloc(token->size, sizeof(char));
 
 	if (cache == NULL) {
-		free(cache);
 		FREE_MEMORY();
 		(void)printf("ERROR! (CACHE CALLOC)\n");
 	}
@@ -3945,14 +3943,21 @@ int PG_add_varType_definition(TOKEN **tokens, size_t startPos, Node *parentNode)
 	skip += dimensions * 2;
 
 	TOKEN *nameTok = &(*tokens)[startPos];
-	Node *nameOfType = PG_create_node(nameTok->value, _VAR_TYPE_NODE_, nameTok->line, nameTok->tokenStart);
+	Node *nameOfType = PG_create_node(nameTok->value, _VAR_TYPE_NODE_, nameTok->line, nameTok->tokenStart, false);
 
 	if (dimensions > 0) {
 		char *buffer = (char*)calloc(16, sizeof(char));
+
+		if (buffer == NULL) {
+			(void)FREE_MEMORY();
+			(void)printf("PG_BUFFER_NULL\n");
+			(void)exit(1);
+		}
+
 		int ret = (int)snprintf(buffer, 16 * sizeof(char), "%i", dimensions);
 
 		if (ret <= 16 && ret > 0) {
-			nameOfType->leftNode = PG_create_node(buffer, _VAR_DIM_NODE_, nameTok->line, nameTok->tokenStart);
+			nameOfType->leftNode = PG_create_node(buffer, _VAR_DIM_NODE_, nameTok->line, nameTok->tokenStart, true);
 		} else {
 			(void)PARSE_TREE_NODE_RESERVATION_EXCEPTION();
 		}
@@ -4008,7 +4013,7 @@ Node *PG_create_modifier_node(TOKEN *token, int *skip) {
 		|| token->type == _KW_SECURE_
 		|| token->type == _KW_GLOBAL_) {
 		(*skip)++;
-		return PG_create_node(token->value, _MODIFIER_NODE_, token->line, token->tokenStart);
+		return PG_create_node(token->value, _MODIFIER_NODE_, token->line, token->tokenStart, false);
 	}
 
 	return NULL;
@@ -4023,8 +4028,9 @@ Node *PG_create_modifier_node(TOKEN *token, int *skip) {
  * @param type  Type of the Node (e.g. _VAR_NODE_ or _FUNCTION_CALL_NODE_, etc.)
  * @param line  Line of the token
  * @param pos   Position of the token
+ * @param reservedValue		Flag for determining whether the value field was allocated or not
 */
-Node *PG_create_node(char *value, enum NodeType type, int line, int pos) {
+Node *PG_create_node(char *value, enum NodeType type, int line, int pos, int reservedValue) {
 	Node *node = (Node*)calloc(1, sizeof(Node));
 
 	if (node == NULL) {
@@ -4039,6 +4045,7 @@ Node *PG_create_node(char *value, enum NodeType type, int line, int pos) {
 	node->rightNode = NULL;
 	node->details = NULL;
 	node->detailsCount = 0;
+	node->reservedValue = reservedValue;
 	return node;
 }
 
@@ -4105,17 +4112,28 @@ NodeReport PG_create_node_report(Node *topNode, int tokensToSkip) {
  */
 int FREE_NODE(Node *node) {
 	if (node != NULL) {
-		FREE_NODE(node->leftNode);
-		FREE_NODE(node->rightNode);
+		(void)FREE_NODE(node->leftNode);
+		(void)FREE_NODE(node->rightNode);
 
 		for (size_t i = 0; i < node->detailsCount; i++) {
-			FREE_NODE(node->details[i]);
-			free(node->details[i]);
+			if (node->details[i] == NULL) {
+				continue;
+			}
+
+			(void)FREE_NODE(node->details[i]);
 		}
 
-		free(node->value);
-		free(node->details);
-		free(node);
+		if (node->reservedValue == true) {
+			(void)free(node->value);
+			node->value = NULL;
+		}
+
+		if (node->details != NULL) {
+			(void)free(node->details);
+			node->details = NULL;
+		}
+
+		(void)free(node);
 		node = NULL;
 	}
 

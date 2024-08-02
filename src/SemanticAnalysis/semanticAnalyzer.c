@@ -376,7 +376,7 @@ int CheckSemantic(Node *root) {
 	(void)FREE_TABLE(mainTable);
 	printf(TEXT_COLOR_YELLOW "Total Externals: %li\n" TEXT_COLOR_RESET, LIST_OF_EXTERNAL_ACCESSES->load);
 	DEBUG_print_list(LIST_OF_EXTERNAL_ACCESSES, true);
-	return 1;
+	return 0;
 }
 
 void SA_init_globals() {

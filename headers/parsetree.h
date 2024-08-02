@@ -125,6 +125,10 @@ typedef struct Node {
      * </p>
      */
     struct Node *rightNode;
+
+    int reservedValue;
 } Node;
+
+int FREE_NODE(Node *node);
 
 #endif
