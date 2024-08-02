@@ -98,9 +98,7 @@ Params: FILE *fptr => File Pointer;
 */
 void check_file_pointer(const FILE *fptr, char *pathToSourceFile) {
 	if (fptr == NULL) {
-		char sourceFile[64] = {'\0'};
-		(void)strncpy(pathToSourceFile, sourceFile, 63);
-		(void)IO_FILE_EXCEPTION((char *)sourceFile, "input");
+		(void)IO_FILE_EXCEPTION(pathToSourceFile, "input");
 	}
 }
 

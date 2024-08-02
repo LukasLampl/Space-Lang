@@ -3774,7 +3774,7 @@ void THROW_EXCEPTION(char *message, struct SemanticReport rep) {
 
 	char firstFoldMeta[32];
 	int minSkip = (int)snprintf(firstFoldMeta, 32, "    at: ");
-	(void)printf(firstFoldMeta);
+	(void)printf("%s", firstFoldMeta);
 	(void)printf(TEXT_COLOR_GRAY);
 
 	for (int i = 0; i < charsInLine; i++) {
