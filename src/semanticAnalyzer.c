@@ -452,6 +452,16 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 		case _CHECK_STMT_NODE_:
 			(void)SA_add_check_to_table(table, currentNode);
 			break;
+		case _MEM_CLASS_ACC_NODE_:
+		case _FUNCTION_CALL_NODE_: {
+			struct SemanticReport rep = SA_evaluate_member_access(currentNode, table);
+		
+			if (rep.status == ERROR) {
+				(void)THROW_ASSIGNED_EXCEPTION(rep);
+			}
+		
+			break;
+		}
 		case _PLUS_EQUALS_NODE_:
 		case _MINUS_EQUALS_NODE_:
     	case _EQUALS_NODE_:

@@ -17,10 +17,9 @@ class Apple => {
 
 class Pie => {
     fn bake() -> void {
-        //print("Baked");
+        Console->print("Baked");
     }
 }
-
 
 class ApplePie extends Pie => {
     var:Apple apple = null;
