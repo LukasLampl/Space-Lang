@@ -24,12 +24,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
-#include "../headers/modules.h"
-#include "../headers/errors.h"
-#include "../headers/hashmap.h"
-#include "../headers/list.h"
-#include "../headers/parsetree.h"
-#include "../headers/semantic.h"
+#include "../../headers/modules.h"
+#include "../../headers/errors.h"
+#include "../../headers/hashmap.h"
+#include "../../headers/list.h"
+#include "../../headers/parsetree.h"
+#include "../../headers/semantic.h"
 
 /**
  * <p>

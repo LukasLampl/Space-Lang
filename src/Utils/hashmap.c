@@ -23,9 +23,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include "../headers/hashmap.h"
-#include "../headers/modules.h"
-#include "../headers/errors.h"
+#include "../../headers/hashmap.h"
+#include "../../headers/modules.h"
+#include "../../headers/errors.h"
 
 /** 
  * The subprogram {@code SPACE/src/hashmap.c} was created

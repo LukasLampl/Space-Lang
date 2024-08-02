@@ -24,8 +24,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include "../headers/Token.h"
-#include "../headers/errors.h"
+#include "../../headers/Token.h"
+#include "../../headers/errors.h"
 
 /**
  * The subprogram {@code SPACE.src.syntaxAnalyzer} was created

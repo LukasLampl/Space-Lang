@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "errors.h": "c",
+        "modules.h": "c",
+        "token.h": "c",
+        "hashmap.h": "c",
+        "list.h": "c"
+    }
+}

@@ -24,10 +24,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
-#include "../headers/modules.h"
-#include "../headers/errors.h"
-#include "../headers/parsetree.h"
-#include "../headers/Token.h"
+#include "../../headers/modules.h"
+#include "../../headers/errors.h"
+#include "../../headers/parsetree.h"
+#include "../../headers/Token.h"
 
 /** 
  * <p>

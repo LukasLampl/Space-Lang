@@ -23,8 +23,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include "../headers/list.h"
-#include "../headers/modules.h"
+#include "../../headers/list.h"
+#include "../../headers/modules.h"
 
 /** 
  * The subprogram {@code SPACE/src/list.c} was created
