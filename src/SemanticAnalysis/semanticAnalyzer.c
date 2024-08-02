@@ -2500,8 +2500,10 @@ struct SemanticReport SA_validate_increment_and_decrement(Node *node, SemanticTa
  */
 struct SemanticReport SA_create_expected_got_report(struct VarDec expected, struct VarDec got, Node *errorNode) {
 	char *expected_str = SA_get_VarType_string(expected);
+	char *expectedType_str = expected.type == CLASS_REF ? "class" : "primitive";
 	char *got_str = SA_get_VarType_string(got);
-	size_t length = (size_t)strlen(expected_str) + (size_t)strlen(got_str);
+	char *gotType_str = got.type == CLASS_REF ? "class" : "primitive";
+	size_t length = (size_t)strlen(expected_str) + (size_t)strlen(got_str) + (size_t)strlen(gotType_str) + (size_t)strlen(expectedType_str);
 	char *buffer = (char*)calloc(length + 32 + 1, sizeof(char));
 	char *sugg = (char*)calloc(length + 26 + 1, sizeof(char));
 
@@ -2510,7 +2512,7 @@ struct SemanticReport SA_create_expected_got_report(struct VarDec expected, stru
 		return SA_create_semantic_report(nullDec, ERROR, errorNode, TYPE_MISMATCH_EXCEPTION, nullCont);
 	}
 
-	(void)snprintf(buffer, (length + 32 + 1) * sizeof(char), "Expected \"%s\", but got \"%s\" instead.", expected_str, got_str);
+	(void)snprintf(buffer, (length + 32 + 1) * sizeof(char), "Expected \"%s\" (%s), but got \"%s\" (%s) instead.", expected_str, expectedType_str, got_str, gotType_str);
 	(void)snprintf(sugg, (length + 26 + 1) * sizeof(char), "Maybe change the \"%s\" to \"%s\".", got_str, expected_str);
 	char *exp = "Typesafety is active, so types have to either match strictly or be converted to the according type.";
 	struct ErrorContainer errCont = {buffer, exp, sugg};
@@ -2744,18 +2746,15 @@ struct SemanticReport SA_execute_access_type_checking(Node *cacheNode, SemanticT
 			return SA_create_semantic_report(nullDec, ERROR, cacheNode, WRONG_ACCESSOR_EXCEPTION, errCont);
 		}
 	} else if (cacheNode->type == _MEMBER_ACCESS_NODE_) {
-		if (currentScope->type != ENUM
-			&& currentScope->type != CLASS) {
-			SemanticTable *nextClassTableFromCall = (SemanticTable*)SA_get_next_table_of_type(topScope, CLASS);
+		SemanticTable *nextClassTableFromCall = (SemanticTable*)SA_get_next_table_of_type(topScope, CLASS);
 
-			if (nextClassTableFromCall->type != CLASS
-				|| (int)strcmp(currentScope->name, nextClassTableFromCall->name) != 0) {
-				char *msg = "Used \".\" for class access instead of \"->\".";
-				char *exp = "If you want to access a class externally, you have to use \"->\".";
-				char *sugg = "Maybe replace the \".\" with a \"->\".";
-				struct ErrorContainer errCont = {msg, exp, sugg};
-				return SA_create_semantic_report(nullDec, ERROR, cacheNode, WRONG_ACCESSOR_EXCEPTION, errCont);
-			}
+		if (nextClassTableFromCall->type == CLASS
+			|| (int)strcmp(currentScope->name, nextClassTableFromCall->name) != 0) {
+			char *msg = "Used \".\" for class access instead of \"->\".";
+			char *exp = "If you want to access a class externally, you have to use \"->\".";
+			char *sugg = "Maybe replace the \".\" with a \"->\".";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			return SA_create_semantic_report(nullDec, ERROR, cacheNode, WRONG_ACCESSOR_EXCEPTION, errCont);
 		}
 	}
 
@@ -2887,6 +2886,8 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
 	}
 
 	struct SemanticReport rep = SA_evaluate_simple_term(expectedType, topNode, table);
+	printf("T: %i %i %s %i\n", expectedType.type, expectedType.dimension, expectedType.typeName == NULL ? "(null)" : expectedType.typeName, expectedType.constant);
+	printf("T_: %i %i %s %i\n", rep.dec.type, rep.dec.dimension, rep.dec.typeName == NULL ? "(null)" : rep.dec.typeName, rep.dec.constant);
 
 	if (rep.dec.type == null && expectedType.type == CLASS_REF) {
 		return nullRep;
