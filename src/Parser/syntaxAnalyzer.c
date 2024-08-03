@@ -124,7 +124,6 @@ SyntaxReport SA_is_class(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_with_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_try_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_catch_statement(TOKEN **tokens, size_t startPos);
-SyntaxReport SA_is_export(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_include(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_enum(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_enumerator(TOKEN **tokens, size_t startPos);
@@ -664,8 +663,6 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int s
 		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<EXPRESSION>");
 	case _KW_INCLUDE_:
 		return SA_is_include(tokens, startPos);
-	case _KW_EXPORT_:
-		return SA_is_export(tokens, startPos);
 	case _KW_ENUM_:
 		return SA_is_enum(tokens, startPos);
 	case _KW_THIS_:
@@ -2330,39 +2327,6 @@ SyntaxReport SA_is_catch_statement(TOKEN **tokens, size_t startPos) {
 	SyntaxReport isRunnable = SA_is_runnable(tokens, startPos + 5, true);
 
 	return SA_create_syntax_report(NULL, isRunnable.tokensToSkip + 5, false, isRunnable.expectedToken);
-}
-
-/**
- * <p>
- * Checks if a given token sequence matches the export statement.
- * </p>
- * 
- * <p>
- * Examples:
- * ```
- * export "package";
- * ```
- * </p>
- * 
- * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
- * 
- * @param **tokens  Pointer to the TOKEN array
- * @param startPos  Position from where to start checking
-*/
-SyntaxReport SA_is_export(TOKEN **tokens, size_t startPos) {
-	if ((*tokens)[startPos].type != _KW_EXPORT_) {
-		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "export");
-	}
-
-	if ((int)SA_is_string(&(*tokens)[startPos + 1]) == false) {
-		return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<STRING>");
-	}
-
-	if ((*tokens)[startPos + 2].type != _OP_SEMICOLON_) {
-		return SA_create_syntax_report(&(*tokens)[startPos + 2], 0, true, ";");
-	}
-
-	return SA_create_syntax_report(NULL, 3, false, NULL);
 }
 
 /**

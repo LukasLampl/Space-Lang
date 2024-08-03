@@ -132,7 +132,7 @@ struct kwLookup KEYWORD_LOOKUP[] = {
 	{"is", _KW_IS_},               {"try", _KW_TRY_},         {"catch", _KW_CATCH_},
 	{"continue", _KW_CONTINUE_},   {"const", _KW_CONST_},     {"include", _KW_INCLUDE_},
 	{"and", _KW_AND_},             {"or", _KW_OR_},           {"global", _KW_GLOBAL_},
-	{"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_}, {"export", _KW_EXPORT_},
+	{"secure", _KW_SECURE_},       {"private", _KW_PRIVATE_},
 	{"for", _KW_FOR_},             {"this", _KW_THIS_},       {"else", _KW_ELSE_},
 	{"int", _KW_INT_},             {"double", _KW_DOUBLE_},   {"float", _KW_FLOAT_},
 	{"char", _KW_CHAR_},           {"extends", _KW_EXTENDS_}, {"short", _KW_SHORT_},

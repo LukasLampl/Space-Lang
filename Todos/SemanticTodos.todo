@@ -27,9 +27,6 @@
 - [X] Check include trees
    - [X] Valid scope placement (MAIN only)
 
-- [ ] Check export trees
-   - [ ] Valid scope placement (MAIN only)
-
 - [X] Check try statement
    - [X] Check the runnable
    - [X] Valid scope placement (FUNCTION or MAIN only)

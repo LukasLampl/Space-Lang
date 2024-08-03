@@ -40,7 +40,7 @@ typedef enum TOKENTYPES {
     _KW_IS_,                         _KW_TRY_,                        _KW_CATCH_,
     _KW_CONTINUE_,                   _KW_CONST_,                      _KW_INCLUDE_,
     _KW_AND_,                        _KW_OR_,                         _KW_GLOBAL_,
-    _KW_SECURE_,                     _KW_PRIVATE_,                    _KW_EXPORT_,
+    _KW_SECURE_,                     _KW_PRIVATE_,
     _KW_FOR_,                        _KW_THIS_,                       _KW_ELSE_,
     _KW_CONSTRUCTOR_,                _KW_INT_,                        _KW_DOUBLE_,
     _KW_FLOAT_,                      _KW_CHAR_,                       _KW_VOID_,

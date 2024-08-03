@@ -185,7 +185,6 @@ NodeReport PG_create_class_constructor_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_class_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_try_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_catch_tree(TOKEN **tokens, size_t startPos);
-NodeReport PG_create_export_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_include_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_enum_tree(TOKEN **tokens, size_t startPos);
 int PG_predict_enumerator_count(TOKEN **tokens, size_t starPos);
@@ -417,8 +416,6 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
 		return PG_create_variable_tree(tokens, startPos);
 	case _KW_INCLUDE_:
 		return PG_create_include_tree(tokens, startPos);
-	case _KW_EXPORT_:
-		return PG_create_export_tree(tokens, startPos);
 	case _KW_FOR_:
 		return PG_create_for_statement_tree(tokens, startPos);
 	case _KW_ENUM_:
@@ -2449,27 +2446,6 @@ NodeReport PG_create_catch_tree(TOKEN **tokens, size_t startPos) {
 	topNode->rightNode = runnableReport.node;
 	skip += runnableReport.tokensToSkip;
 	return PG_create_node_report(topNode, skip);
-}
-
-/*
-Purpose: Generate a subtree for an inclusion
-Return Type: NodeReport => Contains topNode and tokensToSkip
-Params: TOKEN **tokens => Pointer to token array;
-		size_t startPos => Position from where to start constructing
-_______________________________
-Layout:
-
-[EXPORT]
-
-In the [EXPORT] node is a indicator and the exported
-file can be found in ´´´node->value´´´.
-_______________________________
-*/
-NodeReport PG_create_export_tree(TOKEN **tokens, size_t startPos) {
-	//Here: export "name";
-	TOKEN *token = &(*tokens)[startPos + 1];
-	Node *topNode = PG_create_node(token->value, _EXPORT_NODE_, token->line, token->tokenStart, false);
-	return PG_create_node_report(topNode, 3);
 }
 
 /*
