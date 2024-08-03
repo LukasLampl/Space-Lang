@@ -91,6 +91,8 @@ SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos);
 int SA_predict_expression(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int scope);
 SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall);
+SyntaxReport SA_is_finally_statement(TOKEN **tokens, size_t startPos);
+SyntaxReport SA_is_super_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_return_class_instance(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_continue_statement(TOKEN **tokens, size_t startPos);
@@ -678,11 +680,105 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int s
 		return SA_is_return_statement(tokens, startPos);
 	case _KW_CONTINUE_:
 		return SA_is_continue_statement(tokens, startPos);
+	case _KW_FINALLY_:
+		return SA_is_finally_statement(tokens, startPos);
+	case _KW_SUPER_:
+		return SA_is_super_statement(tokens, startPos);
 	default:
 		break;
 	}
 
 	return SA_create_syntax_report(NULL, 0, false, "N/A");
+}
+
+/**
+ * <p>
+ * Checks if a given token sequence matches the finally statement.
+ * </p>
+ * 
+ * <p>
+ * Examples:
+ * ```
+ * finally {}
+ * ```
+ * </p>
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_finally_statement(TOKEN **tokens, size_t startPos) {
+	if ((*tokens)[startPos].type != _KW_FINALLY_) {
+		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "finally");
+	}
+
+	SyntaxReport runnableReport = SA_is_runnable(tokens, startPos + 1, true);
+
+	if (runnableReport.errorOccured == true) {
+		return runnableReport;
+	}
+
+	return SA_create_syntax_report(NULL, runnableReport.tokensToSkip + 1, false, NULL);
+}
+
+/**
+ * <p>
+ * Checks if a given token sequence matches the super statement.
+ * </p>
+ * 
+ * <p>
+ * Examples:
+ * ```
+ * super.bake();
+ * super()
+ * ```
+ * </p>
+ * 
+ * @returns SyntaxReport, that expresses an error or contains the tokens to skip on success
+ * 
+ * @param **tokens  Pointer to the TOKEN array
+ * @param startPos  Position from where to start checking
+*/
+SyntaxReport SA_is_super_statement(TOKEN **tokens, size_t startPos) {
+	int skip = 1;
+
+	if ((*tokens)[startPos].type != _KW_SUPER_) {
+		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "super");
+	}
+
+	TOKEN *crucialToken = &(*tokens)[startPos + skip];
+	SyntaxReport rep = {NULL, 0, false, NULL};
+	skip++;
+
+	if (crucialToken->type == _OP_DOT_) {
+		rep = SA_is_identifier(tokens, startPos + skip);
+	} else if (crucialToken->type == _OP_RIGHT_BRACKET_) {
+		rep = SA_is_parameter(tokens, startPos + skip, _PARAM_FUNCTION_CALL_);
+	} else {
+		return SA_create_syntax_report(crucialToken, 0, true, ".\" or \"(");
+	}
+
+	if (rep.errorOccured == true) {
+		return rep;
+	}
+
+	skip += rep.tokensToSkip;
+
+	if (crucialToken->type == _OP_RIGHT_BRACKET_) {
+		if ((*tokens)[startPos + skip].type != _OP_LEFT_BRACKET_) {
+			return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ")");
+		}
+
+		skip++;
+	}
+
+	if ((*tokens)[startPos + skip].type != _OP_SEMICOLON_) {
+		return SA_create_syntax_report(&(*tokens)[startPos + skip], 0, true, ";");
+	}
+	
+	skip++;
+	return SA_create_syntax_report(NULL, skip, false, NULL);
 }
 
 /**

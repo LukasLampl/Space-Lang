@@ -151,6 +151,8 @@ NodeReport PG_create_simple_assignment_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_is_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_check_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_abort_operation_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_super_statement_tree(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_finally_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_return_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_do_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_while_statement_tree(TOKEN **tokens, size_t startPos);
@@ -459,6 +461,12 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
 			|| (*tokens)[startPos + 1].type == _KW_CONST_) {
 			return PG_create_variable_tree(tokens, startPos);
 		}
+		break;
+	case _KW_SUPER_:
+		return PG_create_super_statement_tree(tokens, startPos);
+		break;
+	case _KW_FINALLY_:
+		return PG_create_finally_tree(tokens, startPos);
 		break;
 	default:
 		if ((*tokens)[startPos].type == _KW_THIS_
@@ -1146,6 +1154,85 @@ NodeReport PG_create_abort_operation_tree(TOKEN **tokens, size_t startPos) {
 	}
 
 	return PG_create_node_report(topNode, 2);
+}
+
+/**
+ * <p>
+ * Creates a subtree for a super statement.
+ * </p>
+ * 
+ * <p><strong>Layout:</strong>
+ * [SUPER_STMT]
+ *         \
+ *       [ARGS]
+ * 
+ * The SUPER_STMT node holds the ARGS
+ * of the finally in the ```node->rightNode```
+ * field.
+ * 
+ * [SUPER_STMT]: Indicator for the super statement
+ * [ARGS]: The function or constructor of the lower class
+ * </p>
+ * 
+ * @returns NodeReport containing the topNode as well as how many tokens to skip
+ * 
+ * @param **tokens	Pointer to the tokens array
+ * @param startPos	Position from where the finally statement starts
+ */
+NodeReport PG_create_super_statement_tree(TOKEN **tokens, size_t startPos) {
+	TOKEN *token = &(*tokens)[startPos];
+	int skip = 1;
+	Node *topNode = PG_create_node("SUPER", _SUPER_STMT_NODE_, token->line, token->tokenStart, false);
+	token = &(*tokens)[startPos + skip];
+	skip++;
+
+	if (token->type == _OP_DOT_) {
+		NodeReport rep = PG_create_member_access_tree(tokens, startPos + skip, false);
+		topNode->rightNode = rep.node;
+		skip += rep.tokensToSkip + 1; //+1 for the ';'
+	} else if (token->type == _OP_RIGHT_BRACKET_) {
+		token = &(*tokens)[startPos + skip];
+		Node *constructorIndicator = PG_create_node("CONSTR", _SUPER_CONSRTUCTOR_CALL_NODE_, token->line, token->tokenStart, false);
+		size_t paramCount = PG_predict_argument_count(tokens, startPos + skip, false);
+		(void)PG_allocate_node_details(constructorIndicator, paramCount);
+		skip += (size_t)PG_add_params_to_node(constructorIndicator, tokens, startPos + skip, 0, _IDEN_NODE_);
+		topNode->rightNode = constructorIndicator;
+		skip += 2; //+2 for ')' and ';'
+	}
+
+	return PG_create_node_report(topNode, skip);
+}
+
+/**
+ * <p>
+ * Creates a subtree for a finally statement.
+ * </p>
+ * 
+ * <p><strong>Layout:</strong>
+ * [FINALLY_STMT]
+ *            \
+ *           [RUN]
+ * 
+ * The FINALLY_STMT node holds the runnable
+ * of the finally in the ```node->rightNode```
+ * field.
+ * 
+ * [FINALLY_STMT]: Indicator for the finally statement
+ * [RUN]: Runnable
+ * </p>
+ * 
+ * @returns NodeReport containing the topNode as well as how many tokens to skip
+ * 
+ * @param **tokens	Pointer to the tokens array
+ * @param startPos	Position from where the finally statement starts
+ */
+NodeReport PG_create_finally_tree(TOKEN **tokens, size_t startPos) {
+	TOKEN *token = &(*tokens)[startPos];
+	Node *topNode = PG_create_node("FINALLY", _FINALLY_STMT_NODE_, token->line, token->tokenStart, false);
+	
+	NodeReport runnableRep = PG_create_runnable_tree(tokens, startPos + 2, InBlock);
+	topNode->rightNode = runnableRep.node;
+	return PG_create_node_report(topNode, runnableRep.tokensToSkip + 2);
 }
 
 /*
@@ -2361,7 +2448,6 @@ NodeReport PG_create_catch_tree(TOKEN **tokens, size_t startPos) {
 	topNode->leftNode->leftNode = exceptionType.node;
 	topNode->rightNode = runnableReport.node;
 	skip += runnableReport.tokensToSkip;
-
 	return PG_create_node_report(topNode, skip);
 }
 

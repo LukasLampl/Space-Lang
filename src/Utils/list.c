@@ -83,8 +83,7 @@ struct List *CreateNewList(int initialCapacity) {
  * @param *ptr      Pointer to add into the list
  */
 void L_add_item(struct List *list, void *ptr) {
-	if (list == NULL
-		|| list->entries == NULL) {
+	if (list == NULL || list->entries == NULL) {
 		return;
 	}
 

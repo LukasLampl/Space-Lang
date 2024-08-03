@@ -132,6 +132,11 @@ struct varTypeLookup {
 	enum VarType type;
 };
 
+struct ScopePlacementReport {
+	struct SemanticReport rep;
+	SemanticEntry *entry;
+};
+
 struct varTypeLookup TYPE_LOOKUP[] = {
 	{"int", INTEGER}, {"double", DOUBLE}, {"float", FLOAT},
 	{"short", SHORT}, {"long", LONG}, {"char", CHAR},
@@ -142,7 +147,8 @@ void SA_init_globals();
 void SA_manage_runnable(Node *root, SemanticTable *table);
 void SA_add_parameters_to_runnable_table(SemanticTable *scopeTable, struct ParamTransferObject *params);
 
-struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry, SemanticTable *callScopeTable, enum FunctionCallType fnccType);
+struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry, SemanticTable *callScopeTable, SemanticTable *topNodeTable, enum FunctionCallType fnccType);
+void SA_add_super_statement_to_table(SemanticTable *table, Node *superNode);
 void SA_add_class_to_table(SemanticTable *table, Node *classNode);
 void SA_add_function_to_table(SemanticTable *table, Node *functionNode);
 void SA_add_normal_variable_to_table(SemanticTable *table, Node *varNode);
@@ -155,6 +161,7 @@ void SA_add_enumerators_to_enum_table(SemanticTable *enumTable, Node *topNode, s
 void SA_add_include_to_table(SemanticTable *table, Node *includeNode);
 void SA_add_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index);
 void SA_add_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index);
+void SA_add_finally_statement(SemanticTable *table, Node *finallyNode, Node *parentNode, int index);
 void SA_add_while_or_do_to_table(SemanticTable *table, Node *whileDoNode);
 void SA_add_if_to_table(SemanticTable *table, Node *ifNode);
 void SA_add_else_if_to_table(SemanticTable *table, Node *elseIfNode, Node *parentNode, int index);
@@ -165,6 +172,7 @@ void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 void SA_add_check_to_table(SemanticTable *table, Node *checkNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
 
+struct ScopePlacementReport SA_check_super_statement_scope_placement(SemanticTable *nextClassTable, Node *superNode);
 struct SemanticReport SA_handle_return_in_constructor(Node *returnNode);
 struct SemanticReport SA_handle_return_in_function(SemanticTable *functionTable, SemanticTable *table, Node *returnNode);
 int SA_is_function_already_defined(struct ParamTransferObject *params, SemanticTable *table, Node *functionNode);
@@ -180,7 +188,7 @@ char *SA_get_string(char bufferString[]);
 struct SemanticReport SA_evaluate_chained_condition(SemanticTable *table, Node *rootNode);
 int SA_is_obj_already_defined(char *key, SemanticTable *scopeTable);
 SemanticTable *SA_get_next_table_of_type(SemanticTable *currentTable, enum ScopeType type);
-struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
+struct SemanticReport SA_contains_constructor_of_type(SemanticTable *argTable, SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fnccType);
 int SA_get_node_param_count(struct Node *paramHolder);
 Node *SA_get_most_left_node_from_member_access(Node *node);
 
@@ -390,6 +398,10 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 	for (int i = 0; i < root->detailsCount; i++) {
 		Node *currentNode = root->details[i];
 
+		if (currentNode == NULL) {
+			continue;
+		}
+
 		switch (currentNode->type) {
 		case _VAR_NODE_:
 		case _CONST_NODE_:
@@ -428,6 +440,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 		case _CATCH_NODE_:
 			(void)SA_add_catch_statement(table, currentNode, root, i);
 			break;
+		case _FINALLY_STMT_NODE_:
+			(void)SA_add_finally_statement(table, currentNode, root, i);
+			break;
 		case _WHILE_STMT_NODE_:
 		case _DO_STMT_NODE_:
 			(void)SA_add_while_or_do_to_table(table, currentNode);
@@ -464,13 +479,16 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 		
 			break;
 		}
+		case _SUPER_STMT_NODE_:
+			(void)SA_add_super_statement_to_table(table, currentNode);
+			break;
 		case _PLUS_EQUALS_NODE_:
 		case _MINUS_EQUALS_NODE_:
     	case _EQUALS_NODE_:
 		case _MULTIPLY_EQUALS_NODE_:
 		case _DIVIDE_EQUALS_NODE_:
 		default:
-			(void)SA_check_assignments(table, currentNode);
+			//(void)SA_check_assignments(table, currentNode);
 			break;
 		}
 	}
@@ -497,6 +515,84 @@ void SA_add_parameters_to_runnable_table(SemanticTable *scopeTable, struct Param
 
 	(void)free(params->entries);
 	(void)free(params);
+}
+
+void SA_add_super_statement_to_table(SemanticTable *table, Node *superNode) {
+	SemanticTable *nextClass = SA_get_next_table_of_type(table, CLASS);
+
+	if (nextClass->type != CLASS) {
+		char *msg = "The super statement is only allowed within classes.";
+		char *exp = "The super statement invokes functions, constructors and variables from the inherited class, which is only available in a class.";
+		char *sugg = "Maybe move the \"super\" into a class function or constructor.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, superNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	struct ScopePlacementReport placementRep = SA_check_super_statement_scope_placement(nextClass, superNode);
+
+	if (placementRep.rep.status == ERROR) {
+		(void)THROW_ASSIGNED_EXCEPTION(placementRep.rep);
+		return;
+	}
+
+	SemanticTable *mainTable = SA_get_next_table_of_type(table, MAIN);
+	struct SemanticEntryReport classRefEntry = SA_get_entry_if_available(placementRep.entry->name, mainTable);
+	SemanticTable *classTable = (SemanticTable*)classRefEntry.entry->reference;
+
+	if (classRefEntry.entry == NULL) {
+		Node errorNode = {_NULL_, placementRep.entry->name, placementRep.entry->line, placementRep.entry->position, NULL, 0, NULL, NULL, false};
+		(void)THROW_NOT_DEFINED_EXCEPTION(&errorNode);
+		return;
+	} else if (classRefEntry.entry->internalType == EXTERNAL) {
+		(void)L_add_item(LIST_OF_EXTERNAL_ACCESSES, superNode->rightNode);
+		return;
+	}
+
+	if (superNode->rightNode->type == _SUPER_CONSRTUCTOR_CALL_NODE_) {
+		struct SemanticReport constructorRep = SA_contains_constructor_of_type(table, classTable, superNode->rightNode, CONSTRUCTOR_CHECK_CALL);
+
+		if (constructorRep.status == NA) {
+			(void)THROW_CONSTRUCTOR_NOT_DEFINED_EXCEPTION(superNode);
+		}
+	} else {
+		struct SemanticReport accessRep = SA_evaluate_member_access(superNode->rightNode, classTable);
+
+		if (accessRep.status == ERROR) {
+			(void)THROW_ASSIGNED_EXCEPTION(accessRep);
+		}
+	}
+
+	char *string = SA_get_string("SUPER");
+	SemanticEntry *referenceEntry = SA_create_semantic_entry(string, nullDec, P_GLOBAL, CLASS, NULL, superNode->line, superNode->position);
+	(void)HM_add_entry(string, referenceEntry, table->symbolTable);
+}
+
+struct ScopePlacementReport SA_check_super_statement_scope_placement(SemanticTable *nextClassTable, Node *superNode) {
+	SemanticEntry *inheritEntry = NULL;
+
+	for (int i = 0; i < nextClassTable->paramList->load; i++) {
+		SemanticEntry *entry = (SemanticEntry*)L_get_item(nextClassTable->paramList, i);
+
+		if (entry == NULL) {
+			continue;
+		} else if (entry->internalType == CLASS_INHERIT) {
+			inheritEntry = entry;
+			break;
+		}
+	}
+
+	if (inheritEntry == NULL) {
+		char *msg = "The super statement is only allowed within classes, that were inherited.";
+		char *exp = "The super statement invokes functions, constructors and variables from the subclass, which is only available in a inherited class.";
+		char *sugg = "Maybe move the \"super\" into a inherited class function or constructor.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, superNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		return (struct ScopePlacementReport){rep, NULL};
+	}
+
+	return (struct ScopePlacementReport){nullRep, inheritEntry};
 }
 
 void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
@@ -777,7 +873,7 @@ void SA_add_constructor_to_table(SemanticTable *table, Node *constructorNode) {
 		return;
 	}
 
-	struct SemanticReport hasConstructor = SA_contains_constructor_of_type(table, constructorNode, CONSTRUCTOR_CALL);
+	struct SemanticReport hasConstructor = SA_contains_constructor_of_type(table, table, constructorNode, CONSTRUCTOR_CALL);
 
 	if ((int)hasConstructor.status == SUCCESS) {
 		(void)THROW_CONSTRUCTOR_ALREADY_DEFINED_EXCEPTION(constructorNode);
@@ -894,10 +990,10 @@ void SA_add_include_to_table(SemanticTable *table, struct Node *includeNode) {
  * @param index         Index at the parent node (evaluates if the statement is before a "catch" statement)
  */
 void SA_add_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode, int index) {
-	if (table->type == ENUM) {
-		char *msg = "Try statements are not allowed in enums.";
-		char *exp = "There's no possibility to run something in enums.";
-		char *sugg = "Remove the \"try\" from the enum.";
+	if (table->type == ENUM || table->type == CLASS) {
+		char *msg = "Try statements are not allowed in enums or classes.";
+		char *exp = "There's no possibility to run something in enums or a class.";
+		char *sugg = "Remove the \"try\" from the enum or class.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, tryNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
 		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
@@ -917,8 +1013,8 @@ void SA_add_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode,
 	}
 
 	char *name = SA_get_string("try");
-	SemanticTable *tempTable = SA_create_new_scope_table(NULL, TRY, table, NULL, tryNode->line, tryNode->position);
-	struct SemanticEntry *tryEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, tempTable, tryNode->line, tryNode->position);
+	SemanticTable *tempTable = SA_create_new_scope_table(tryNode, TRY, table, NULL, tryNode->line, tryNode->position);
+	struct SemanticEntry *tryEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, TRY, tempTable, tryNode->line, tryNode->position);
 	(void)HM_add_entry(name, tryEntry, table->symbolTable);
 	(void)SA_manage_runnable(tryNode, tempTable);
 }
@@ -934,10 +1030,10 @@ void SA_add_try_statement(SemanticTable *table, Node *tryNode, Node *parentNode,
  * @param index         Index at the parent node (evaluates if the statement is after a "try" statement)
  */
 void SA_add_catch_statement(SemanticTable *table, Node *catchNode, Node *parentNode, int index) {
-	if (table->type == ENUM) {
-		char *msg = "Catch statements are not allowed in enums.";
-		char *exp = "There's no possibility to run something in enums.";
-		char *sugg = "Remove the \"catch\" from the enum.";
+	if (table->type == ENUM || table->type == CLASS) {
+		char *msg = "Catch statements are not allowed in enums or classes.";
+		char *exp = "There's no possibility to run something in enums or a class.";
+		char *sugg = "Remove the \"catch\" from the enum or class.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, catchNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
 		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
@@ -963,9 +1059,40 @@ void SA_add_catch_statement(SemanticTable *table, Node *catchNode, Node *parentN
 	struct VarDec errorType = {CLASS_REF, 0, errorHandleNode->leftNode->value, true};
 	struct SemanticEntry *param = SA_create_semantic_entry(errorHandleNode->value, errorType, P_GLOBAL, VARIABLE, NULL, errorHandleNode->line, errorHandleNode->position);
 	(void)L_add_item(tempTable->paramList, param);
-	struct SemanticEntry *catchEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, WHILE, tempTable, catchNode->line, catchNode->position);
+	struct SemanticEntry *catchEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, CATCH, tempTable, catchNode->line, catchNode->position);
 	(void)HM_add_entry(name, catchEntry, table->symbolTable);
 	(void)SA_manage_runnable(catchNode->rightNode, tempTable);
+}
+
+void SA_add_finally_statement(SemanticTable *table, Node *finallyNode, Node *parentNode, int index) {
+	if (table->type == ENUM || table->type == CLASS) {
+		char *msg = "Finally statements are not allowed in enums or classes.";
+		char *exp = "There's no possibility to run something in enums or a class.";
+		char *sugg = "Remove the \"finally\" from the enum or class.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, finallyNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	struct Node *estimatedCatchNode = parentNode->details[index - 1];
+
+	if (estimatedCatchNode == NULL
+		|| estimatedCatchNode->type != _CATCH_NODE_) {
+		char *msg = "Finally statements have to be placed after a catch statement.";
+		char *exp = "Cannot handle an error, if it hasn't been ctached yet.";
+		char *sugg = "Maybe add a catch statement before.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, finallyNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	char *name = SA_get_string("finally");
+	SemanticTable *tempTable = SA_create_new_scope_table(finallyNode->rightNode, FINALLY, table, NULL, finallyNode->line, finallyNode->position);
+	struct SemanticEntry *finallyEntry = SA_create_semantic_entry(name, nullDec, P_GLOBAL, FINALLY, tempTable, finallyNode->line, finallyNode->position);
+	(void)HM_add_entry(name, finallyEntry, table->symbolTable);
+	(void)SA_manage_runnable(finallyNode->rightNode, tempTable);
 }
 
 void SA_add_while_or_do_to_table(SemanticTable *table, Node *whileDoNode) {
@@ -1376,7 +1503,7 @@ int SA_validate_checkable(struct SemanticReport memberAccessReport) {
 void SA_check_assignments(SemanticTable *table, Node *node) {
 	if (table->type == ENUM || table->type == CLASS) {
 		char *msg = "Assignments are only allowed in callables.";
-		char *exp = "Is an assignment is not in a callable, it can't be invoked.";
+		char *exp = "When an assignment is not in a callable, it can't be invoked.";
 		char *sugg = "Maybe move the assignment into a callable like a function, constructor or MAIN.";
 		struct ErrorContainer errCont = {msg, exp, sugg};
 		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
@@ -1662,7 +1789,7 @@ struct SemanticReport SA_evaluate_instance_creation(SemanticTable *table, Node *
 		}
 
 		SemanticTable *classTable = (SemanticTable*)classEntry.entry->reference;
-		struct SemanticReport containsConstructor = SA_contains_constructor_of_type(classTable, node, CONSTRUCTOR_CHECK_CALL);
+		struct SemanticReport containsConstructor = SA_contains_constructor_of_type(table, classTable, node, CONSTRUCTOR_CHECK_CALL);
 
 		if (containsConstructor.status == NA) {
 			return SA_create_semantic_report(nullDec, ERROR, node, CONSTRUCTOR_NOT_DEFINED_EXCEPTION, nullCont);
@@ -1723,7 +1850,7 @@ char *SA_get_string(char bufferString[]) {
  * @param *paramHolder      The new constructor node, that holds the params
  * @param fncctype          Determines the "strictness", for declarations it is stricter than checks
  */
-struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
+struct SemanticReport SA_contains_constructor_of_type(SemanticTable *argTable, SemanticTable *classTable, struct Node *paramHolder, enum FunctionCallType fncctype) {
 	if (classTable == NULL || paramHolder == NULL) {
 		return SA_create_semantic_report(nullDec, NA, NULL, NONE, nullCont);
 	}
@@ -1747,7 +1874,7 @@ struct SemanticReport SA_contains_constructor_of_type(SemanticTable *classTable,
 			continue;
 		}
 		
-		struct SemanticReport fncCallRep = SA_evaluate_function_call(paramHolder, entry, classTable, fncctype);
+		struct SemanticReport fncCallRep = SA_evaluate_function_call(paramHolder, entry, classTable, argTable, fncctype);
 		
 		//Checks if another constructor is already defined with the same parameter types,
 		//on error there is, else not
@@ -1979,16 +2106,17 @@ struct SemanticReport SA_evaluate_term_side(struct VarDec expectedType, Node *no
 	default: break;
 	}
 
+	printf("EXP: %i | %i | %i | %s\n", expectedType.type, expectedType.dimension, expectedType.constant, expectedType.typeName == NULL ? "null" : expectedType.typeName);
+	printf("PRE: %i | %i | %i | %s\n", predictedType.type, predictedType.dimension, predictedType.constant, predictedType.typeName == NULL ? "null" : predictedType.typeName);
+
 	if (useReport == true) {
+		predictedType = tempRep.dec;
+
 		if (tempRep.status == ERROR) {
 			return tempRep;
 		}
-
-		predictedType = tempRep.dec;
 	}
 
-	printf("EXP: %i | %i | %i | %s\n", expectedType.type, expectedType.dimension, expectedType.constant, expectedType.typeName == NULL ? "null" : expectedType.typeName);
-	printf("PRE: %i | %i | %i | %s\n", predictedType.type, predictedType.dimension, predictedType.constant, predictedType.typeName == NULL ? "null" : predictedType.typeName);
 	if ((int)SA_are_VarTypes_equal(expectedType, predictedType, false) == false) {
 		return SA_create_expected_got_report(expectedType, predictedType, node);
 	}
@@ -2355,7 +2483,7 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
 	retType = entry.entry->dec;
 	
 	if (node->type == _FUNCTION_CALL_NODE_) {
-		struct SemanticReport rep = SA_evaluate_function_call(node, entry.entry, table, FNC_CALL);
+		struct SemanticReport rep = SA_evaluate_function_call(node, entry.entry, table, table, FNC_CALL);
 
 		if (rep.status == ERROR) {
 			return rep;
@@ -2390,7 +2518,7 @@ struct SemanticReport SA_check_restricted_member_access(Node *node, SemanticTabl
  * @param *callScopeTable   Table from which the function call was called
  */
 struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *functionEntry,
-												SemanticTable *callScopeTable, enum FunctionCallType fnccType) {
+												SemanticTable *callScopeTable, SemanticTable *topNodeTable, enum FunctionCallType fnccType) {
 	if (functionEntry == NULL || topNode == NULL || callScopeTable == NULL) {
 		return nullRep;
 	}
@@ -2421,7 +2549,7 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
 		SemanticEntry *currentEntryParam = (SemanticEntry*)L_get_item(ref->paramList, i);
 		
 		struct VarDec currentNodeType = {CUSTOM, 0, NULL};
-		struct SemanticReport idenRep = SA_execute_identifier_analysis(currentNode, ref, &currentNodeType, currentEntryParam, fnccType);
+		struct SemanticReport idenRep = SA_execute_identifier_analysis(currentNode, topNodeTable, &currentNodeType, currentEntryParam, fnccType);
 
 		if (idenRep.status == ERROR) {
 			return idenRep;
@@ -2429,7 +2557,8 @@ struct SemanticReport SA_evaluate_function_call(Node *topNode, SemanticEntry *fu
 
 		if ((int)SA_are_VarTypes_equal(currentEntryParam->dec, currentNodeType, strictCheck) == false) {
 			struct Node *errorNode = currentNode->type == _MEM_CLASS_ACC_NODE_ ? currentNode->leftNode : currentNode;
-			return SA_create_expected_got_report(currentEntryParam->dec, currentNodeType, errorNode);
+			struct SemanticReport exitRep = SA_create_semantic_report(nullDec, ERROR, NULL, NONE, nullCont);
+			return fnccType == FNC_CALL ? SA_create_expected_got_report(currentEntryParam->dec, currentNodeType, errorNode) : exitRep;
 		}
 	}
 
@@ -2565,7 +2694,7 @@ struct SemanticReport SA_execute_identifier_analysis(Node *currentNode, Semantic
 		if (dec.type == CUSTOM && fnccType == CONSTRUCTOR_CHECK_CALL) {
 			struct SemanticReport termRep = SA_evaluate_simple_term(currentEntryParam->dec, currentNode, callScopeTable);
 			dec = currentEntryParam->dec;
-
+			
 			if (termRep.status == ERROR) {
 				return termRep;
 			}
@@ -2886,8 +3015,6 @@ struct SemanticReport SA_evaluate_assignment(struct VarDec expectedType, Node *t
 	}
 
 	struct SemanticReport rep = SA_evaluate_simple_term(expectedType, topNode, table);
-	printf("T: %i %i %s %i\n", expectedType.type, expectedType.dimension, expectedType.typeName == NULL ? "(null)" : expectedType.typeName, expectedType.constant);
-	printf("T_: %i %i %s %i\n", rep.dec.type, rep.dec.dimension, rep.dec.typeName == NULL ? "(null)" : rep.dec.typeName, rep.dec.constant);
 
 	if (rep.dec.type == null && expectedType.type == CLASS_REF) {
 		return nullRep;
@@ -3060,7 +3187,7 @@ SemanticTable *SA_create_new_scope_table(Node *root, enum ScopeType scope,
 	int paramCount = params == NULL ? 0 : params->params;
 	int rootParamCount = root == NULL ? 0 : root->detailsCount;
 	SemanticTable *table = SA_create_semantic_table(paramCount, rootParamCount, NULL, scope, line, position);
-	table->name = root->value;
+	table->name = root == NULL ? "(null)" : root->value;
 	table->parent = parent;
 	(void)SA_add_parameters_to_runnable_table(table, params);
 	return table;
@@ -3303,16 +3430,26 @@ struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType,
 		} else if (innerNode->type == _RUNNABLE_NODE_
 			|| innerNode->type == _VAR_TYPE_NODE_) {
 			continue;
-		} else if (stdType == EXT_CLASS_OR_INTERFACE) {
-			if ((int)strcmp(topNode->value, innerNode->value) == 0) {
-				(void)THROW_CLASS_INHERITANCE_EXCEPTION(innerNode, "Can't inherit the class itself.");
-				return NULL;
-			}
 		}
 		
 		Node *typeNode = innerNode->detailsCount > 0 ? innerNode->details[0] : NULL;
 		struct VarDec type = SA_get_VarType(typeNode, false, table);
-		SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, type, P_GLOBAL, stdType, NULL, innerNode->line, innerNode->position);
+		enum ScopeType scopeType = stdType;
+
+		if (stdType == EXT_CLASS_OR_INTERFACE) {
+			if ((int)strcmp(topNode->value, innerNode->value) == 0) {
+				(void)THROW_CLASS_INHERITANCE_EXCEPTION(innerNode, "Can't inherit the class itself.");
+				return NULL;
+			}
+
+			if (innerNode->type == _INHERITANCE_NODE_) {
+				scopeType = CLASS_INHERIT;
+			} else if (innerNode->type == _INTERFACE_NODE_) {
+				scopeType = CLASS_INTERFACE;
+			}
+		}
+
+		SemanticEntry *entry = SA_create_semantic_entry(innerNode->value, type, P_GLOBAL, scopeType, NULL, innerNode->line, innerNode->position);
 		obj->entries[actualParams++] = entry;
 	}
 

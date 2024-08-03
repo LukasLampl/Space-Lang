@@ -1,2 +1,19 @@
-var:int a = 0;
-a += 2;
+class B => {
+    var a = 20;
+
+    this::constructor(param:int) {
+
+    }
+
+    fn invoke() -> void {
+
+    }
+}
+
+class A extends B => {
+    fn ertest(myParam:int) {
+        var testVar = new B(myParam);
+        super(myParam);
+        super.invoke();
+    }
+}
