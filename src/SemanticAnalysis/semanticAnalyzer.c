@@ -3519,6 +3519,18 @@ struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType,
 	return obj;
 }
 
+/**
+ * <p>
+ * Checks if all functions, that are defined in the included interface were
+ * added in the class.
+ * </p>
+ * 
+ * @param *table			Current SemanticTable
+ * @param *classNode		Node that holds the class definition
+ * @param *interfaceName	The name of the interface that was included
+ * 
+ * @throws MissingInterfaceFunctionImplementationException - When one or more functions are not in the class, although they were defined in the interface
+ */
 void SA_is_interface_embedded_correctly(SemanticTable *table, Node *classNode, char *interfaceName) {
 	SemanticTable *mainTable = (SemanticTable*)SA_get_next_table_of_type(table, MAIN);
 	struct HashMapEntry *entry = (struct HashMapEntry*)HM_get_entry(interfaceName, mainTable->symbolTable);
@@ -3530,13 +3542,12 @@ void SA_is_interface_embedded_correctly(SemanticTable *table, Node *classNode, c
 	Node *runnableNode = classNode->rightNode;
 	SemanticEntry *interfaceEntry = (SemanticEntry*)entry->value;
 	SemanticTable *interfaceTable = (SemanticTable*)interfaceEntry->reference;
-	struct List *missingInterfaceFunctionList = CreateNewList(16);
+	struct List *missingInterfaceFunctionList = (struct List*)CreateNewList(16);
 	size_t missingInterfaceFunctionNameLength = 0;
 	int foundFunctions = 0;
 	int foundInterfaceFunctions = 0;
 
 	for (int i = 0; i < interfaceTable->paramList->size; i++) {
-
 		struct SemanticEntry *functionEntry = (struct SemanticEntry*)L_get_item(interfaceTable->paramList, i);
 		int foundFunction = false;
 
@@ -3570,9 +3581,22 @@ void SA_is_interface_embedded_correctly(SemanticTable *table, Node *classNode, c
 		(void)SA_create_missing_interface_function_exception(missingInterfaceFunctionNameLength, missingInterfaceFunctionList, classNode);
 	}
 
+	(void)FREE_LIST(missingInterfaceFunctionList);
 	return;
 }
 
+/**
+ * <p>
+ * Creates and throws an InterfaceFunctionNotImplementedException
+ * with all missing functions.
+ * </p>
+ * 
+ * @param missingInterfaceFunctionNameLength	Length of the function names that were not implemented
+ * @param *missingInterfaceFunctionList			List with all missing functions
+ * @param *classNode							Node that holds the class definition
+ * 
+ * @throws MissingInterfaceFunctionImplementationException
+ */
 void SA_create_missing_interface_function_exception(size_t missingInterfaceFunctionNameLength,
 													struct List *missingInterfaceFunctionList,
 													Node *classNode) {
