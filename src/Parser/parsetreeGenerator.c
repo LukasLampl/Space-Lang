@@ -138,6 +138,7 @@ void PG_print_cpu_time(float cpu_time_used);
 NodeReport PG_create_runnable_tree(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RUNNABLE_TYPE type);
 int PG_predict_function_call(TOKEN **tokens, size_t startPos);
+NodeReport PG_create_interface_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_else_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_else_if_statement_tree(TOKEN **tokens, size_t startPos);
 NodeReport PG_create_if_statement_tree(TOKEN **tokens, size_t startPos);
@@ -465,6 +466,9 @@ NodeReport PG_get_report_based_on_token(TOKEN **tokens, size_t startPos, enum RU
 	case _KW_FINALLY_:
 		return PG_create_finally_tree(tokens, startPos);
 		break;
+	case _KW_INTERFACE_:
+		return PG_create_interface_statement_tree(tokens, startPos);
+		break;
 	default:
 		if ((*tokens)[startPos].type == _KW_THIS_
 			&& (*tokens)[startPos + 3].type == _KW_CONSTRUCTOR_) {
@@ -504,6 +508,15 @@ int PG_predict_function_call(TOKEN **tokens, size_t startPos) {
 	}
 
 	return counter;
+}
+
+NodeReport PG_create_interface_statement_tree(TOKEN **tokens, size_t startPos) {
+	TOKEN *token = &(*tokens)[startPos + 1];
+	Node *node = PG_create_node(token->value, _INTERFACE_STMT_NODE_, token->line, token->tokenStart, false);
+
+	NodeReport runnableTree = PG_create_runnable_tree(tokens, startPos + 4, InBlock);
+	node->rightNode = runnableTree.node;
+	return PG_create_node_report(node, runnableTree.tokensToSkip + 4);
 }
 
 /**
@@ -2368,7 +2381,7 @@ NodeReport PG_create_class_tree(TOKEN **tokens, size_t startPos) {
 		}
 
 		(void)PG_allocate_node_details(classNode, offset + arguments);
-		skip += PG_add_params_to_node(classNode, tokens, startPos + skip + 1, offset, _INTERFACE_NODE_);
+		skip += PG_add_params_to_node(classNode, tokens, startPos + skip + 1, offset, _INTERFACE_NODE_) + 1;
 	}
 
 	skip += 2;

@@ -91,6 +91,7 @@ SyntaxReport SA_is_runnable_function_call(TOKEN **tokens, size_t startPos);
 int SA_predict_expression(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int scope);
 SyntaxReport SA_is_class_object_access(TOKEN **tokens, size_t startPos, int independentCall);
+SyntaxReport SA_is_interface_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_finally_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_super_statement(TOKEN **tokens, size_t startPos);
 SyntaxReport SA_is_return_statement(TOKEN **tokens, size_t startPos);
@@ -324,7 +325,8 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 		
 		if (currentToken->type == __EOF__) {
 			break;
-		} else if (currentToken->type == _OP_LEFT_BRACE_ && (withBlock == true || withBlock == 3)) {
+		} else if (currentToken->type == _OP_LEFT_BRACE_ &&
+			(withBlock == true || withBlock == 3 || withBlock == 4)) {
 			break;
 		}
 
@@ -339,8 +341,12 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
 
 		if (KWRet == -1) {
 			return isKWBasedRunnable;
-		} else if (KWRet == 0 || KWRet == 1) {
+		} else if (KWRet == 1) {
 			continue;
+		}
+
+		if ((*tokens)[startPos + jumper].type == __EOF__) {
+			break;
 		}
 		
 		SyntaxReport isNKWBasedRunnable = SA_is_non_keyword_based_runnable(tokens, startPos + jumper);
@@ -377,7 +383,6 @@ SyntaxReport SA_is_runnable(TOKEN **tokens, size_t startPos, int withBlock) {
  * @returns
  * <ul>
  * <li>-1 - Return report
- * <li>0 - Continue the loop
  * <li>1 - Non-success pass to next check
  * </ul>
  * 
@@ -398,10 +403,10 @@ int SA_handle_runnable_rep(SyntaxReport report, TOKEN **tokens, size_t startPos,
 		} else {
 			if (withBlock == true) {
 				return -1;
-			} else {
-				(*jumper)++;
-				return 0;
 			}
+
+			(*jumper)++;
+			return -1;
 		}
 	} else if (report.errorOccured == false) {
 		(*jumper) += report.tokensToSkip > 0 ? report.tokensToSkip : 1;
@@ -616,6 +621,10 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int s
 		return SA_is_is_statement(tokens, startPos);
 	}
 
+	if (scope == 4 && (*tokens)[startPos].type != _KW_FUNCTION_) {
+		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<FUNCTION>");
+	}
+
 	switch ((*tokens)[startPos].type) {
 	case _KW_GLOBAL_:
 	case _KW_SECURE_:
@@ -663,6 +672,8 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int s
 		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "<EXPRESSION>");
 	case _KW_INCLUDE_:
 		return SA_is_include(tokens, startPos);
+	case _KW_INTERFACE_:
+		return SA_is_interface_statement(tokens, startPos);
 	case _KW_ENUM_:
 		return SA_is_enum(tokens, startPos);
 	case _KW_THIS_:
@@ -686,6 +697,28 @@ SyntaxReport SA_is_keyword_based_runnable(TOKEN **tokens, size_t startPos, int s
 	}
 
 	return SA_create_syntax_report(NULL, 0, false, "N/A");
+}
+
+SyntaxReport SA_is_interface_statement(TOKEN **tokens, size_t startPos) {
+	if ((*tokens)[startPos].type != _KW_INTERFACE_) {
+		return SA_create_syntax_report(&(*tokens)[startPos], 0, true, "interface");
+	}
+
+	if ((int)SA_is_root_identifier(&(*tokens)[startPos + 1]) == false) {
+		return SA_create_syntax_report(&(*tokens)[startPos + 1], 0, true, "<IDENTIFIER>");
+	}
+
+	if ((*tokens)[startPos + 2].type != _OP_CLASS_CREATOR_) {
+		return SA_create_syntax_report(&(*tokens)[startPos + 2], 0, true, "=>");
+	}
+
+	SyntaxReport runnableRep = SA_is_runnable(tokens, startPos + 4, 4);
+
+	if (runnableRep.errorOccured == true) {
+		return runnableRep;
+	}
+
+	return SA_create_syntax_report(NULL, runnableRep.tokensToSkip + 4, false, NULL);
 }
 
 /**

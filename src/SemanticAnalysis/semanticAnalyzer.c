@@ -61,6 +61,7 @@ enum ErrorType {
 	NON_BOOLEAN_CHECK_EXCEPTION,						//The condition does not end in a boolean
 	NON_COMPARABLE_CHECK_EXCEPTION,
 	CLASS_INHERITANCE_EXCEPTION,
+	INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION,
 
 	ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION			//If an illegal arightmetic operation was made or an operation is misplaced
 };
@@ -171,7 +172,11 @@ void SA_add_return_to_table(SemanticTable *table, Node *returnNode);
 void SA_add_for_to_table(SemanticTable *table, Node *forNode);
 void SA_add_check_to_table(SemanticTable *table, Node *checkNode);
 void SA_check_assignments(SemanticTable *table, Node *node);
+void SA_add_interface_to_table(SemanticTable *table, Node *interfaceNode);
 
+void SA_create_missing_interface_function_exception(size_t missingInterfaceFunctionNameLength, struct List *missingInterfaceFunctionList, Node *classNode);
+void SA_is_interface_embedded_correctly(SemanticTable *table, Node *classNode, char *interfaceName);
+int SA_is_class_defined(SemanticTable *table, char *className);
 struct ScopePlacementReport SA_check_super_statement_scope_placement(SemanticTable *nextClassTable, Node *superNode);
 struct SemanticReport SA_handle_return_in_constructor(Node *returnNode);
 struct SemanticReport SA_handle_return_in_function(SemanticTable *functionTable, SemanticTable *table, Node *returnNode);
@@ -246,6 +251,7 @@ char *SA_convert_ScopeType_to_string(enum ScopeType type);
 
 void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep);
 
+void THROW_INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION(struct SemanticReport rep);
 void THROW_CLASS_INHERITANCE_EXCEPTION(Node *node, char *message);
 void THROW_NON_COMPARABLE_CHECK_EXCEPTION(struct SemanticReport rep);
 void THROW_NON_BOOLEAN_CHECK_EXCEPTION(struct SemanticReport rep);
@@ -482,6 +488,9 @@ void SA_manage_runnable(Node *root, SemanticTable *table) {
 		case _SUPER_STMT_NODE_:
 			(void)SA_add_super_statement_to_table(table, currentNode);
 			break;
+		case _INTERFACE_STMT_NODE_:
+			(void)SA_add_interface_to_table(table, currentNode);
+			break;
 		case _PLUS_EQUALS_NODE_:
 		case _MINUS_EQUALS_NODE_:
     	case _EQUALS_NODE_:
@@ -515,6 +524,36 @@ void SA_add_parameters_to_runnable_table(SemanticTable *scopeTable, struct Param
 
 	(void)free(params->entries);
 	(void)free(params);
+}
+
+void SA_add_interface_to_table(SemanticTable *table, Node *interfaceNode) {
+	if (table->type != MAIN) {
+		char *msg = "Interfaces are only allowed within the MAIN scope.";
+		char *exp = "Interfaces are a basic layout of functions which a class has to contain and thus have to be in the MAIN scope.";
+		char *sugg = "Maybe move the \"interface\" into the MAIN scope.";
+		struct ErrorContainer errCont = {msg, exp, sugg};
+		struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, interfaceNode, STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+		(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+		return;
+	}
+
+	char *name = interfaceNode->value;
+	enum Visibility vis = P_GLOBAL;
+	Node *runnableNode = interfaceNode->rightNode;
+
+	if ((int)SA_is_obj_already_defined(name, table) == true) {
+		struct SemanticReport alreadyDefRep = SA_create_already_defined_exception_report(name, table, interfaceNode);
+		(void)THROW_ALREADY_DEFINED_EXCEPTION(alreadyDefRep);
+		return;
+	}
+
+	SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, INTERFACE, table, NULL, interfaceNode->line, interfaceNode->position);
+	scopeTable->name = name;
+	
+	struct VarDec type = {INTERFACE_DEF, 0, name, false};
+	SemanticEntry *referenceEntry = SA_create_semantic_entry(name, type, vis, INTERFACE, scopeTable, interfaceNode->line, interfaceNode->position);
+	(void)HM_add_entry(name, referenceEntry, table->symbolTable);
+	(void)SA_manage_runnable(runnableNode, scopeTable);
 }
 
 void SA_add_super_statement_to_table(SemanticTable *table, Node *superNode) {
@@ -627,7 +666,19 @@ void SA_add_class_to_table(SemanticTable *table, Node *classNode) {
 }
 
 void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
-	if (table->type != MAIN && table->type != CLASS) {
+	int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
+	
+	if (table->type == INTERFACE) {
+		if ((int)SA_get_node_param_count(functionNode->details[paramsCount]) > 0) {
+			char *msg = "Functions in an interface cannot have a runnable.";
+			char *exp = "An interface function is only existent for forcing a certain layout in a class.";
+			char *sugg = "Maybe remove the content of the runnable.";
+			struct ErrorContainer errCont = {msg, exp, sugg};
+			struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, functionNode->details[paramsCount], STATEMENT_MISPLACEMENT_EXCEPTION, errCont);
+			(void)THROW_STATEMENT_MISPLACEMENT_EXEPTION(rep);
+			return;
+		}
+	} else if (table->type != MAIN && table->type != CLASS) {
 		char *msg = "Functions are only allowed in classes and the outermost scope.";
 		char *exp = "A function can't be defined anywhere, since it is a code snippet to run when called. If defined in another function for instance, the function is not reachable anymore.";
 		char *sugg = "Maybe move the \"function\" to a MAIN or CLASS scope.";
@@ -646,7 +697,6 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 	}
 	
 	struct VarDec type = SA_get_VarType(functionNode->details == NULL ? NULL : functionNode->details[0], false, table);
-	int paramsCount = functionNode->detailsCount - 1; //-1 because of the runnable
 	struct ParamTransferObject *params = SA_get_params(functionNode, VARIABLE, table);
 
 	if ((int)SA_is_obj_already_defined(name, table) == true) {
@@ -657,13 +707,18 @@ void SA_add_function_to_table(SemanticTable *table, Node *functionNode) {
 		}
 	}
 
-	Node *runnableNode = functionNode->details[paramsCount];
-	SemanticTable *scopeTable = SA_create_new_scope_table(runnableNode, FUNCTION, table, params, functionNode->line, functionNode->position);
+	SemanticTable *scopeTable = SA_create_new_scope_table(NULL, FUNCTION, table, params, functionNode->line, functionNode->position);
 	scopeTable->name = name;
 
 	SemanticEntry *referenceEntry = SA_create_semantic_entry(name, type, vis, FUNCTION, scopeTable, functionNode->line, functionNode->position);
-	(void)HM_add_entry(name, referenceEntry, table->symbolTable);
-	(void)SA_manage_runnable(runnableNode, scopeTable);
+
+	if (table->type == INTERFACE) {
+		(void)L_add_item(table->paramList, referenceEntry);
+	} else {
+		(void)HM_add_entry(name, referenceEntry, table->symbolTable);
+		Node *runnableNode = functionNode->details[paramsCount];
+		(void)SA_manage_runnable(runnableNode, scopeTable);
+	}
 }
 
 /**
@@ -1903,9 +1958,11 @@ int SA_get_node_param_count(struct Node *paramHolder) {
 	int actualNodeParamCount = 0;
 
 	for (int i = 0; i < paramHolder->detailsCount; i++) {
-		if (paramHolder->details[i] == NULL) {
+		Node *currentNode = paramHolder->details[i];
+
+		if (currentNode == NULL) {
 			continue;
-		} if (paramHolder->details[i]->type == _RUNNABLE_NODE_) {
+		} if (currentNode->type == _RUNNABLE_NODE_) {
 			continue;
 		}
 
@@ -3444,8 +3501,13 @@ struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType,
 
 			if (innerNode->type == _INHERITANCE_NODE_) {
 				scopeType = CLASS_INHERIT;
+				
+				if ((int)SA_is_class_defined(table, innerNode->value) == false) {
+					(void)THROW_NOT_DEFINED_EXCEPTION(innerNode);
+				}
 			} else if (innerNode->type == _INTERFACE_NODE_) {
 				scopeType = CLASS_INTERFACE;
+				(void)SA_is_interface_embedded_correctly(table, topNode, innerNode->value);
 			}
 		}
 
@@ -3455,6 +3517,123 @@ struct ParamTransferObject *SA_get_params(Node *topNode, enum ScopeType stdType,
 
 	obj->params = actualParams;
 	return obj;
+}
+
+void SA_is_interface_embedded_correctly(SemanticTable *table, Node *classNode, char *interfaceName) {
+	SemanticTable *mainTable = (SemanticTable*)SA_get_next_table_of_type(table, MAIN);
+	struct HashMapEntry *entry = (struct HashMapEntry*)HM_get_entry(interfaceName, mainTable->symbolTable);
+	
+	if (entry == NULL) {
+		return;
+	}
+
+	Node *runnableNode = classNode->rightNode;
+	SemanticEntry *interfaceEntry = (SemanticEntry*)entry->value;
+	SemanticTable *interfaceTable = (SemanticTable*)interfaceEntry->reference;
+	struct List *missingInterfaceFunctionList = CreateNewList(16);
+	size_t missingInterfaceFunctionNameLength = 0;
+	int foundFunctions = 0;
+	int foundInterfaceFunctions = 0;
+
+	for (int i = 0; i < interfaceTable->paramList->size; i++) {
+
+		struct SemanticEntry *functionEntry = (struct SemanticEntry*)L_get_item(interfaceTable->paramList, i);
+		int foundFunction = false;
+
+		if (functionEntry == NULL) {
+			continue;
+		}
+
+		for (int c = 0; c < runnableNode->detailsCount; c++) {
+			Node *currentNode = runnableNode->details[c];
+
+			if (currentNode == NULL) {
+				continue;
+			} else if (currentNode->type != _FUNCTION_NODE_) {
+				continue;
+			} else if ((int)strcmp(currentNode->value, functionEntry->name) == 0) {
+				foundFunctions++;
+				foundFunction = true;
+				break;
+			}
+		}
+
+		if (foundFunction == false) {
+			missingInterfaceFunctionNameLength += (size_t)strlen(functionEntry->name) + 4; //+4 for the "\", "
+			(void)L_add_item(missingInterfaceFunctionList, functionEntry->name);
+		}
+
+		foundInterfaceFunctions++;
+	}
+
+	if (foundFunctions != foundInterfaceFunctions) {
+		(void)SA_create_missing_interface_function_exception(missingInterfaceFunctionNameLength, missingInterfaceFunctionList, classNode);
+	}
+
+	return;
+}
+
+void SA_create_missing_interface_function_exception(size_t missingInterfaceFunctionNameLength,
+													struct List *missingInterfaceFunctionList,
+													Node *classNode) {
+	size_t maxSize = 23 + missingInterfaceFunctionNameLength + 14;
+	size_t restSize = maxSize;
+	char *buffer = (char*)calloc(maxSize, sizeof(char));
+	(void)snprintf(buffer, 24, "The interface function ");
+	restSize -= 23;
+
+	for (int i = 0; i < missingInterfaceFunctionList->load; i++) {
+		char *name = (char*)L_get_item(missingInterfaceFunctionList, i);
+		(void)strncat(buffer, "\"", 2);
+		(void)strncat(buffer, name, restSize);
+		(void)strncat(buffer, "\"", 2);
+
+		if (i + 1 < missingInterfaceFunctionList->load) {
+			(void)strncat(buffer, ", ", 3);
+			restSize -= 2;
+		}
+
+		restSize -= (size_t)strlen(name) + 2;
+	}
+
+	(void)strncat(buffer, " are missing.", 15);
+	char *exp = "If a class implements an interface, the class has to have all functions that are defined in the interface.";
+	char *sugg = "Maybe add the missing functions.";
+	struct ErrorContainer errCont = {buffer, exp, sugg};
+	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, classNode, INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION, errCont);
+	(void)THROW_INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION(rep);
+	return;
+}
+
+/**
+ * <p>
+ * Checks if the extended class is existent or not.
+ * </p>
+ * 
+ * @returns
+ * <ul>
+ * <li>true - Class is existent
+ * <li>false - Class is non-existent
+ * </ul>
+ * 
+ * @param *table		Current SemanticTable
+ * @param *className	Name of the class to search for
+ */
+int SA_is_class_defined(SemanticTable *table, char *className) {
+	SemanticTable *mainTable = (SemanticTable*)SA_get_next_table_of_type(table, MAIN);
+	struct HashMapEntry *entry = (struct HashMapEntry*)HM_get_entry(className, mainTable->symbolTable);
+	
+	if (entry == NULL) {
+		return false;
+	}
+
+	SemanticEntry *classTable = (SemanticEntry*)entry->value;
+
+	if (classTable->internalType != CLASS) {
+		return false;
+	}
+
+	return true;
 }
 
 /**
@@ -3782,6 +3961,14 @@ void THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(struct SemanticReport rep
 	(void)THROW_EXCEPTION("ArithmeticOperationMisplacementException", rep);
 }
 
+void THROW_INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION(struct SemanticReport rep) {
+	(void)THROW_EXCEPTION("InterfaceFunctionNotImplementedException", rep);
+
+	if (rep.container.description != NULL) {
+		(void)free(rep.container.description);
+	}
+}
+
 void THROW_CLASS_INHERITANCE_EXCEPTION(Node *node, char *message) {
 	struct ErrorContainer errCont = {message, NULL, NULL};
 	struct SemanticReport rep = SA_create_semantic_report(nullDec, ERROR, node, CLASS_INHERITANCE_EXCEPTION, errCont);
@@ -3995,6 +4182,9 @@ void THROW_ASSIGNED_EXCEPTION(struct SemanticReport rep) {
 		break;
 	case ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION:
 		(void)THROW_ARITHMETIC_OPERATION_MISPLACEMENT_EXCEPTION(rep);
+		break;
+	case INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION:
+		(void)THROW_INTERFACE_FUNCTION_NOT_IMPLEMENTED_EXCEPTION(rep);
 		break;
 	default:
 		(void)THROW_EXCEPTION("Exception", rep);

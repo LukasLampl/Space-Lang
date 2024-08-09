@@ -1,19 +1,21 @@
-class B => {
-    var a = 20;
+interface ActionListener => {
+    fn mouseClicked() {}
 
-    this::constructor(param:int) {
+    fn mouseEntered() {}
 
-    }
-
-    fn invoke() -> void {
-
-    }
+    fn mouseExited() {}
 }
 
-class A extends B => {
-    fn ertest(myParam:int) {
-        var testVar = new B(myParam);
-        super(myParam);
-        super.invoke();
+interface Text => {
+    fn createText() {}
+}
+
+class Apple => {
+
+}
+
+class Button extends Apple with ActionListener, Text => {
+    fn test() {
+
     }
 }

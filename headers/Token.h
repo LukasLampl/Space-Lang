@@ -46,6 +46,7 @@ typedef enum TOKENTYPES {
     _KW_FLOAT_,                      _KW_CHAR_,                       _KW_VOID_,
     _KW_BOOLEAN_,                    _KW_SHORT_,                      _KW_LONG_,
     _KW_EXTENDS_,                    _KW_FINALLY_,                    _KW_SUPER_,
+    _KW_INTERFACE_,
     _INTEGER_,
     _CHARACTER_ARRAY_,               _OPERATOR_,                      _OP_PLUS_,
     _OP_MINUS_,                      _OP_MULTIPLY_,                   _OP_DIVIDE_,
