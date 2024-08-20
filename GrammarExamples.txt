@@ -33,16 +33,16 @@ var:double typedAss = (a < 10) ? a : b;
 var:Object typedObj = new Object();
 
 ### FUNCTION ###
-function test(param1, param2) {}
-function test(*param1, param2) {}
-function:int add(num1, num2) {}
-function:String greet() {}
-global function test(param1, param2) {}
-global function test(param1, *param2) {}
+fn test(param1, param2) {}
+fn test(*param1, param2) {}
+fn:int add(num1, num2) {}
+fn:String greet() {}
+global fn test(param1, param2) {}
+global fn test(param1, *param2) {}
 
-function:int add(num1:int, num2:int) {}
-function print(text:String) {}
-function:double getPi() {}
+fn:int add(num1:int, num2:int) {}
+fn print(text:String) {}
+fn:double getPi() {}
 
 ### IF ###
 if (a < 10 and b == 20 or c >= 30) {
